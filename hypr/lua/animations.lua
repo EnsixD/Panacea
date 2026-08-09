@@ -5,6 +5,9 @@ function animations.apply()
     hl.curve("myBezier",     { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
     hl.curve("easeOutQuint", { type = "bezier", points = { {0.23, 1.0}, {0.32, 1.0} } })
     hl.curve("liquid",       { type = "bezier", points = { {0.16, 1.0}, {0.3,  1.0} } })
+    -- для жестов: разгон помягче, торможение длиннее — движение читается как «уехало»
+    hl.curve("gestureOut",   { type = "bezier", points = { {0.4,  0.0}, {0.2,  1.0} } })
+    hl.curve("gestureIn",    { type = "bezier", points = { {0.12, 0.9}, {0.15, 1.0} } })
 
     -- Окна: popin, но мягче
     hl.animation({ leaf = "windows",    enabled = true, speed = 7, bezier = "myBezier", style = "popin 80%" })

@@ -22,36 +22,27 @@ hl.config({
     },
 })
 
+-- ---------------------------------------------------------------- жесты
+--
+-- Используем ВСТРОЕННЫЕ действия Hyprland, а не свои Lua-обработчики.
+-- Разница принципиальная: обработчик срабатывает один раз, когда пальцы уже
+-- отпущены, поэтому окно до последнего стояло на месте. Встроенные жесты
+-- (CCloseTrackpadGesture, CFullscreenTrackpadGesture и другие) обновляются
+-- на каждом движении, и окно едет за пальцами в реальном времени.
+--
+-- Обратный ход тоже работает: не довёл жест до конца — окно вернётся на место.
+
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 hl.gesture({ fingers = 4, direction = "horizontal", action = "move" })
--- 3 пальца вверх -> на весь экран
-hl.gesture({
-    fingers = 3,
-    direction = "up",
-    action = function()
-        hl.dispatch(hl.dsp.window.fullscreen())
-    end
-})
 
--- 3 пальца вниз -> закрыть активное окно
-hl.gesture({
-    fingers = 3,
-    direction = "down",
-    action = function()
-        hl.dispatch(hl.dsp.window.close())
-    end
-})
+-- 3 пальца вниз -> окно уезжает вниз за пальцами и закрывается
+hl.gesture({ fingers = 3, direction = "down", action = "close" })
 
--- 4 пальца вниз -> плавающее окно по центру (был старый жест на 3 пальца)
-hl.gesture({
-    fingers = 4,
-    direction = "down",
-    action = function()
-        hl.dispatch(hl.dsp.window.float({ action = "toggle" }))
-        hl.dispatch(hl.dsp.window.resize({ x = 850, y = 650, relative = false }))
-        hl.dispatch(hl.dsp.window.center())
-    end
-})
+-- 3 пальца вверх -> разворачивается на весь экран
+hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
+
+-- 4 пальца вниз -> открепить окно и таскать его
+hl.gesture({ fingers = 4, direction = "down", action = "float" })
 
 hl.device({
     name        = "epic-mouse-v1",
