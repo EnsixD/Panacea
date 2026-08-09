@@ -11,12 +11,8 @@ fish_add_path $HOME/.local/bin
 
 set -g fish_greeting ""
 
-function fish_prompt
-    set_color brgreen
-    echo -n (prompt_pwd) # Mostra la cartella corrente abbreviata
-    set_color normal
-    echo -n " > "
-end
+# Строка приглашения живёт в functions/fish_prompt.fish.
+# Определение здесь перекрывало файл, и правки в него не действовали.
 
 
 
