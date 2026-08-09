@@ -5,7 +5,7 @@
 A Hyprland desktop where the entire shell is a single capsule at the top of the screen. No bar, no tray, no scattered popups — Wi‑Fi, Bluetooth, power profiles, the app launcher, the clipboard, the media player, the power menu and the settings all live inside the same pill, which morphs into whatever you asked for and flows back when you're done.
 
 <p align="center">
-  <img src="preview/01-pill.png" alt="The collapsed pill" width="100%">
+  <img src="preview/01-pill.jpg" alt="The collapsed pill" width="100%">
 </p>
 
 <p align="center">
@@ -24,8 +24,8 @@ It hugs the top edge of the screen with two concave corners, the way a hardware 
 
 <table>
   <tr>
-    <td width="50%"><img src="preview/02-controls.png" alt="Quick settings"></td>
-    <td width="50%"><img src="preview/05-launcher.png" alt="App launcher"></td>
+    <td width="50%"><img src="preview/02-controls.jpg" alt="Quick settings"></td>
+    <td width="50%"><img src="preview/05-launcher.jpg" alt="App launcher"></td>
   </tr>
   <tr>
     <td align="center"><b>Quick settings</b><br><sub>Wi‑Fi, Bluetooth and power profiles</sub></td>
@@ -34,26 +34,45 @@ It hugs the top edge of the screen with two concave corners, the way a hardware 
 </table>
 
 <p align="center">
-  <img src="preview/06-power.png" alt="Power menu" width="76%">
+  <img src="preview/06-power.jpg" alt="Power menu" width="76%">
   <br><sub><b>Power menu</b> — press once to arm, again to confirm</sub>
 </p>
 
 <table>
   <tr>
-    <td width="50%"><img src="preview/07-notifications.png" alt="Notifications"></td>
-    <td width="50%"><img src="preview/09-calendar.png" alt="Calendar"></td>
+    <td width="50%"><img src="preview/07-notifications.jpg" alt="Notifications"></td>
+    <td width="50%"><img src="preview/09-calendar.jpg" alt="Calendar"></td>
   </tr>
   <tr>
     <td align="center"><b>Notifications</b><br><sub>Live and history, with do-not-disturb</sub></td>
     <td align="center"><b>Calendar</b><br><sub>Opens from the clock in quick settings</sub></td>
   </tr>
   <tr>
-    <td><img src="preview/08-audio.png" alt="Sound"></td>
-    <td><img src="preview/11-calc.png" alt="Calculator"></td>
+    <td><img src="preview/08-audio.jpg" alt="Sound"></td>
+    <td><img src="preview/11-calc.jpg" alt="Calculator"></td>
   </tr>
   <tr>
     <td align="center"><b>Sound</b><br><sub>Volume and output device</sub></td>
     <td align="center"><b>Calculator</b><br><sub>Type an expression, Enter copies</sub></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%"><img src="preview/13-files.jpg" alt="File manager"></td>
+    <td width="50%"><img src="preview/15-media.jpg" alt="Media player"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Files</b><br><sub>Bookmarks, trash, context menu, drag-out</sub></td>
+    <td align="center"><b>Media</b><br><sub>Images, GIFs and video with trim and crop</sub></td>
+  </tr>
+  <tr>
+    <td><img src="preview/14-record.jpg" alt="Screen recorder"></td>
+    <td><img src="preview/16-lock.jpg" alt="Lock screen"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Recorder</b><br><sub>FPS, folder, system audio and microphone</sub></td>
+    <td align="center"><b>Lock screen</b><br><sub>Wallpaper blurs behind the password capsule</sub></td>
   </tr>
 </table>
 
@@ -63,7 +82,7 @@ Fifteen colour schemes, each with its own wallpaper. Previews are cached
 thumbnails, so the grid opens instantly rather than decoding 35MB of JPEG.
 
 <p align="center">
-  <img src="preview/10-themes.png" alt="Theme picker" width="100%">
+  <img src="preview/10-themes.jpg" alt="Theme picker" width="100%">
 </p>
 
 ### Authentication
@@ -72,7 +91,7 @@ polkit prompts render as a pill page. There is no separate agent window,
 and no second agent running — polkit permits only one.
 
 <p align="center">
-  <img src="preview/12-polkit.png" alt="Polkit prompt" width="72%">
+  <img src="preview/12-polkit.jpg" alt="Polkit prompt" width="72%">
 </p>
 
 ### Settings, with a live preview
@@ -80,7 +99,7 @@ and no second agent running — polkit permits only one.
 The pill configures itself. Every appearance option is edited in a draft and rendered in a miniature pill above the controls, so you never adjust a slider blind. Nothing touches the real shell until you press **Apply**.
 
 <p align="center">
-  <img src="preview/03-settings.png" alt="Settings — appearance" width="72%">
+  <img src="preview/03-settings.jpg" alt="Settings — appearance" width="72%">
 </p>
 
 ### Every shortcut, rebindable
@@ -88,7 +107,7 @@ The pill configures itself. Every appearance option is edited in a draft and ren
 The second tab lists every named binding in the system. Click one, press the combination you want — it appears live as you hold the keys — and apply. While capturing, Hyprland is parked in an empty submap so your keypress is recorded instead of firing the action it is currently bound to.
 
 <p align="center">
-  <img src="preview/04-shortcuts.png" alt="Settings — shortcuts" width="100%">
+  <img src="preview/04-shortcuts.jpg" alt="Settings — shortcuts" width="100%">
 </p>
 
 ---

@@ -2,7 +2,7 @@ if status is-interactive
     # Commands to run in interactive sessions can go here
 end
 
-set -gx BROWSER zen-browser
+set -gx BROWSER firefox
 
 
 # opencode and local bin
