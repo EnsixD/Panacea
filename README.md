@@ -4,9 +4,6 @@
 
 A Hyprland desktop where the entire shell is a single capsule at the top of the screen. No bar, no tray, no scattered popups — Wi‑Fi, Bluetooth, power profiles, the app launcher, the clipboard, the media player, the power menu and the settings all live inside the same pill, which morphs into whatever you asked for and flows back when you're done.
 
-<p align="center">
-  <img src="preview/01-pill.jpg" alt="The collapsed pill" width="100%">
-</p>
 
 <p align="center">
   <sub>Arch Linux · Hyprland · Quickshell · Fish</sub>
