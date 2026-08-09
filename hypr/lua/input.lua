@@ -16,7 +16,9 @@ hl.config({
             scroll_factor = 1.0,
             disable_while_typing = true,
             tap_to_click = true,
-            drag_lock = true,
+            -- drag_lock оставлял кнопку «нажатой» после отпускания пальца:
+            -- выделение продолжалось само по себе, пока не тапнешь ещё раз
+            drag_lock = false,
             clickfinger_behavior = true,
         },
     },

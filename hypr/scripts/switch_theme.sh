@@ -1,7 +1,14 @@
 #!/bin/bash
 
 # --- 1. GESTIONE ARGOMENTI ---
-if [ -n "$1" ]; then
+# Ultimo tema scelto: serve a ripristinarlo al riavvio (--restore).
+STATE_FILE="$HOME/.config/hypr/.current-theme"
+DEFAULT_THEME="dark_mountains"
+
+if [ "$1" = "--restore" ]; then
+    THEME_NAME=$(cat "$STATE_FILE" 2>/dev/null | tr -d '[:space:]')
+    [ -z "$THEME_NAME" ] && THEME_NAME="$DEFAULT_THEME"
+elif [ -n "$1" ]; then
     THEME_NAME="$1"
 else
     THEME_NAME=$(ls ~/.config/hypr/themes/*.conf | xargs -n 1 basename | sed 's/\.conf//' | tofi --prompt-text " Tema: ")
@@ -9,6 +16,16 @@ fi
 
 [ -z "$THEME_NAME" ] && exit 0
 THEME_FILE="$HOME/.config/hypr/themes/$THEME_NAME.conf"
+
+# tema salvato ma sparito dal disco: torniamo al default
+if [ ! -f "$THEME_FILE" ]; then
+    THEME_NAME="$DEFAULT_THEME"
+    THEME_FILE="$HOME/.config/hypr/themes/$THEME_NAME.conf"
+    [ -f "$THEME_FILE" ] || exit 1
+fi
+
+# ricordiamo la scelta prima di applicarla
+printf '%s\n' "$THEME_NAME" > "$STATE_FILE"
 
 # --- 2. APPLICAZIONE TEMA HYPRLAND ---
 cp "$THEME_FILE" "$HOME/.config/hypr/theme.conf"

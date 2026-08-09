@@ -28,7 +28,7 @@ hl.on("hyprland.start", function ()
   -- Два агента одновременно зарегистрироваться не могут.
   -- hl.exec_cmd("systemctl --user start hyprpolkitagent")
   hl.exec_cmd("hyprsunset -t 5000")
-  hl.exec_cmd("/home/ensi/.config/hypr/scripts/switch_theme.sh dark_mountains")
+  hl.exec_cmd("/home/ensi/.config/hypr/scripts/switch_theme.sh --restore")
   hl.exec_cmd("rm -f $XDG_RUNTIME_DIR/wob.fifo && mkfifo $XDG_RUNTIME_DIR/wob.fifo")
   hl.exec_cmd("cliphist list | tail -n +501 | cliphist delete")
 end)
