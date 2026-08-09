@@ -12,11 +12,13 @@ Item {
     property int    pixelSize: 15
     property bool   bold: true
     property int    dur: 190
+    // Минимальная ширина: не даём пилюле дёргаться при переходе 9 -> 10
+    property real   minWidth: 0
 
     // то, что реально нарисовано: подменяется в середине анимации
     property string shown: value
 
-    implicitWidth: label.implicitWidth
+    implicitWidth: Math.max(minWidth, label.implicitWidth)
     implicitHeight: label.implicitHeight
     clip: true
 

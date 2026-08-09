@@ -302,13 +302,96 @@ Item {
                 Layout.fillWidth: true
                 spacing: 10
 
-                Text {
+                // часы: клик открывает календарь
+                Rectangle {
                     Layout.fillWidth: true
-                    text: view.sys.tr("Быстрые настройки")
-                    color: view.sys.colMuted
-                    font {
-                        family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4
-                        bold: true; capitalization: Font.AllUppercase; letterSpacing: 1
+                    Layout.preferredHeight: 40
+                    radius: 12
+                    color: clockMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    RowLayout {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 4
+                        spacing: 10
+
+                        Text {
+                            text: view.sys.timeText
+                            color: view.sys.colFg
+                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 8; bold: true }
+                        }
+                        ColumnLayout {
+                            spacing: -1
+                            Text {
+                                text: view.sys.dateLong
+                                color: view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                            }
+                            Text {
+                                text: view.sys.tr("Календарь")
+                                color: clockMa.containsMouse ? view.sys.colOn
+                                                            : Qt.rgba(1, 1, 1, 0.28)
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5 }
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: clockMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.sys.togglePage("cal")
+                    }
+                }
+
+                // колокольчик: активные уведомления и история
+                Rectangle {
+                    id: bellBtn
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 32
+                    radius: 16
+                    color: bellMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
+                    border.color: view.sys.colLine
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: 160 } }
+
+                    scale: bellMa.pressed ? 0.9 : (bellMa.containsMouse ? 1.08 : 1.0)
+                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
+
+                    Glyph {
+                        anchors.fill: parent
+                        glyph: String.fromCodePoint(view.sys.dnd ? 0xF009B : 0xF009A)
+                        color: view.sys.dnd ? view.sys.colMuted
+                             : bellMa.containsMouse ? view.sys.colFg : view.sys.colMuted
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize - 3
+                    }
+
+                    // счётчик непрочитанных
+                    Rectangle {
+                        width: 15; height: 15; radius: 8
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: -3
+                        visible: view.sys.notifications.count > 0
+                        color: view.sys.colOn
+                        Text {
+                            anchors.centerIn: parent
+                            text: view.sys.notifications.count > 9 ? "9+" : view.sys.notifications.count
+                            color: "#ffffff"
+                            font { family: view.sys.fontFam; pixelSize: 9; bold: true }
+                        }
+                    }
+
+                    MouseArea {
+                        id: bellMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.sys.togglePage("notif")
                     }
                 }
 
@@ -325,12 +408,12 @@ Item {
                     scale: gearMa.pressed ? 0.9 : (gearMa.containsMouse ? 1.08 : 1.0)
                     Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: String.fromCodePoint(0xF0493)
+                    Glyph {
+                        anchors.fill: parent
+                        glyph: String.fromCodePoint(0xF0493)
                         color: gearMa.containsMouse ? view.sys.colFg : view.sys.colMuted
-                        font { family: view.sys.fontFam; pixelSize: view.sys.iconSize - 2 }
-                        Behavior on color { ColorAnimation { duration: 160 } }
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize - 2
                         rotation: gearMa.containsMouse ? 60 : 0
                         Behavior on rotation {
                             NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
@@ -378,6 +461,18 @@ Item {
                 }
             }
 
+            // ------------------------------------------------------ звук
+            Tile {
+                icon: String.fromCodePoint(0xF057E)
+                label: view.sys.tr("Звук")
+                sub: view.sys.sinkName.length ? view.sys.sinkName
+                                              : view.sys.tr("Нет устройств")
+                on: false
+                accent: "#a855f7"
+                onIconClicked: view.sys.togglePage("audio")
+                onBodyClicked: view.sys.togglePage("audio")
+            }
+
             // ------------------------------------------- режимы питания
             RowLayout {
                 Layout.fillWidth: true
@@ -402,6 +497,137 @@ Item {
                     profile: "performance"
                     accent: "#f59e0b"
                 }
+            }
+
+            // ----------------------------------------------------- не спать
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 44
+                radius: 12
+                color: view.sys.keepAwake
+                       ? Qt.rgba(0.96, 0.62, 0.04, 0.16)
+                       : (awakeMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05))
+                border.color: view.sys.keepAwake ? Qt.rgba(0.96, 0.62, 0.04, 0.40)
+                                                 : view.sys.colLine
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: 160 } }
+                Behavior on border.color { ColorAnimation { duration: 160 } }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 13
+                    anchors.rightMargin: 13
+                    spacing: 11
+
+                    Glyph {
+                        Layout.preferredWidth: 22
+                        Layout.preferredHeight: 22
+                        glyph: String.fromCodePoint(view.sys.keepAwake ? 0xF0176 : 0xF0177)
+                        color: view.sys.keepAwake ? "#f59e0b" : view.sys.colMuted
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize - 2
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Coffee mode"
+                        color: view.sys.keepAwake ? view.sys.colFg : view.sys.colMuted
+                        font {
+                            family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2
+                            bold: view.sys.keepAwake
+                        }
+                    }
+                    // переключатель
+                    Rectangle {
+                        Layout.preferredWidth: 38
+                        Layout.preferredHeight: 21
+                        radius: 11
+                        color: view.sys.keepAwake ? "#f59e0b" : Qt.rgba(1, 1, 1, 0.14)
+                        Behavior on color { ColorAnimation { duration: 180 } }
+                        Rectangle {
+                            width: 17; height: 17; radius: 9
+                            y: 2
+                            x: view.sys.keepAwake ? parent.width - width - 2 : 2
+                            color: "#ffffff"
+                            Behavior on x {
+                                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                            }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: awakeMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.sys.keepAwake = !view.sys.keepAwake
+                }
+            }
+
+            // ------------------------------------------------ системный трей
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 2
+                spacing: 8
+                visible: view.sys.trayItems.values.length > 0
+
+                Text {
+                    text: view.sys.tr("Трей")
+                    color: view.sys.colMuted
+                    font {
+                        family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4
+                        bold: true; capitalization: Font.AllUppercase; letterSpacing: 1
+                    }
+                }
+
+                Repeater {
+                    model: view.sys.trayItems
+
+                    Rectangle {
+                        id: trayBtn
+                        required property var modelData
+
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        radius: 10
+                        color: trayMa.containsMouse ? Qt.rgba(1, 1, 1, 0.13) : Qt.rgba(1, 1, 1, 0.05)
+                        border.color: view.sys.colLine
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        scale: trayMa.pressed ? 0.9 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutBack } }
+
+                        Image {
+                            anchors.fill: parent
+                            anchors.margins: 7
+                            source: String(trayBtn.modelData.icon || "")
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                        }
+
+                        MouseArea {
+                            id: trayMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+                            onClicked: mouse => {
+                                if (mouse.button === Qt.MiddleButton)
+                                    trayBtn.modelData.secondaryActivate();
+                                else
+                                    trayBtn.modelData.activate();
+                                view.sys.collapse();
+                            }
+                        }
+
+                        ToolTip.visible: trayMa.containsMouse
+                        ToolTip.text: String(trayBtn.modelData.tooltipTitle
+                                             || trayBtn.modelData.title || "")
+                        ToolTip.delay: 400
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
             }
         }
 

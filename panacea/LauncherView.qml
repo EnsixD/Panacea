@@ -1,3 +1,4 @@
+import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -37,10 +38,43 @@ Item {
         return starts.concat(contains);
     }
 
+    // ------------------------------------------------------------ калькулятор
+    // Если в строке только числа и знаки — считаем и показываем ответ первым.
+    // Enter копирует результат. Разрешён строго безопасный набор символов,
+    // чтобы в вычисление не попало ничего постороннего.
+    readonly property bool isMath: {
+        var q = query.trim();
+        if (q.length < 3) return false;
+        if (!/[+\-*/^%]/.test(q)) return false;         // должен быть хоть один знак
+        return /^[0-9\s+\-*/().,%^]+$/.test(q);
+    }
+
+    readonly property string mathResult: {
+        if (!isMath) return "";
+        try {
+            var e = query.trim().replace(/,/g, ".").replace(/\^/g, "**");
+            var r = Function('"use strict"; return (' + e + ')')();
+            if (typeof r !== "number" || !isFinite(r)) return "";
+            // убираем хвост из-за плавающей точки: 0.1+0.2 -> 0.3
+            return String(parseFloat(r.toFixed(10)));
+        } catch (err) {
+            return "";
+        }
+    }
+
+    Process { id: pCopyCalc }
+    function copyResult() {
+        if (mathResult.length === 0) return;
+        pCopyCalc.command = ["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", mathResult];
+        pCopyCalc.running = true;
+        sys.closeLauncher();
+    }
+
     onQueryChanged: index = 0
     onResultsChanged: if (index >= results.length) index = Math.max(0, results.length - 1)
 
     function launch() {
+        if (view.mathResult.length > 0) { copyResult(); return; }
         var app = results[index];
         if (!app) return;
         app.execute();
@@ -118,10 +152,57 @@ Item {
         }
 
         // ------------------------------------------------------------ список
+        // результат вычисления — первой строкой
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 52
+            visible: view.mathResult.length > 0
+            radius: 12
+            color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.14)
+            border.color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.40)
+            border.width: 1
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                spacing: 12
+
+                Glyph {
+                    Layout.preferredWidth: 22
+                    Layout.preferredHeight: 22
+                    glyph: String.fromCodePoint(0xF00EC)
+                    color: view.sys.colOn
+                    fontFam: view.sys.fontFam
+                    size: view.sys.iconSize - 2
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: view.mathResult
+                    color: view.sys.colFg
+                    elide: Text.ElideRight
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 3; bold: true }
+                }
+                Text {
+                    text: "Enter"
+                    color: view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5 }
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: view.copyResult()
+            }
+        }
+
         ListView {
             id: list
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(view.results.length, view.maxRows) * 46
+            visible: view.mathResult.length === 0
+            Layout.preferredHeight: view.mathResult.length > 0 ? 0
+                                  : Math.min(view.results.length, view.maxRows) * 46
             // Высоту анимирует капсула. Своя анимация здесь стартовала с нуля
             // и накладывалась на неё: панель сперва растягивалась, потом
             // «доразворачивалась» — те самые два этапа.
@@ -232,7 +313,7 @@ Item {
 
         Text {
             Layout.fillWidth: true
-            visible: view.results.length === 0
+            visible: view.results.length === 0 && view.mathResult.length === 0
             text: view.sys.tr("Ничего не найдено")
             color: view.sys.colMuted
             horizontalAlignment: Text.AlignHCenter

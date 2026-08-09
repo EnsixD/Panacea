@@ -5,6 +5,10 @@ import Quickshell.Wayland
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.UPower
+import Quickshell.Services.Pipewire
+import Quickshell.Services.Notifications
+import Quickshell.Services.SystemTray
+import Quickshell.Services.Polkit
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
 
@@ -51,13 +55,14 @@ PanelWindow {
             property string bind_pillBt: "SUPER + SHIFT + B"
             property string bind_pillClip: "SUPER + V"
             property string bind_pillPower: "CTRL + ALT + delete"
+            property string bind_pillNotif: "SUPER + SHIFT + N"
             property string bind_terminal: "SUPER + T"
             property string bind_terminalAlt: "SUPER + Return"
             property string bind_closeWindow: "SUPER + Q"
             property string bind_browser: "SUPER + F"
             property string bind_fullscreen: "SUPER + SHIFT + F"
             property string bind_exitHypr: "SUPER + SHIFT + M"
-            property string bind_themeSwitch: "SUPER + SHIFT + T"
+            property string bind_themeSwitch: "SUPER + W"
             property string bind_floatCenter: "SUPER + SHIFT + Space"
             property string bind_fileManager: "SUPER + E"
             property string bind_fileManagerTui: "SUPER + SHIFT + E"
@@ -81,13 +86,14 @@ PanelWindow {
         pillBt:       "SUPER + SHIFT + B",
         pillClip:     "SUPER + V",
         pillPower:    "CTRL + ALT + delete",
+        pillNotif:    "SUPER + SHIFT + N",
         terminal:       "SUPER + T",
         terminalAlt:    "SUPER + Return",
         closeWindow:    "SUPER + Q",
         browser:        "SUPER + F",
         fullscreen:     "SUPER + SHIFT + F",
         exitHypr:       "SUPER + SHIFT + M",
-        themeSwitch:    "SUPER + SHIFT + T",
+        themeSwitch:    "SUPER + W",
         floatCenter:    "SUPER + SHIFT + Space",
         fileManager:    "SUPER + E",
         fileManagerTui: "SUPER + SHIFT + E",
@@ -191,6 +197,29 @@ PanelWindow {
         "24 часа": "24-hour",
         "12 часов": "12-hour",
         "Быстрые настройки": "Quick settings",
+        "оформление системы": "system appearance",
+        "Применяю…": "Applying…",
+        "Результат скопирован": "Result copied",
+        "Требуются права": "Authentication required",
+        "Пароль": "Password",
+        "Подтвердить": "Authenticate",
+        "Отмена": "Cancel",
+        "Неверный пароль": "Wrong password",
+        "Календарь": "Calendar",
+        "Сегодня": "Today",
+        "Звук": "Sound",
+        "Устройство вывода": "Output device",
+        "Нет устройств": "No devices",
+        "Громкость": "Volume",
+        "Трей": "Tray",
+        "Активные": "Active",
+        "История": "History",
+        "Нет активных": "Nothing active",
+        "Уведомления": "Notifications",
+        "Не беспокоить": "Do not disturb",
+        "Очистить": "Clear",
+        "Пока ничего нет": "Nothing yet",
+        "Режим «не беспокоить» включён": "Do not disturb is on",
         "Показать все страницы": "Show every page",
         "Остановить показ": "Stop the tour",
         "Пролистает все страницы по очереди": "Cycles through every page in turn",
@@ -343,7 +372,9 @@ PanelWindow {
     property bool morphing: false
     onExpandedChanged: { morphing = true; morphTimer.restart() }
     onPageChanged:     { morphing = true; morphTimer.restart() }
-    Timer { id: morphTimer; interval: root.animMs; onTriggered: root.morphing = false }
+    // Держим дольше самой анимации: высота страницы приходит с задержкой
+    // в кадр-другой, и без запаса второй шаг ехал бы по «быстрой» кривой.
+    Timer { id: morphTimer; interval: root.animMs + 140; onTriggered: root.morphing = false }
 
     // ------------------------------------------------------------ состояние UI
     property bool expanded: false
@@ -392,13 +423,16 @@ PanelWindow {
     readonly property bool playerOpen: expanded && page === "player"
     // Настройки — единственная страница, которая отрывается от верхней кромки
     // и встаёт по центру экрана: содержимого много, у верха оно было тесным.
-    readonly property bool settingsMode: expanded && page === "settings"
+    // Страницы, которые отрываются от верхней кромки и встают по центру:
+    // содержимого много, у верха оно тесное.
+    readonly property bool settingsMode:
+        expanded && (page === "settings" || page === "theme")
 
     // Вкладка «Клавиши» раскладывается в две колонки, поэтому окно шире:
     // вертикальный список не влезал и уезжал за нижнюю кромку экрана.
     property bool wideSettings: false
     readonly property int settingsW: {
-        var want = wideSettings ? 1120 : 720;
+        var want = page === "theme" ? 900 : (wideSettings ? 1120 : 720);
         var lim = (screen ? screen.width : 1920) - 80;
         return Math.min(want, lim);
     }
@@ -448,6 +482,208 @@ PanelWindow {
         if (batteryCharging) return String.fromCodePoint(0xF0241);
         var step = Math.max(0, Math.min(10, Math.round(batteryPct / 10)));
         return String.fromCodePoint(battIcons[step]);
+    }
+
+    // ---------------------------------------------------------------- polkit
+    // Запрос пароля при установке пакетов и прочих привилегированных
+    // действиях рисуется в пилюле, а не отдельным окном агента.
+    property var authFlow: null
+    readonly property bool authActive: authFlow !== null && !authFlow.isCompleted
+
+    PolkitAgent {
+        id: polkit
+        onAuthenticationRequestStarted: {
+            root.authFlow = polkit.flow;
+            pageResetTimer.stop();
+            root.page = "auth";
+            root.expanded = true;
+            root.holdOpen = true;
+        }
+    }
+
+    Connections {
+        target: root.authFlow
+        ignoreUnknownSignals: true
+        function onIsCompletedChanged() {
+            if (root.authFlow && root.authFlow.isCompleted) {
+                root.authFlow = null;
+                root.collapse();
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- не спать
+    // Пока тумблер включён, systemd-inhibit держит блокировку: система не
+    // уснёт и не погасит экран. Quickshell сам убивает процесс при выключении.
+    property bool keepAwake: false
+    Process {
+        running: root.keepAwake
+        command: ["systemd-inhibit", "--what=idle:sleep:handle-lid-switch",
+                  "--who=Panacea", "--why=Keep awake", "sleep", "infinity"]
+    }
+
+    // ------------------------------------------------------- звук: устройства
+    // Список выходов и переключение между ними. Раньше сменить устройство
+    // было нечем: pavucontrol в системе нет.
+    readonly property var audioSinks: {
+        var out = [];
+        var all = Pipewire.nodes ? Pipewire.nodes.values : [];
+        for (var i = 0; i < all.length; i++) {
+            var n = all[i];
+            if (n && n.isSink && !n.isStream) out.push(n);
+        }
+        return out;
+    }
+    readonly property string sinkName: {
+        var n = Pipewire.defaultAudioSink;
+        if (!n) return "";
+        return String(n.nickname || n.description || n.name || "");
+    }
+    function setSink(node) {
+        Pipewire.preferredDefaultAudioSink = node;
+    }
+
+    // Прогрев кеша миниатюр обоев при старте, чтобы страница тем
+    // открывалась мгновенно уже с первого раза.
+    Process {
+        running: true
+        command: ["sh", "-c", Quickshell.env("HOME")
+                  + "/.config/panacea/scripts/thumbs.sh all"]
+    }
+
+    // ------------------------------------------------------------ системный трей
+    readonly property var trayItems: SystemTray.items
+
+    // ---------------------------------------------------------- уведомления
+    // Пилюля сама работает демоном уведомлений: в системе его не было вовсе,
+    // и всё, что присылали программы, молча пропадало.
+    property bool dnd: false                 // не беспокоить
+    property var  notifCurrent: null         // то, что показывается сейчас
+    ListModel { id: notifModel }             // история
+    readonly property var notifications: notifModel
+    // живые уведомления, которые ещё не закрыты программой или пользователем
+    readonly property var activeNotifications: notifServer.trackedNotifications
+
+    readonly property bool toastActive: notifCurrent !== null && !expanded
+    readonly property string notifSummary: notifCurrent ? String(notifCurrent.summary || "") : ""
+    readonly property string notifBody:    notifCurrent ? String(notifCurrent.body || "") : ""
+    readonly property string notifApp:     notifCurrent ? String(notifCurrent.appName || "") : ""
+    readonly property string notifImage:   notifCurrent ? String(notifCurrent.image || "") : ""
+    readonly property bool   notifUrgent:
+        notifCurrent ? notifCurrent.urgency === NotificationUrgency.Critical : false
+
+    NotificationServer {
+        id: notifServer
+        keepOnReload: false
+        bodySupported: true
+        bodyMarkupSupported: true
+        imageSupported: true
+        actionsSupported: true
+        persistenceSupported: true
+
+        onNotification: n => {
+            n.tracked = true;
+
+            notifModel.insert(0, {
+                nSummary: String(n.summary || ""),
+                nBody: String(n.body || ""),
+                nApp: String(n.appName || ""),
+                nImage: String(n.image || ""),
+                nUrgent: n.urgency === NotificationUrgency.Critical,
+                nTime: Qt.formatDateTime(new Date(), "HH:mm")
+            });
+            while (notifModel.count > 50) notifModel.remove(notifModel.count - 1);
+
+            // Критичные показываем даже в режиме «не беспокоить»
+            if (root.dnd && n.urgency !== NotificationUrgency.Critical) return;
+
+            root.notifCurrent = n;
+            var ms = n.expireTimeout > 0 ? n.expireTimeout * 1000 : 4500;
+            toastTimer.interval = Math.max(2000, Math.min(12000, ms));
+            toastTimer.restart();
+        }
+    }
+
+    Timer {
+        id: toastTimer
+        // если курсор на карточке — не убираем, ждём решения пользователя
+        onTriggered: {
+            if (capsuleHover.hovered) { toastTimer.interval = 1200; restart(); return; }
+            root.dismissToast();
+        }
+    }
+    function dismissToast() {
+        toastTimer.stop();
+        root.notifCurrent = null;
+    }
+    function clearNotifications() {
+        notifModel.clear();
+        // активные тоже закрываем — иначе «Очистить» убирает лишь половину
+        var live = notifServer.trackedNotifications.values;
+        for (var i = live.length - 1; i >= 0; i--) {
+            if (live[i]) live[i].dismiss();
+        }
+    }
+
+    // ------------------------------------------------------------------ OSD
+    // При изменении громкости или яркости пилюля на пару секунд превращается
+    // в полоску уровня и возвращается обратно.
+    property string osdKind: ""          // "vol" | "mic" | "bright"
+    property real   osdValue: 0          // 0..1
+    property bool   osdMuted: false
+    readonly property bool osdActive: osdKind.length > 0 && !expanded
+
+    Timer {
+        id: osdTimer
+        interval: 1700
+        onTriggered: root.osdKind = ""
+    }
+    function showOsd(kind, value, muted) {
+        osdKind = kind;
+        osdValue = Math.max(0, Math.min(1, value));
+        osdMuted = muted === true;
+        osdTimer.restart();
+    }
+
+    readonly property string osdIcon: {
+        if (osdKind === "bright") return String.fromCodePoint(0xF00DE);       // солнце
+        if (osdKind === "mic")
+            return String.fromCodePoint(osdMuted ? 0xF036D : 0xF036C);        // микрофон
+        if (osdMuted || osdValue <= 0.001) return String.fromCodePoint(0xF075F);
+        if (osdValue < 0.34) return String.fromCodePoint(0xF057F);
+        if (osdValue < 0.67) return String.fromCodePoint(0xF0580);
+        return String.fromCodePoint(0xF057E);
+    }
+
+    // --- громкость и микрофон берём из Pipewire: реагируем на любое изменение,
+    //     не только на нажатие мультимедийной клавиши
+    PwObjectTracker {
+        objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
+    }
+    readonly property var sinkAudio:
+        Pipewire.defaultAudioSink ? Pipewire.defaultAudioSink.audio : null
+    readonly property var srcAudio:
+        Pipewire.defaultAudioSource ? Pipewire.defaultAudioSource.audio : null
+
+    property bool osdReady: false        // не показывать OSD при старте оболочки
+    Timer { interval: 1500; running: true; onTriggered: root.osdReady = true }
+
+    Connections {
+        target: root.sinkAudio
+        enabled: root.sinkAudio !== null
+        function onVolumeChanged() {
+            if (root.osdReady) root.showOsd("vol", root.sinkAudio.volume, root.sinkAudio.muted);
+        }
+        function onMutedChanged() {
+            if (root.osdReady) root.showOsd("vol", root.sinkAudio.volume, root.sinkAudio.muted);
+        }
+    }
+    Connections {
+        target: root.srcAudio
+        enabled: root.srcAudio !== null
+        function onMutedChanged() {
+            if (root.osdReady) root.showOsd("mic", root.srcAudio.volume, root.srcAudio.muted);
+        }
     }
 
     // ------------------------------------------------------- профиль питания
@@ -511,6 +747,7 @@ PanelWindow {
     // ------------------------------------------------------------------ часы
     property string timeText: ""
     property string dayText: ""
+    property string dateLong: ""
     Timer {
         interval: 1000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: {
@@ -519,6 +756,9 @@ PanelWindow {
             root.timeText = root.cfg.clock12
                 ? Qt.formatDateTime(d, "h:mm AP")
                 : Qt.formatDateTime(d, "HH:mm");
+            root.dateLong = root.isEn
+                ? Qt.formatDateTime(d, "dddd, d MMMM")
+                : Qt.formatDateTime(d, "dddd, d MMMM");
             root.dayText = root.isEn
                 ? ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]
                 : ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][d.getDay()];
@@ -655,14 +895,30 @@ PanelWindow {
         function powermenu(): void { root.togglePage("power"); }
         function cancelCapture(): void { root.cancelCaptureRequested(); }
         function tour(): void { root.startTour(); }
+        function notifications(): void { root.togglePage("notif"); }
+        function audio(): void { root.togglePage("audio"); }
+        function calendar(): void { root.togglePage("cal"); }
+        function theme(): void { root.togglePage("theme"); }
+        function dnd(): void { root.dnd = !root.dnd; }
+        // яркость приходит от smart_brightness.sh: службы для неё нет
+        function brightness(pct: string): void {
+            root.showOsd("bright", parseFloat(pct) / 100.0, false);
+        }
         function close(): void { root.collapse(); }
     }
 
     // ----------------------------------------------------------------- окно
     anchors { top: true; left: true; right: true }
-    implicitHeight: root.settingsMode
-                    ? (root.screen ? root.screen.height : 1080)
-                    : 560
+    // Высота окна ПОСТОЯННА и равна экрану.
+    //
+    // Раньше она переключалась 560 <-> 1080 при закреплении панели, и слой
+    // Wayland пересоздавался прямо посреди анимации: содержимое успевало
+    // схлопнуться и разложиться заново. Именно это выглядело как рывок при
+    // открытии календаря по клику на часы.
+    //
+    // Постоянная высота ничего не ломает: пока панель не закреплена, ввод
+    // ограничен маской по капсуле, и клики проходят сквозь окно как раньше.
+    implicitHeight: root.screen ? root.screen.height : 1080
     color: "transparent"
     // зазор между пилюлей и окнами
     exclusiveZone: pillH + gap
@@ -719,12 +975,44 @@ PanelWindow {
 
         width: root.settingsMode ? root.settingsW
              : root.expanded     ? root.panelW
+             : root.toastActive  ? 440
+             : root.osdActive    ? osdCapsule.implicitWidth + 32
              : (root.mediaActive ? mediaCapsule.implicitWidth + 32
                                  : idleCapsule.implicitWidth + 32)
         // целевая высота — к ней анимируется height и по ней же сразу
         // рассчитывается центрирование, чтобы движение было одноэтапным
+        // Высота содержимого держится отдельно: при смене страницы новый вид
+        // на первом кадре ещё не разложен и его implicitHeight равен нулю.
+        // Раньше капсула успевала схлопнуться до нуля и разложиться заново —
+        // отсюда рывок при переходе, например, из плиток в календарь.
+        property real contentH: 220
+
+        // Раскладка новой страницы идёт в несколько проходов: сетка календаря
+        // из 42 ячеек успевает отдать промежуточные высоты. Если применять
+        // каждую, капсула дёргается. Собираем их в один шаг через таймер.
+        Timer {
+            id: contentSettle
+            interval: 24
+            onTriggered: capsule.applyContentH()
+        }
+        function refreshContentH() { contentSettle.restart(); }
+        function applyContentH() {
+            var it = contentLoader.item;
+            if (it && it.implicitHeight > 40) contentH = it.implicitHeight + 30;
+        }
+        Connections {
+            target: contentLoader
+            function onItemChanged() { capsule.refreshContentH(); }
+        }
+        Connections {
+            target: contentLoader.item
+            ignoreUnknownSignals: true
+            function onImplicitHeightChanged() { capsule.refreshContentH(); }
+        }
+
         readonly property real targetH: root.expanded
-                ? (contentLoader.item ? contentLoader.item.implicitHeight + 30 : 220)
+                ? contentH
+                : root.toastActive ? toastCapsule.implicitHeight + 24
                 : root.pillH
         height: targetH
 
@@ -770,6 +1058,9 @@ PanelWindow {
             id: expandTimer; interval: 0
             onTriggered: {
                 if (!capsuleHover.hovered || root.launcherOpen) return;
+                // пока висит уведомление, наведение не раскрывает панель:
+                // иначе до крестика не добраться
+                if (root.toastActive) return;
                 // страницу трогаем только если панель ещё закрыта: иначе
                 // наведение сбрасывало бы уже открытый список сетей
                 if (!root.expanded) {
@@ -787,13 +1078,187 @@ PanelWindow {
             }
         }
 
+        // Клик по карточке открывает историю. Отдельным слоем под ней:
+        // внутри RowLayout якоря ломают раскладку.
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.toastActive
+            visible: enabled
+            onClicked: { root.dismissToast(); root.togglePage("notif"); }
+        }
+
+        // ------------------------------------------ свёрнутое: уведомление
+        RowLayout {
+            id: toastCapsule
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: 16
+            anchors.rightMargin: 14
+            anchors.topMargin: 12
+            spacing: 12
+            visible: root.toastActive
+            opacity: visible ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            // значок программы, если прислали
+            Rectangle {
+                Layout.preferredWidth: 34
+                Layout.preferredHeight: 34
+                Layout.alignment: Qt.AlignTop
+                radius: 10
+                color: root.notifUrgent ? Qt.rgba(1, 0.27, 0.27, 0.18)
+                                        : Qt.rgba(1, 1, 1, 0.08)
+
+                Image {
+                    anchors.fill: parent
+                    anchors.margins: 5
+                    source: root.notifImage
+                    visible: source != ""
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                }
+                Text {
+                    anchors.centerIn: parent
+                    visible: root.notifImage === ""
+                    text: String.fromCodePoint(root.notifUrgent ? 0xF0026 : 0xF009A)
+                    color: root.notifUrgent ? root.colCrit : root.colFg
+                    font { family: root.fontFam; pixelSize: root.iconSize - 1 }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.notifSummary
+                        color: root.colFg
+                        elide: Text.ElideRight
+                        font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                    }
+                    Text {
+                        text: root.notifApp
+                        color: root.colMuted
+                        font { family: root.fontFam; pixelSize: root.fontSize - 5 }
+                    }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    visible: root.notifBody.length > 0
+                    text: root.notifBody
+                    color: root.colMuted
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 3
+                    elide: Text.ElideRight
+                    textFormat: Text.PlainText
+                    font { family: root.fontFam; pixelSize: root.fontSize - 3 }
+                }
+            }
+
+            // закрыть тост
+            Text {
+                Layout.alignment: Qt.AlignTop
+                text: "×"
+                color: closeMa.containsMouse ? root.colFg : root.colMuted
+                font { family: root.fontFam; pixelSize: root.fontSize + 2 }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                MouseArea {
+                    id: closeMa
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.dismissToast()
+                }
+            }
+        }
+
+        // ------------------------------------------- свёрнутое: уровень (OSD)
+        RowLayout {
+            id: osdCapsule
+            anchors.centerIn: parent
+            height: root.pillH
+            spacing: 12
+            visible: root.osdActive && !root.toastActive
+            opacity: visible ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            Text {
+                text: root.osdIcon
+                color: root.osdMuted ? root.colMuted : root.colFg
+                // Ширина зафиксирована: глифы громкости, микрофона и солнца
+                // разной ширины, из-за чего пилюля дёргалась при смене уровня.
+                Layout.preferredWidth: mOsdIcon.width + 4
+                horizontalAlignment: Text.AlignHCenter
+                font { family: root.fontFam; pixelSize: root.iconSize }
+                Behavior on color { ColorAnimation { duration: 160 } }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 150
+                Layout.preferredHeight: 5
+                Layout.alignment: Qt.AlignVCenter
+                radius: 3
+                color: Qt.rgba(1, 1, 1, 0.16)
+
+                Rectangle {
+                    width: parent.width * (root.osdMuted ? 0 : root.osdValue)
+                    height: parent.height
+                    radius: 3
+                    color: root.osdKind === "bright" ? "#fbbf24" : root.colOn
+                    Behavior on width {
+                        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                    }
+                    Behavior on color { ColorAnimation { duration: 160 } }
+                }
+            }
+
+            Text {
+                Layout.preferredWidth: mBatt.width
+                horizontalAlignment: Text.AlignRight
+                text: root.osdMuted ? "—" : Math.round(root.osdValue * 100) + "%"
+                color: root.colMuted
+                font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+            }
+        }
+
+        // Эталоны ширины: числа в пилюле занимают место по самому широкому
+        // варианту, поэтому капсула не растягивается и не сужается на ходу.
+        TextMetrics {
+            id: mClock
+            font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
+            text: root.cfg.clock12 ? "12:00 PM" : "00:00"
+        }
+        TextMetrics {
+            id: mBatt
+            font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+            text: "100%"
+        }
+        TextMetrics {
+            id: mOsdIcon
+            font { family: root.fontFam; pixelSize: root.iconSize }
+            // самый широкий из используемых глифов уровня
+            text: String.fromCodePoint(0xF057E)
+        }
+        TextMetrics {
+            id: mWs
+            font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+            text: "10"
+        }
+
         // ---------------------------------------------------- свёрнутое: покой
         RowLayout {
             id: idleCapsule
             anchors.centerIn: parent
             height: root.pillH
             spacing: 14
-            visible: !root.expanded && !root.mediaActive
+            visible: !root.expanded && !root.mediaActive && !root.osdActive && !root.toastActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -805,6 +1270,8 @@ PanelWindow {
             Text {
                 text: root.timeText
                 color: root.colFg
+                Layout.preferredWidth: mClock.width
+                horizontalAlignment: Text.AlignHCenter
                 font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
             }
 
@@ -814,6 +1281,7 @@ PanelWindow {
                 textColor: root.colFg
                 fontFam: root.fontFam
                 pixelSize: root.fontSize - 1
+                minWidth: mWs.width
                 Layout.alignment: Qt.AlignVCenter
             }
 
@@ -839,6 +1307,8 @@ PanelWindow {
                 Text {
                     text: root.batteryPct + "%"
                     color: root.colMuted
+                    Layout.preferredWidth: mBatt.width
+                    horizontalAlignment: Text.AlignRight
                     font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
                 }
             }
@@ -850,7 +1320,7 @@ PanelWindow {
             anchors.centerIn: parent
             height: root.pillH
             spacing: 11
-            visible: !root.expanded && root.mediaActive
+            visible: !root.expanded && root.mediaActive && !root.osdActive && !root.toastActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -914,6 +1384,11 @@ PanelWindow {
                            : root.page === "settings" ? settingsComp
                            : root.page === "clip"     ? clipComp
                            : root.page === "power"    ? powerComp
+                           : root.page === "notif"    ? notifComp
+                           : root.page === "audio"    ? audioComp
+                           : root.page === "cal"      ? calComp
+                           : root.page === "theme"    ? themeComp
+                           : root.page === "auth"     ? authComp
                                                       : controlsComp
         }
 
@@ -923,6 +1398,11 @@ PanelWindow {
         Component { id: settingsComp; SettingsView { sys: root } }
         Component { id: clipComp;     ClipboardView { sys: root } }
         Component { id: powerComp;    PowerView { sys: root } }
+        Component { id: notifComp;    NotificationsView { sys: root } }
+        Component { id: audioComp;    AudioView { sys: root } }
+        Component { id: calComp;      CalendarView { sys: root } }
+        Component { id: themeComp;    ThemeView { sys: root } }
+        Component { id: authComp;     AuthView { sys: root } }
     }
 
     // ------------------------------------ плавное примыкание к кромке экрана

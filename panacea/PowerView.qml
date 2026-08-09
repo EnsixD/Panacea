@@ -23,11 +23,11 @@ Item {
     Process { id: pRun }
 
     readonly property var actions: [
-        { icon: "󰤄", label: view.sys.tr("Сон"),         cmd: "systemctl suspend",  accent: "#38bdf8" },
-        { icon: "󰌾", label: view.sys.tr("Блокировка"),  cmd: "hyprlock",           accent: "#a78bfa" },
-        { icon: "󰗽", label: view.sys.tr("Выйти"),       cmd: "hyprctl dispatch exit", accent: "#fbbf24" },
-        { icon: "󰜉", label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",   accent: "#fb923c" },
-        { icon: "󰐥", label: view.sys.tr("Выключить"),   cmd: "systemctl poweroff", accent: "#ef4444" }
+        { icon: String.fromCodePoint(0xF0904), label: view.sys.tr("Сон"),         cmd: "systemctl suspend",  accent: "#38bdf8" },
+        { icon: String.fromCodePoint(0xF033E), label: view.sys.tr("Блокировка"),  cmd: "hyprlock",           accent: "#a78bfa" },
+        { icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),       cmd: "hyprctl dispatch exit", accent: "#fbbf24" },
+        { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",   accent: "#fb923c" },
+        { icon: String.fromCodePoint(0xF0425), label: view.sys.tr("Выключить"),   cmd: "systemctl poweroff", accent: "#ef4444" }
     ]
 
     function trigger(i) {
@@ -81,7 +81,7 @@ Item {
                     readonly property bool isCurrent: view.current === index
 
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 86
+                    Layout.preferredHeight: 104
                     radius: 16
 
                     // база всегда нейтральная; подтверждение красит верхний слой
@@ -108,21 +108,58 @@ Item {
                     Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
                     ColumnLayout {
+                        id: body
                         anchors.centerIn: parent
-                        spacing: 7
+                        spacing: 9
+
+                        // иконка в круге своего цвета — читается лучше голого глифа
+                        Rectangle {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: 40
+                            Layout.preferredHeight: 40
+                            radius: 20
+                            color: body.parent.isArmed
+                                   ? modelData.accent
+                                   : Qt.rgba(modelData.accent.r, modelData.accent.g,
+                                             modelData.accent.b, btnMa.containsMouse ? 0.34 : 0.20)
+                            border.color: Qt.rgba(modelData.accent.r, modelData.accent.g,
+                                                  modelData.accent.b,
+                                                  body.parent.isArmed ? 0 : 0.45)
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: 180 } }
+                            Behavior on border.color { ColorAnimation { duration: 180 } }
+
+                            // мягкое свечение под кругом
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: parent.width + 10
+                                height: parent.height + 10
+                                radius: width / 2
+                                z: -1
+                                color: Qt.rgba(modelData.accent.r, modelData.accent.g,
+                                               modelData.accent.b,
+                                               btnMa.containsMouse || body.parent.isArmed ? 0.10 : 0)
+                                Behavior on color { ColorAnimation { duration: 220 } }
+                            }
+
+                            Glyph {
+                                anchors.fill: parent
+                                glyph: modelData.icon
+                                color: body.parent.isArmed ? "#0b0b0b" : modelData.accent
+                                fontFam: view.sys.fontFam
+                                size: view.sys.iconSize + 3
+                            }
+                        }
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: modelData.icon
-                            color: parent.parent.isArmed ? modelData.accent : view.sys.colFg
-                            font { family: view.sys.fontFam; pixelSize: view.sys.iconSize + 6 }
-                            Behavior on color { ColorAnimation { duration: 160 } }
-                        }
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
                             text: modelData.label
-                            color: parent.parent.isArmed ? view.sys.colFg : view.sys.colMuted
-                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                            color: body.parent.isArmed ? view.sys.colFg : view.sys.colMuted
+                            font {
+                                family: view.sys.fontFam
+                                pixelSize: view.sys.fontSize - 4
+                                bold: body.parent.isArmed
+                            }
                             Behavior on color { ColorAnimation { duration: 160 } }
                         }
                     }
