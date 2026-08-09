@@ -34,8 +34,45 @@ It hugs the top edge of the screen with two concave corners, the way a hardware 
 </table>
 
 <p align="center">
-  <img src="preview/06-power.png" alt="Power menu" width="70%">
+  <img src="preview/06-power.png" alt="Power menu" width="76%">
   <br><sub><b>Power menu</b> — press once to arm, again to confirm</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="preview/07-notifications.png" alt="Notifications"></td>
+    <td width="50%"><img src="preview/09-calendar.png" alt="Calendar"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Notifications</b><br><sub>Live and history, with do-not-disturb</sub></td>
+    <td align="center"><b>Calendar</b><br><sub>Opens from the clock in quick settings</sub></td>
+  </tr>
+  <tr>
+    <td><img src="preview/08-audio.png" alt="Sound"></td>
+    <td><img src="preview/11-calc.png" alt="Calculator"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Sound</b><br><sub>Volume and output device</sub></td>
+    <td align="center"><b>Calculator</b><br><sub>Type an expression, Enter copies</sub></td>
+  </tr>
+</table>
+
+### Themes
+
+Fifteen colour schemes, each with its own wallpaper. Previews are cached
+thumbnails, so the grid opens instantly rather than decoding 35MB of JPEG.
+
+<p align="center">
+  <img src="preview/10-themes.png" alt="Theme picker" width="100%">
+</p>
+
+### Authentication
+
+polkit prompts render as a pill page. There is no separate agent window,
+and no second agent running — polkit permits only one.
+
+<p align="center">
+  <img src="preview/12-polkit.png" alt="Polkit prompt" width="72%">
 </p>
 
 ### Settings, with a live preview
@@ -71,14 +108,19 @@ The second tab lists every named binding in the system. Click one, press the com
 
 | Page | Opens with | What it does |
 |---|---|---|
-| Quick settings | `Super + Z` | Wi‑Fi, Bluetooth, power profile |
+| Quick settings | `Super + Z` | Wi‑Fi, Bluetooth, sound, power profile, tray, coffee mode |
 | Networks | `Super + Shift + W` | Scan, connect, enter passwords |
 | Bluetooth | `Super + Shift + B` | Pair and connect devices |
+| Sound | from quick settings | Volume and output device |
+| Notifications | `Super + Shift + N` | Live notifications, history, do‑not‑disturb |
+| Calendar | click the clock | Month grid |
+| Themes | `Super + W` | Fifteen schemes with wallpaper previews |
 | Player | `Super + M` | Now playing, transport, live equaliser |
-| Launcher | `Super + A` | Application search |
+| Launcher | `Super + A` | Application search, and a calculator |
 | Clipboard | `Super + V` | `cliphist` history with search |
 | Power | `Ctrl + Alt + Delete` | Sleep, lock, log out, restart, shut down |
 | Settings | `Super + I` | Everything above, configurable |
+| Authentication | automatic | polkit password prompts |
 
 Hovering the pill opens it too: the player if something is playing, quick settings otherwise. Every page closes with the same key that opened it, or with `Escape`, or by clicking outside.
 
@@ -98,6 +140,20 @@ A few decisions that are easy to miss but are the reason it feels the way it doe
 
 **Centring uses the target size.** The settings panel detaches from the top edge and centres itself. Its offset is computed from the final height, not the animating one, so it travels in one motion rather than expanding first and sliding second.
 
+**Nerd Font icons are not centred by anchors.** Their ink is wider than the
+advance — the gear glyph is 13px wide in a 9.6px cell — and Qt reports both
+bounding boxes relative to the baseline, not the item. `Glyph.qml` converts to
+local coordinates and centres the ink, which is why icons sit true in their
+circles.
+
+**Constant window height.** It used to switch between 560px and the screen
+height when a page was pinned, recreating the Wayland layer mid-animation.
+Panels are masked instead, so clicks still pass through when nothing is open.
+
+**Gestures are Hyprland's own.** A Lua callback fires once, after the fingers
+lift. The built-in trackpad gestures update on every motion event, so a window
+follows the swipe and springs back if you change your mind.
+
 **No hardcoded home paths.** Everything resolves `$HOME` at runtime.
 
 ---
@@ -106,13 +162,17 @@ A few decisions that are easy to miss but are the reason it feels the way it doe
 
 ```
 hyprland quickshell fish foot ghostty kitty
-hyprpaper hyprlock hyprsunset hyprpolkitagent
+hyprpaper hyprlock hyprsunset
 brightnessctl playerctl wireplumber cliphist wl-clipboard
-grim slurp jq iwd bluez-utils power-profiles-daemon
+grim slurp jq ffmpeg iwd bluez-utils power-profiles-daemon
 ttf-jetbrains-mono-nerd papirus-icon-theme
 ```
 
-Optional: `cava` for a real audio spectrum in the player (a synthetic wave is drawn without it), `libnotify` for pomodoro notifications.
+Optional: `cava` for a real audio spectrum in the player — a synthetic wave is
+drawn without it.
+
+The pill registers as the notification daemon and the polkit agent, so do not
+run `mako`, `dunst` or `hyprpolkitagent` alongside it.
 
 Networking assumes **iwd**; the Wi‑Fi page talks to `iwctl` directly and does not need NetworkManager. Power profiles talk to `power-profiles-daemon` over D‑Bus via `busctl`, so a broken `powerprofilesctl` (missing `python-gobject`) does not matter.
 
