@@ -1,0 +1,8 @@
+# Генерируется панелью настроек
+hypr/lua/binds_data.lua
+
+# Локальное состояние
+fish/fish_variables
+fish/fish_history
+**/__pycache__/
+*.bak

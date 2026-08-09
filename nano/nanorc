@@ -1,0 +1,25 @@
+## --- INTERFACCIA MINIMALE ---
+set nohelp      # Nasconde le due righe di scorciatoie in basso (^X Exit, ecc.)
+set minibar     # Rimuove la barra del titolo in alto (mette info in una riga sottile)
+set zero        # Nasconde tutto il possibile: avrai solo il testo a schermo intero
+set softwrap    # Va a capo automaticamente senza spezzare le parole
+set noconvert   # Non cambiare il formato dei file (Unix/DOS)
+
+## --- EDITING & COMPORTAMENTO ---
+set autoindent  # Allinea automaticamente il cursore alla riga precedente
+# set mouse       # Permette di usare il mouse per posizionare il cursore
+set tabsize 4   # Imposta la dimensione del tab a 4 spazi
+set tabstospaces # Converte i tab in spazi
+set linenumbers      # Abilita i numeri di riga a sinistra
+set numbercolor gray  # Cambia il colore (puoi usare: white, black, blue, green, ecc.)
+
+## --- SINTASSI ---
+# Include le evidenziazioni standard se presenti nel sistema
+include "/usr/share/nano/*.nanorc"
+
+
+
+
+
+
+

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="GtkMenu" id="menu">
+    <child>
+        <object class="GtkMenuItem" id="Hyprland">
+            <property name="label">Hyprland</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Waybar">
+            <property name="label">Waybar</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Hyprlock">
+            <property name="label">Hyprlock</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Tofi">
+            <property name="label">Tofi</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Hyprsunset">
+            <property name="label">Hyprsunset</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Hyprpaper">
+            <property name="label">Hyprpaper</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Kitty">
+            <property name="label">Kitty</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Foot">
+            <property name="label">Foot</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Ghostty">
+            <property name="label">Ghostty</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Fish">
+            <property name="label">Fish</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Fastfetch">
+            <property name="label">Fastfetch</property>
+        </object>
+    </child>
+  </object>
+</interface>

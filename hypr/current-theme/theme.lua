@@ -1,0 +1,1 @@
+/home/ensi/.config/quickshell/styles/themes/monochrome/HyprTheme.lua

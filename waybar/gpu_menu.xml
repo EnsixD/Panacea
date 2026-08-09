@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="GtkMenu" id="menu">
+    <child>
+        <object class="GtkMenuItem" id="Integrated">
+            <property name="label">Integrated</property>
+        </object>
+    </child>
+    <child>
+        <object class="GtkMenuItem" id="Hybrid">
+            <property name="label">Hybrid</property>
+        </object>
+    </child>
+  </object>
+</interface>

@@ -1,0 +1,242 @@
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import Quickshell
+
+// Лаунчер приложений: поиск, иконки, навигация стрелками, Enter — запуск.
+// Живёт внутри той же пилюли, поэтому раскрывается той же анимацией.
+Item {
+    id: view
+    property var sys
+
+    implicitHeight: col.implicitHeight
+
+    property string query: ""
+    property int index: 0
+    readonly property int maxRows: 6
+
+    // Отбор и сортировка: сперва совпадения с начала имени, потом остальные.
+    readonly property var results: {
+        var q = query.trim().toLowerCase();
+        var all = DesktopEntries.applications ? DesktopEntries.applications.values : [];
+        var starts = [], contains = [];
+        for (var i = 0; i < all.length; i++) {
+            var a = all[i];
+            if (!a || a.noDisplay) continue;
+            var n = String(a.name || "").toLowerCase();
+            if (q.length === 0) { starts.push(a); continue; }
+            var pos = n.indexOf(q);
+            if (pos === 0) starts.push(a);
+            else if (pos > 0) contains.push(a);
+            else if (String(a.genericName || "").toLowerCase().indexOf(q) >= 0) contains.push(a);
+        }
+        var byName = function (x, y) {
+            return String(x.name || "").localeCompare(String(y.name || ""));
+        };
+        starts.sort(byName); contains.sort(byName);
+        return starts.concat(contains);
+    }
+
+    onQueryChanged: index = 0
+    onResultsChanged: if (index >= results.length) index = Math.max(0, results.length - 1)
+
+    function launch() {
+        var app = results[index];
+        if (!app) return;
+        app.execute();
+        sys.closeLauncher();
+    }
+    function move(delta) {
+        if (results.length === 0) return;
+        index = Math.max(0, Math.min(results.length - 1, index + delta));
+        list.positionViewAtIndex(index, ListView.Contain);
+    }
+
+    // фокус сразу, плюс несколько повторов: слой получает клавиатуру
+    // на кадр-другой позже создания компонента
+    Component.onCompleted: { input.forceActiveFocus(); focusTimer.start() }
+    Timer {
+        id: focusTimer
+        interval: 16; repeat: true; triggeredOnStart: true
+        property int tries: 0
+        onTriggered: {
+            if (input.activeFocus || tries++ > 12) { stop(); return; }
+            input.forceActiveFocus();
+        }
+    }
+
+    ColumnLayout {
+        id: col
+        width: parent.width
+        spacing: 10
+
+        // ------------------------------------------------------------ поиск
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 42
+            radius: 13
+            color: Qt.rgba(1, 1, 1, 0.06)
+            border.color: input.activeFocus ? Qt.rgba(1, 1, 1, 0.22) : view.sys.colLine
+            border.width: 1
+            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 13
+                anchors.rightMargin: 13
+                spacing: 9
+
+                Text {
+                    text: ""
+                    color: view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: 14 }
+                }
+                TextField {
+                    id: input
+                    Layout.fillWidth: true
+                    placeholderText: view.sys.tr("Поиск приложений…")
+                    color: view.sys.colFg
+                    placeholderTextColor: view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: 13 }
+                    background: null
+                    onTextChanged: view.query = text
+
+                    Keys.onDownPressed:   view.move(1)
+                    Keys.onUpPressed:     view.move(-1)
+                    Keys.onReturnPressed: view.launch()
+                    Keys.onEnterPressed:  view.launch()
+                    Keys.onEscapePressed: view.sys.closeLauncher()
+                    Keys.onTabPressed:    view.move(1)
+                }
+                Text {
+                    visible: view.results.length > 0
+                    text: view.results.length
+                    color: view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: 11 }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ список
+        ListView {
+            id: list
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(view.results.length, view.maxRows) * 46
+            // Высоту анимирует капсула. Своя анимация здесь стартовала с нуля
+            // и накладывалась на неё: панель сперва растягивалась, потом
+            // «доразворачивалась» — те самые два этапа.
+            clip: true
+            model: view.results
+            currentIndex: view.index
+            boundsBehavior: Flickable.OvershootBounds
+            flickDeceleration: 2200
+            spacing: 2
+
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+                width: 3
+                contentItem: Rectangle { radius: 2; color: Qt.rgba(1, 1, 1, 0.22) }
+            }
+
+            delegate: Rectangle {
+                id: row
+                required property var modelData
+                required property int index
+
+                width: list.width
+                height: 44
+                radius: 12
+                color: index === view.index ? Qt.rgba(1, 1, 1, 0.11)
+                     : (rowMa.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
+                Behavior on color { ColorAnimation { duration: 120 } }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 12
+                    spacing: 11
+
+                    // иконка приложения из системной темы
+                    Item {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+
+                        Image {
+                            id: appIcon
+                            anchors.fill: parent
+                            source: row.modelData.icon
+                                    ? Quickshell.iconPath(row.modelData.icon, true) : ""
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            sourceSize.width: 52
+                            sourceSize.height: 52
+                            visible: status === Image.Ready
+                        }
+                        // запасной значок, если иконки нет в теме
+                        Rectangle {
+                            anchors.fill: parent
+                            visible: !appIcon.visible
+                            radius: 7
+                            color: Qt.rgba(1, 1, 1, 0.10)
+                            Text {
+                                anchors.centerIn: parent
+                                text: String(row.modelData.name || "?").charAt(0).toUpperCase()
+                                color: view.sys.colFg
+                                font { family: view.sys.fontFam; pixelSize: 12; bold: true }
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Text {
+                            Layout.fillWidth: true
+                            text: row.modelData.name || ""
+                            color: view.sys.colFg
+                            elide: Text.ElideRight
+                            font {
+                                family: view.sys.fontFam
+                                pixelSize: 13
+                                bold: row.index === view.index
+                            }
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            visible: text.length > 0
+                            text: row.modelData.genericName || ""
+                            color: view.sys.colMuted
+                            elide: Text.ElideRight
+                            font { family: view.sys.fontFam; pixelSize: 10 }
+                        }
+                    }
+
+                    Text {
+                        visible: row.index === view.index
+                        text: "󰌑"
+                        color: view.sys.colMuted
+                        font { family: view.sys.fontFam; pixelSize: 12 }
+                    }
+                }
+
+                MouseArea {
+                    id: rowMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onEntered: view.index = row.index
+                    onClicked: view.launch()
+                }
+            }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: view.results.length === 0
+            text: view.sys.tr("Ничего не найдено")
+            color: view.sys.colMuted
+            horizontalAlignment: Text.AlignHCenter
+            font { family: view.sys.fontFam; pixelSize: 11 }
+        }
+    }
+}

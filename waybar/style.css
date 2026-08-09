@@ -1,0 +1,179 @@
+@import "theme.css";
+
+* {
+    font-family: "JetBrainsMono Nerd Font";
+    font-size: 9px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+window#waybar {
+    color: @fg;
+    background-color: @bg; /* Ora cambia col tema! */
+    transition:
+        background-color 0.3s ease,
+        opacity 0.3s ease;
+}
+
+window#waybar.hidden {
+    opacity: 0;
+}
+
+button {
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+}
+
+button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 -2px @accent; /* Linea sotto del colore del tema */
+}
+
+button:active {
+  padding-top: 3px;
+  padding-bottom: 1px;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+#workspaces button {
+    padding: 0 5px;
+    color: alpha(@fg, 0.4); /* Testo workspaces inattivi più opaco */
+    transition: all 200ms ease-in-out;
+}
+
+#workspaces button.active {
+    min-width: 30px;
+    color: @accent; /* Workspace attivo colorato */
+}
+
+#workspaces {
+    transition: all 200ms ease-in-out;
+}
+
+#window,
+#workspaces {
+    margin: 0 2px;
+}
+
+#mode {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+#custom-power,
+#custom-notes,
+#clock,
+#battery,
+#cpu,
+#memory,
+#disk,
+#temperature,
+#backlight,
+#network,
+#pulseaudio,
+#wireplumber,
+#custom-media,
+#tray,
+#mode,
+#idle_inhibitor,
+#scratchpad,
+#custom-gpu,
+#mpd {
+    padding: 0 8px;
+    color: @fg;
+    margin: 2px 2px;
+}
+
+#battery {
+    color: alpha(@fg, 0.4);
+}
+
+#battery.charging {
+    color: @accent; /* Colore accento quando carica */
+}
+
+#battery.warning {
+    color: @fg;
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+#battery.critical:not(.charging) {
+    background-color: @accent;
+    color: @bg;
+    animation-name: blink;
+    animation-duration: 0.5s;
+    animation-timing-function: steps(12);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+}
+
+@keyframes blink {
+    to {
+        background-color: @fg;
+        color: @bg;
+    }
+}
+
+#network.disconnected {
+    background-color: alpha(@accent, 0.5);
+    color: @bg;
+}
+
+#pulseaudio.muted {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: alpha(@fg, 0.5);
+}
+
+#temperature.critical {
+    background-color: @accent;
+    color: @bg;
+}
+
+#idle_inhibitor.activated {
+    background-color: @accent;
+    color: @bg;
+}
+
+#custom-power {
+    margin-right: 4px;
+    background-color: transparent;
+    color: @accent; /* Il tasto power prende il colore del tema */
+}
+
+#scratchpad {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+menu {
+    background: alpha(@bg, 0.8);
+    color: @fg;
+}
+
+menuitem {
+    color: @fg;
+}
+
+menuitem:hover {
+    background: alpha(@accent, 0.3);
+}
+
+/* --- Spotify Controls --- */
+#custom-spotify-prev,
+#custom-spotify-play,
+#custom-spotify-next,
+#custom-spotify-text {
+    padding: 0 4px;
+    color: @fg;
+    margin: 2px 0px;
+}
+
+#custom-spotify-play {
+    color: @accent; /* Usa l'accento del tuo tema per il tasto centrale */
+    padding: 0 6px;
+}
+
+#custom-spotify-text {
+    padding-left: 6px;
+    padding-right: 8px;
+    color: alpha(@fg, 0.85); /* Testo leggermente opaco per non rubare l'attenzione */
+}

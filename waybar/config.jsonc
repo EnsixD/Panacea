@@ -1,0 +1,232 @@
+{
+  "height": 24,
+  "spacing": 1,
+  "layer": "top",
+  "position": "top",
+  "reload_style_on_change": true,
+  "modules-left": ["group/stats", "group/spotify"],
+  "modules-center": ["hyprland/workspaces"],
+  "modules-right": ["battery", "group/tools"],
+
+  "group/stats": {
+    "orientation": "inherit",
+    "drawer": { "transition-duration": 300, "transition-left-to-right": false },
+    "modules": [
+      "custom/arrow-right",
+      "custom/power_draw",
+      "temperature",
+      "custom/updates",
+      "custom/notes"
+    ]
+  },
+
+  "group/tools": {
+    "orientation": "inherit",
+    "drawer": { "transition-duration": 300, "transition-right-to-left": false },
+    "modules": [
+      "custom/arrow-left",
+      "custom/gpu",
+      "pulseaudio",
+      "pulseaudio#microphone",
+      "bluetooth",
+      "tray",
+      // "backlight",
+      "clock"
+    ]
+  },
+
+  "custom/arrow-left": { "format": " ", "tooltip": false },
+  "custom/arrow-right": { "format": " ", "tooltip": false },
+
+  "hyprland/workspaces": {
+    "disable-scroll": true,
+    "all-outputs": true,
+    "format": "{name}"
+  },
+
+  "clock": {
+    "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+    "format": "{:%H:%M}",
+    "format-alt": "{:%d/%m}"
+  },
+
+  "cpu": {
+    "format": " {usage}%",
+    "tooltip": true,
+    "on-click": "kitty -e htop"
+  },
+
+  "memory": {
+    "format": " {}%",
+    "tooltip": true,
+    "on-click": "kitty -e htop"
+  },
+
+  "temperature": {
+    "critical-threshold": 80,
+    "format": " {temperatureC}° ",
+    "interval": 10
+  },
+
+  "custom/updates": {
+    "format": "󰮯 {} ",
+    "exec": "checkupdates | wc -l",
+    "tooltip": false
+  },
+
+  "backlight": {
+    "format": "{icon} {percent}%",
+    "format-icons": ["", "", "", "", "", "", "", "", ""],
+    "on-scroll-up": "brightnessctl set +5%",
+    "on-scroll-down": "brightnessctl set 5%-",
+    "on-click": "brightnessctl set 100%",
+    "on-click-right": "brightnessctl set 30%"
+  },
+
+  "battery": {
+    "bat": "BAT1",
+    "interval": 60,
+    "states": {
+      "warning": 30,
+      "critical": 15
+    },
+    "format": "{capacity}",
+    "format-charging": "+{capacity}",
+    "format-plugged": " "
+  },
+
+  "network": {
+    "format-wifi": "{icon} {signalStrength}%",
+    "format-ethernet": "󰈀",
+    "format-linked": "󰈀 ?",
+    "format-disconnected": "󰤮",
+    "format-icons": ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"],
+    "on-click": "kitty -e nmtui"
+  },
+
+  "bluetooth": {
+    "format": " {status}",
+    "format-disconnected": "󰂲",
+    "format-connected": " {device_battery_percentage}%",
+    "tooltip-format": "{controller_alias}\t{controller_address}\n\n{num_connections} connected",
+    "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{num_connections} connected\n\n{device_enumerate}",
+    "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+    "tooltip-format-enumerate-connected-battery": "{device_alias}\t{device_address}\t{device_battery_percentage}%",
+    "on-click": "blueberry"
+  },
+
+  "pulseaudio": {
+    "format": "{icon} {volume}%",
+    "format-bluetooth": "󰂰 {volume}%",
+    "format-bluetooth-muted": "󰂲 Muted",
+    "format-muted": " 0%",
+    "format-source": " {volume}%",
+    "format-source-muted": "",
+    "format-icons": {
+      "headphone": "",
+      "hands-free": "",
+      "headset": "",
+      "phone": "",
+      "portable": "",
+      "car": "",
+      "default": ["", "", ""]
+    },
+    "on-click": "pavucontrol"
+  },
+
+  "pulseaudio#microphone": {
+    "format": "{format_source}",
+    "format-source": " ",
+    "format-source-muted": " ",
+    "on-click": "pavucontrol",
+    "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+    "tooltip": false
+  },
+
+  "custom/notes": {
+    "format": "",
+    "tooltip": "Configuration",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/notes_menu.xml",
+    "menu-actions": {
+      "Hyprland": "zeditor .config/hypr",
+      "Waybar": "zeditor .config/waybar/",
+      "Hyprlock": "zeditor .config/hypr",
+      "Tofi": "zeditor .config/tofi/",
+      "Hyprsunset": "zeditor .config/hypr",
+      "Hyprpaper": "zeditor .config/hypr",
+      "Kitty": "zeditor .config/kitty",
+      "Foot": "zeditor .config/foot",
+      "Ghostty": "zeditor .config/ghostty",
+      "Fish": "zeditor .config/fish",
+      "Fastfetch": "zeditor .config/fastfetch",
+    }
+  },
+
+  "custom/gpu": {
+    "exec": "supergfxctl -g",
+    "format": "󰢮 {}",
+    "tooltip": "GPU Mode",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/gpu_menu.xml",
+    "menu-actions": {
+      "Integrated": "bash -c 'supergfxctl -m Integrated ; hyprctl dispatch \"hl.dsp.exit()\"'",
+      "Hybrid": "bash -c 'supergfxctl -m Hybrid ; hyprctl dispatch \"hl.dsp.exit()\"'"
+    }
+  },
+
+  "custom/power_draw": {
+    "format": " 󱐋 {}W",
+    "interval": 10,
+    "exec": "awk '{line[NR]=$1} END {printf \"%.1f\\n\", (line[1] * line[2]) / 1000000000000}' /sys/class/power_supply/BAT1/current_now /sys/class/power_supply/BAT1/voltage_now 2>/dev/null",
+    "tooltip": false
+  },
+
+  "group/spotify": {
+      "orientation": "horizontal",
+      "modules": [
+        "custom/spotify-prev",
+        "custom/spotify-play",
+        "custom/spotify-next",
+        "custom/spotify-text"
+      ]
+    },
+
+    "custom/spotify-prev": {
+      "format": "{}",
+      "exec": "echo '󰒮'",
+      "exec-if": "pgrep spotify",
+      "interval": 2,
+      "on-click": "playerctl --player=spotify previous",
+      "tooltip": false
+    },
+
+    "custom/spotify-play": {
+      "format": "{}",
+      "exec": "if [ \"$(playerctl --player=spotify status 2>/dev/null)\" = \"Playing\" ]; then echo '󰏤'; else echo '󰐊'; fi",
+      "exec-if": "pgrep spotify",
+      "interval": 1,
+      "on-click": "playerctl --player=spotify play-pause",
+      "tooltip": false
+    },
+
+    "custom/spotify-next": {
+      "format": "{}",
+      "exec": "echo '󰒭'",
+      "exec-if": "pgrep spotify",
+      "interval": 2,
+      "on-click": "playerctl --player=spotify next",
+      "tooltip": false
+    },
+
+    "custom/spotify-text": {
+      "format": " {}",
+      "max-length": 35,
+      "exec": "playerctl --player=spotify metadata --format '{{title}} - {{artist}}' 2>/dev/null",
+      "exec-if": "pgrep spotify",
+      "interval": 2,
+      "on-click": "bash -c '/home/ensi/.config/waybar/spotify_restart.sh'",
+      "tooltip": false
+    }
+
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "source": "arch_small",
+    "padding": {
+      "top": 6,    // <--- Questo lo centra verticalmente rispetto ai 3 blocchi
+      "left": 3
+    },
+    "color": { "1": "white", "2": "white" }
+  },
+  "display": {
+    "separator": " ",
+    "color": { "keys": "white", "title": "white" }
+  },
+  "modules": [
+    "title",
+    { "type": "separator", "string": "━━━━━━━━━━━━━━━" },
+
+    // --- RAMO OS ---
+    { "type": "custom", "format": "󰣇 OS", "outputColor": "white" },
+    { "type": "kernel",   "key": " ├─ 󰒋", "keyColor": "white" },
+    { "type": "uptime",   "key": " ├─ 󱎫", "keyColor": "white" },
+    { "type": "packages", "key": " ├─ 󰏗", "keyColor": "white" },
+    { "type": "shell",    "key": " └─ 󰈺", "keyColor": "white" },
+
+    "break",
+
+    // --- RAMO WM ---
+    { "type": "custom", "format": "󱂬 WM", "outputColor": "white" },
+    { "type": "wm",       "key": " ├─ 󱂬", "keyColor": "white" },
+    { "type": "terminal", "key": " └─ 󰆍", "keyColor": "white" },
+
+    "break",
+
+    // --- RAMO PC ---
+    { "type": "custom", "format": "󰌢 PC", "outputColor": "white" },
+    { "type": "host",     "key": " ├─ 󰌢", "keyColor": "white" },
+    { "type": "cpu",      "key": " ├─ 󰻠", "keyColor": "white" },
+    { "type": "gpu",      "key": " ├─ 󰢮", "keyColor": "white" },
+    { "type": "memory",   "key": " ├─ 󰍛", "keyColor": "white" },
+    { "type": "swap",     "key": " ├─ 󰓡", "keyColor": "white" },
+    { "type": "disk",     "key": " ├─ 󰋊", "keyColor": "white" },
+    { "type": "battery",  "key": " └─ 󰁹", "keyColor": "white" }
+  ]
+}

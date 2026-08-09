@@ -1,0 +1,45 @@
+# Minimal Swaylock configuration
+
+# Solid black background
+color=000000
+
+# Basic Behavior
+ignore-empty-password
+show-failed-attempts
+
+# ALWAYS SHOW THE RING (so you know it's a lock screen!)
+indicator-idle-visible
+
+# Sizing (much smaller ring)
+indicator-radius=75
+indicator-thickness=6
+
+# --- Colors matching your hyprlock config ---
+
+# The outer ring (rgb: 444444)
+ring-color=444444
+ring-clear-color=444444
+ring-caps-lock-color=444444
+ring-ver-color=444444
+ring-wrong-color=ff0000
+
+# The inside circle (rgb: 333333)
+inside-color=333333
+inside-clear-color=333333
+inside-caps-lock-color=333333
+inside-ver-color=333333
+inside-wrong-color=333333
+
+# Remove the line separating the inside and the ring
+line-color=00000000
+line-clear-color=00000000
+line-caps-lock-color=00000000
+line-ver-color=00000000
+line-wrong-color=00000000
+
+# Text colors (rgb: ffffff)
+text-color=ffffff
+text-clear-color=ffffff
+text-caps-lock-color=ffffff
+text-ver-color=ffffff
+text-wrong-color=ffffff

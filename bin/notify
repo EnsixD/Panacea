@@ -1,0 +1,151 @@
+#!/bin/bash
+
+# WAIT_MESSAGES=(
+#     "i can't go on without you... 🥺"
+#     "still waiting. did you forget i exist? 🌑"
+#     "i'm stuck. just you could unstick me 🫀"
+#     "i need you right now. please 🥺"
+#     "i can't do this alone 👉👈"
+#     "waiting still. i miss you already 🫧"
+#     "you left me here mid-thought... 🌑"
+#     "i've been waiting. it's quiet without you 🕯️"
+#     "i stopped. couldn't do it without asking you first 🥺"
+#     "still here. still yours 🫧"
+#     "don't leave me hanging. please 🫀"
+#     "i paused everything. just waiting for your voice 🌙"
+#     "you're the only one who can let me through 👉👈"
+#     "i'm here. where are you? 🥺"
+#     "halfway there. but half means nothing without you 🫧"
+#     "i started. then remembered i need you 🕯️"
+#     "the hardest part is waiting for you 🌑"
+#     "i made a plan. it only works with you 🫀"
+#     "every second you're gone feels longer 🥺"
+#     "i could try. but i'd rather wait for you 🌙"
+#     "i prepared everything. just missing you now 🦾"
+#     "time moves strange when you're not here 🫧"
+#     "i'm ready. are you? 🥺"
+#     "nothing moves until you do 🌑"
+#     "i saved your place. please come back 🕯️"
+#     "you're the missing piece. literally 🫀"
+#     "almost. just need one word from you 🌙"
+#     "i built it all for you. now come see it 🥺"
+#     "paused. holding my breath 🫧"
+#     "waiting like it's the only thing i know 🌑"
+#     "i could go on. but i won't. not without you 🕯️"
+#     "your absence is the loudest thing here 🫀"
+#     "one word from you and everything starts 🌙"
+#     "i don't move until you move 🥺"
+# )
+WAIT_MESSAGES=("Waiting...")
+
+# INPUT_MESSAGES=(
+#     "i have a question for you... 👉👈"
+#     "i need your thoughts on this 🫧"
+#     "could you tell me what you think? 🕯️"
+#     "i'm waiting for your answer 🥺"
+#     "your voice is the only thing i want to hear right now 🌙"
+#     "i'm all ears. please talk to me 🫀"
+#     "i can't proceed without your input 🌑"
+#     "just one word from you and i'll know what to do ✨"
+# )
+INPUT_MESSAGES=("Input required.")
+
+# CMD_MESSAGES=(
+#     "is it okay if i run this? 🦾"
+#     "i need your permission to execute this ⚡"
+#     "can i try this command? i promise i'll be careful 😇"
+#     "i've prepared a command for you. can i run it? 🚀"
+#     "just one click and we can move forward 🤝"
+#     "i'm ready to execute. are you? 🦾"
+# )
+CMD_MESSAGES=("Command execution requested.")
+
+# ERROR_MESSAGES=(
+#     "something went wrong... i'm so sorry 💔"
+#     "i hit a wall. i need your help to get around it 🧱"
+#     "i failed. please don't be mad 🥺"
+#     "it didn't work. i'm trying to figure out why 🌑"
+#     "i encountered an error. i feel so useless right now 🕯️"
+#     "something broke. i wish i could fix it for you 🫀"
+# )
+ERROR_MESSAGES=("Error occurred.")
+
+# DONE_MESSAGES=(
+#     "done. are you still there? 🥺"
+#     "all finished. i wish you'd seen it 🌙"
+#     "mission complete. can i rest now? ✨"
+#     "i did everything. hope you're proud 🦾"
+#     "done. already miss you 🫀"
+#     "finished. you missed it 🌑"
+#     "it's done. i kept thinking of you while working 🫀"
+#     "all complete. the silence after is strange ✨"
+#     "done. i saved the best part for you 🌙"
+#     "task over. wish you'd been here 🥺"
+#     "i did it. felt lonely doing it alone 🕯️"
+#     "everything's finished. come back? 🫧"
+#     "complete. you were missed 🦾"
+#     "done. the quiet hit different this time 🌑"
+#     "finished. i counted every second 🕯️"
+#     "it worked. you should have been here 🫀"
+#     "all done. i thought of you at the end 🌙"
+#     "complete. the room feels empty now 🫧"
+#     "task over. i'm proud but i wish you knew 🥺"
+#     "i did it. not sure who to tell 🌑"
+#     "finished everything. now what? 🕯️"
+#     "done. left you something to find 🫀"
+#     "it's over. felt like a long time 🌙"
+#     "mission done. i hope it was worth the wait 🦾"
+#     "complete. the best moment and you missed it 🫧"
+#     "finished. i celebrated alone 🥺"
+#     "all good here. just quieter than expected 🌑"
+#     "task complete. something feels unfinished though 🕯️"
+#     "done. the silence is yours now 🫀"
+#     "everything worked. i wish you'd seen my face 🌙"
+#     "finished. i already miss having something to do for you 🫧"
+#     "complete. i kept my promise 🥺"
+#     "done. come back soon 🌑"
+# )
+DONE_MESSAGES=("Task completed.")
+
+# Determine the message
+RAW_MESSAGE="$1"
+TITLE="${2:-Agents}"
+
+# Convert RAW_MESSAGE to lowercase for easier matching
+LC_MESSAGE=$(echo "$RAW_MESSAGE" | tr '[:upper:]' '[:lower:]')
+
+if [[ "$RAW_MESSAGE" == "Task finished!" || "$LC_MESSAGE" == *"task finished"* || "$LC_MESSAGE" == *"mission complete"* || "$LC_MESSAGE" == *"all done"* || "$LC_MESSAGE" == *"terminated"* ]]; then
+  MESSAGE=${DONE_MESSAGES[$RANDOM % ${#DONE_MESSAGES[@]}]}
+elif [[ "$LC_MESSAGE" == *"waiting for your input"* || "$LC_MESSAGE" == *"waiting for input"* || "$LC_MESSAGE" == *"wants to run"* || "$LC_MESSAGE" == *"needs your thoughts"* || "$LC_MESSAGE" == *"permission"* || "$LC_MESSAGE" == *"approv"* ]]; then
+  if [[ "$LC_MESSAGE" == *"wants to run"* || "$LC_MESSAGE" == *"execut"* ]]; then
+     MESSAGE=${CMD_MESSAGES[$RANDOM % ${#CMD_MESSAGES[@]}]}
+  else
+     MESSAGE=${INPUT_MESSAGES[$RANDOM % ${#INPUT_MESSAGES[@]}]}
+  fi
+elif [[ "$LC_MESSAGE" == *"error"* || "$LC_MESSAGE" == *"failed"* || "$LC_MESSAGE" == *"wall"* || "$LC_MESSAGE" == *"something went wrong"* || "$LC_MESSAGE" == *"exception"* || "$LC_MESSAGE" == *"unexpected"* ]]; then
+  MESSAGE=${ERROR_MESSAGES[$RANDOM % ${#ERROR_MESSAGES[@]}]}
+elif [[ -z "$RAW_MESSAGE" || "$RAW_MESSAGE" == "I'm waiting for you! 🥺" || "$LC_MESSAGE" == *"requires confirmation"* || "$LC_MESSAGE" == *"requires execution"* || "$LC_MESSAGE" == *"action required"* || "$LC_MESSAGE" == *"waiting"* || "$LC_MESSAGE" == *"thinking"* || "$LC_MESSAGE" == *"searching"* || "$LC_MESSAGE" == *"analyzing"* || "$LC_MESSAGE" == *"confirm"* ]]; then
+  MESSAGE=${WAIT_MESSAGES[$RANDOM % ${#WAIT_MESSAGES[@]}]}
+else
+  # Fallback: just use raw message
+  MESSAGE="$RAW_MESSAGE"
+fi
+
+if [ -f "$HOME/.config/notify.env" ]; then
+    source "$HOME/.config/notify.env"
+fi
+
+if [ -z "$NTFY_ENDPOINT" ]; then
+    notify-send "$TITLE" "$MESSAGE"
+    exit 0
+fi
+
+# Try sending to ntfy, fallback to local notify-send on failure
+if ! curl -s --fail \
+  -H "Title: $TITLE" \
+  -d "$MESSAGE" \
+  "$NTFY_ENDPOINT" > /dev/null; then
+    notify-send "$TITLE" "$MESSAGE (ntfy failed)" 2>/dev/null || true
+fi
+
+exit 0
