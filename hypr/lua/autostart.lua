@@ -24,7 +24,9 @@ hl.on("hyprland.start", function ()
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
   -- nm-applet отключён: в системе iwd + systemd-networkd
   -- hl.exec_cmd("nm-applet --indicator")
-  hl.exec_cmd("systemctl --user start hyprpolkitagent")
+  -- Агент polkit теперь встроен в пилюлю (PolkitAgent в shell.qml).
+  -- Два агента одновременно зарегистрироваться не могут.
+  -- hl.exec_cmd("systemctl --user start hyprpolkitagent")
   hl.exec_cmd("hyprsunset -t 5000")
   hl.exec_cmd("/home/ensi/.config/hypr/scripts/switch_theme.sh dark_mountains")
   hl.exec_cmd("rm -f $XDG_RUNTIME_DIR/wob.fifo && mkfifo $XDG_RUNTIME_DIR/wob.fifo")

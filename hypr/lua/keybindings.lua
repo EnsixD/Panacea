@@ -17,6 +17,7 @@ end
 
 local QS = "qs -c ~/.config/panacea ipc call pill "
 
+
 -- ---------------------------------------------------------------- пилюля
 B("pillLauncher", mainMod .. " + A",             hl.dsp.exec_cmd(QS .. "launcher"))
 B("pillControls", mainMod .. " + Z",             hl.dsp.exec_cmd(QS .. "controls"))
@@ -26,6 +27,7 @@ B("pillWifi",     mainMod .. " + SHIFT + W",     hl.dsp.exec_cmd(QS .. "wifi"))
 B("pillBt",       mainMod .. " + SHIFT + B",     hl.dsp.exec_cmd(QS .. "bluetooth"))
 B("pillClip",     mainMod .. " + V",             hl.dsp.exec_cmd(QS .. "clipboard"))
 B("pillPower",    "CTRL + ALT + delete",         hl.dsp.exec_cmd(QS .. "powermenu"))
+B("pillNotif",    mainMod .. " + SHIFT + N",     hl.dsp.exec_cmd(QS .. "notifications"))
 
 -- Basic binds
 -- Буквы в Hyprland регистронезависимы: SUPER+f == SUPER+F
@@ -35,7 +37,7 @@ B("closeWindow",  mainMod .. " + Q",         hl.dsp.window.close())
 B("browser",      mainMod .. " + F",         hl.dsp.exec_cmd(p.browser))
 B("fullscreen",   mainMod .. " + SHIFT + F", hl.dsp.window.fullscreen())
 B("exitHypr",     mainMod .. " + SHIFT + M", hl.dsp.exit())
-B("themeSwitch",  mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("/home/ensi/.config/hypr/scripts/switch_theme.sh"))
+B("themeSwitch",  mainMod .. " + W",         hl.dsp.exec_cmd(QS .. "theme"))
 -- панель настроек: динамический остров раскрывается по центру
 B("floatCenter", mainMod .. " + SHIFT + Space", function()
     hl.dispatch(hl.dsp.window.float({ action = "toggle" }))
@@ -145,3 +147,4 @@ hl.define_submap("capture", function()
     hl.bind("SUPER + SHIFT + Escape",
         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/panacea/scripts/capture.sh off"))
 end)
+
