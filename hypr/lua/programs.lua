@@ -10,7 +10,7 @@ programs.rog = "rog-control-center"
 programs.screenshot = 'grim -g "$(slurp)" - | wl-copy'
 programs.browser = "firefox"
 programs.powermenu = "/home/ensi/.local/bin/smart_powermenu.sh"
-programs.lock = "hyprlock"
+programs.lock = "/home/ensi/.config/panacea/scripts/lock.sh"
 programs.note = "obsidian"
 programs.dock = ""
 

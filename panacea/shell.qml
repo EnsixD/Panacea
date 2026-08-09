@@ -46,6 +46,12 @@ PanelWindow {
             property int    animMs: 230
             property string lang: "en"        // "en" | "ru", по умолчанию английский
             property bool   clock12: false    // 12-часовой формат с AM/PM
+            // запись экрана
+            property int    recFps: 60
+            property string recDir: "~/Videos"
+            property bool   recSysAudio: false   // звук системы
+            property bool   recMic: false        // микрофон
+            property string recMicDevice: ""     // "" = микрофон по умолчанию
             // сочетания; пересобираются в lua/binds_data.lua
             property string bind_pillLauncher: "SUPER + A"
             property string bind_pillControls: "SUPER + Z"
@@ -56,6 +62,7 @@ PanelWindow {
             property string bind_pillClip: "SUPER + V"
             property string bind_pillPower: "CTRL + ALT + delete"
             property string bind_pillNotif: "SUPER + SHIFT + N"
+            property string bind_pillRecord: "SUPER + P"
             property string bind_terminal: "SUPER + T"
             property string bind_terminalAlt: "SUPER + Return"
             property string bind_closeWindow: "SUPER + Q"
@@ -87,6 +94,7 @@ PanelWindow {
         pillClip:     "SUPER + V",
         pillPower:    "CTRL + ALT + delete",
         pillNotif:    "SUPER + SHIFT + N",
+        pillRecord:   "SUPER + P",
         terminal:       "SUPER + T",
         terminalAlt:    "SUPER + Return",
         closeWindow:    "SUPER + Q",
@@ -174,6 +182,76 @@ PanelWindow {
         "Заметки": "Notes",
         "Скриншот области": "Screenshot",
         "Смена темы": "Switch theme",
+        "Запись экрана": "Screen recording",
+        "Проводник": "File manager",
+        "Домашняя": "Home",
+        "Система": "System",
+        "Просто печатайте": "Just type",
+        "Ничего не найдено": "Nothing found",
+        "Пусто": "Empty",
+        "Чем открыть": "Open with",
+        "по умолчанию": "default",
+        "Подходящих программ не нашлось": "No matching apps",
+        "В корзину: ": "Trashed: ",
+        "В корзину": "Move to trash",
+        "Открыть": "Open",
+        "Открыть папку": "Open folder",
+        "Открыть с помощью…": "Open with…",
+        "Копировать": "Copy",
+        "Вырезать": "Cut",
+        "Вставить": "Paste",
+        "Переименовать": "Rename",
+        "Копировать путь": "Copy path",
+        "Создать папку": "New folder",
+        "Обновить": "Refresh",
+        "Новая папка": "New folder",
+        "Имя": "Name",
+        "Загрузки": "Downloads",
+        "Документы": "Documents",
+        "Изображения": "Pictures",
+        "Видео": "Videos",
+        "Музыка": "Music",
+        "Рабочий стол": "Desktop",
+        "Корзина": "Trash",
+        "Очистить корзину": "Empty trash",
+        "Корзина очищена": "Trash emptied",
+        "Сохранено: ": "Saved: ",
+        "Режу…": "Cutting…",
+        "Выделите область мышью": "Drag to select an area",
+        "Начало здесь": "Start here",
+        "Конец здесь": "End here",
+        "Куда": "Where",
+        "Рядом": "Next to original",
+        "Сохранить кусок": "Save clip",
+        "Сохранить область": "Save selection",
+        "Скопировано: ": "Copied: ",
+        "Вырезано: ": "Cut: ",
+        "Вставлено: ": "Pasted: ",
+        "Перемещено: ": "Moved: ",
+        "Путь скопирован": "Path copied",
+        "Переименовано": "Renamed",
+        "Папка создана": "Folder created",
+        "ПКМ — меню · Enter — открыть · Backspace — назад · Esc — закрыть":
+            "Right-click for menu · Enter to open · Backspace to go up · Esc to close",
+        "Enter — открыть · Backspace — назад · Delete — в корзину · Esc — закрыть":
+            "Enter to open · Backspace to go up · Delete to trash · Esc to close",
+        "Запись": "Recording",
+        "Идёт запись": "Recording",
+        "Готово к записи": "Ready to record",
+        "Начать запись": "Start recording",
+        "Пауза": "Pause",
+        "Продолжить": "Resume",
+        "Закончить": "Finish",
+        "Звук системы": "System audio",
+        "Микрофон": "Microphone",
+        "По умолчанию": "Default",
+        "Открыть папку с записями": "Open recordings folder",
+        "Папка": "Folder",
+        "Файл ляжет в ": "Saves to ",
+        "Запись уже идёт": "Already recording",
+        "Не удалось начать запись": "Could not start recording",
+        "Меню": "Menu",
+        "Меню пустое": "Menu is empty",
         "Закрыть окно": "Close window",
         "Во весь экран": "Fullscreen",
         "Плавающее по центру": "Float \u0026 centre",
@@ -370,7 +448,12 @@ PanelWindow {
     // true только пока идёт раскрытие/схлопывание или смена страницы.
     // Нужно, чтобы рост списка не ехал по длинной кривой раскрытия.
     property bool morphing: false
-    onExpandedChanged: { morphing = true; morphTimer.restart() }
+    onExpandedChanged: {
+        morphing = true;
+        morphTimer.restart();
+        // панель закрылась — показываем карточки, накопившиеся за это время
+        if (!expanded) toastPump.restart();
+    }
     onPageChanged:     { morphing = true; morphTimer.restart() }
     // Держим дольше самой анимации: высота страницы приходит с задержкой
     // в кадр-другой, и без запаса второй шаг ехал бы по «быстрой» кривой.
@@ -382,8 +465,107 @@ PanelWindow {
     // main    — плитки Wi-Fi / Bluetooth / режимы питания
     // player  — мультимедиа (наведение при играющей музыке, либо Super+M)
     property string page: "main"
+    // что показывает медиаплеер (страница "media")
+    property string mediaPath: ""
+    // высота полотна плеера: большую часть экрана, но не впритык
+    readonly property int mediaStageH: Math.round((screen ? screen.height : 1080) * 0.58)
+    // Плеер живёт в Loader и снаружи по id не виден, поэтому режим кропа
+    // держим здесь: кнопка и горячая клавиша дёргают один и тот же флаг.
+    property bool mediaCrop: false
+    function mediaCropToggle() { root.mediaCrop = !root.mediaCrop; }
+
+    function openMedia(path) {
+        root.mediaCrop = false;
+        root.mediaPath = path;
+        pageResetTimer.stop();
+        root.page = "media";
+        root.expanded = true;
+        root.holdOpen = true;
+    }
+
+    // ------------------------------------------------ полноэкранные окна
+    // Пилюля живёт в слое Overlay и по умолчанию рисуется поверх всего.
+    // Пока активное окно развёрнуто на весь экран, прячем её целиком:
+    // сочетания клавиш при этом работают — по ним панель раскрывается
+    // и окно снова показывается.
+    property bool fullscreenActive: false
+
+    Process {
+        id: pFullscreen
+        command: ["sh", "-c",
+            "hyprctl activewindow -j 2>/dev/null | grep -o '\"fullscreen\": *[0-9]*' | grep -o '[0-9]*$'"]
+        stdout: StdioCollector {
+            onStreamFinished: root.fullscreenActive = parseInt(text.trim()) > 0
+        }
+    }
+    Timer { id: fsProbe; interval: 120; onTriggered: pFullscreen.running = true }
+    // События Hyprland приходят не на все переходы (например, при смене
+    // окна внутри полноэкранного слоя), поэтому подстраховываемся опросом.
+    Timer {
+        interval: 1000; running: true; repeat: true; triggeredOnStart: true
+        onTriggered: pFullscreen.running = true
+    }
+
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            var n = String(event.name);
+            if (n === "fullscreen" || n === "activewindow" || n === "activewindowv2"
+                || n === "closewindow" || n === "openwindow" || n === "workspace"
+                || n === "focusedmon")
+                fsProbe.restart();
+        }
+    }
+    Component.onCompleted: fsProbe.restart()
+
+    // ------------------------------------------------- перетаскивание файлов
+    // Источник живёт прямо в окне, а не внутри страницы: панель во время
+    // перетаскивания сворачивается, её содержимое уничтожается, и элемент
+    // изнутри утащил бы за собой начатый drag.
+    Item {
+        id: fileDrag
+        width: 1
+        height: 1
+        visible: false
+
+        property string uri: ""
+
+        Drag.dragType: Drag.Automatic
+        Drag.supportedActions: Qt.CopyAction
+        Drag.proposedAction: Qt.CopyAction
+        Drag.mimeData: ({ "text/uri-list": fileDrag.uri,
+                          "text/plain": fileDrag.uri.replace("file://", "") })
+    }
+    Timer {
+        id: fileDragStart
+        interval: 90        // даём панели уехать вниз, потом начинаем drag
+        onTriggered: fileDrag.Drag.active = true
+    }
+
+    function startFileDrag(path) {
+        fileDrag.uri = "file://" + path;
+        root.collapse();
+        fileDragStart.restart();
+    }
+
+    // Высота списка в проводнике фиксирована: иначе панель прыгала на каждой
+    // смене папки, подстраиваясь под число файлов.
+    readonly property int filesListH: Math.round((screen ? screen.height : 1080) * 0.64)
+
+    // последняя папка проводника — чтобы он открывался там, где закрыли
+    property string filesDir: Quickshell.env("HOME")
+    // Иконка трея, чьё контекстное меню сейчас открыто (страница "traymenu").
+    property var trayMenuItem: null
     // пока вводят пароль или открыт лаунчер, панель не закрывается по уходу мыши
     property bool holdOpen: false
+    // клавиатуру окно получает уже после загрузки страницы — возвращаем
+    // фокус содержимому, иначе стрелки и Enter уходят в пустоту
+    onHoldOpenChanged: if (holdOpen) refocusTimer.restart()
+    Timer {
+        id: refocusTimer
+        interval: 60
+        onTriggered: if (contentLoader.item) contentLoader.item.forceActiveFocus()
+    }
 
     readonly property bool launcherOpen: expanded && page === "launcher"
 
@@ -398,7 +580,7 @@ PanelWindow {
     Timer {
         id: pageResetTimer
         interval: root.animMs + 40
-        onTriggered: if (!root.expanded) root.page = "main"
+        onTriggered: if (!root.expanded) { root.page = "main"; root.trayMenuItem = null; }
     }
 
     // Открыть страницу закреплённо; повторный вызов той же страницы закрывает.
@@ -426,13 +608,17 @@ PanelWindow {
     // Страницы, которые отрываются от верхней кромки и встают по центру:
     // содержимого много, у верха оно тесное.
     readonly property bool settingsMode:
-        expanded && (page === "settings" || page === "theme")
+        expanded && (page === "settings" || page === "theme"
+                     || page === "files" || page === "media")
 
     // Вкладка «Клавиши» раскладывается в две колонки, поэтому окно шире:
     // вертикальный список не влезал и уезжал за нижнюю кромку экрана.
     property bool wideSettings: false
     readonly property int settingsW: {
-        var want = page === "theme" ? 900 : (wideSettings ? 1120 : 720);
+        var want = page === "theme" ? 900
+                 : page === "files" ? Math.round((screen ? screen.width : 1920) * 0.78)
+                 : page === "media" ? Math.round((screen ? screen.width : 1920) * 0.72)
+                 : (wideSettings ? 1120 : 720);
         var lim = (screen ? screen.width : 1920) - 80;
         return Math.min(want, lim);
     }
@@ -597,12 +783,42 @@ PanelWindow {
             // Критичные показываем даже в режиме «не беспокоить»
             if (root.dnd && n.urgency !== NotificationUrgency.Critical) return;
 
-            root.notifCurrent = n;
-            var ms = n.expireTimeout > 0 ? n.expireTimeout * 1000 : 4500;
-            toastTimer.interval = Math.max(2000, Math.min(12000, ms));
-            toastTimer.restart();
+            root.enqueueToast(n);
         }
     }
+
+    // Очередь карточек. Раньше уведомление, пришедшее пока панель раскрыта
+    // или пока показывается предыдущая карточка, просто уходило в историю —
+    // и человек о нём не узнавал. Теперь оно дожидается своей очереди.
+    property var toastQueue: []
+
+    function enqueueToast(n) {
+        var q = root.toastQueue.slice();
+        q.push({ notif: n, at: Date.now() });
+        root.toastQueue = q;
+        root.pumpToasts();
+    }
+
+    function pumpToasts() {
+        // занято текущей карточкой или панель раскрыта — подождём
+        if (root.notifCurrent !== null || root.expanded) return;
+        if (root.toastQueue.length === 0) return;
+
+        var q = root.toastQueue.slice();
+        var item = q.shift();
+        root.toastQueue = q;
+
+        // протухшие (больше минуты в очереди) не показываем: они уже в истории
+        if (Date.now() - item.at > 60000) { root.pumpToasts(); return; }
+
+        var n = item.notif;
+        root.notifCurrent = n;
+        var ms = n.expireTimeout > 0 ? n.expireTimeout * 1000 : 4500;
+        toastTimer.interval = Math.max(2000, Math.min(12000, ms));
+        toastTimer.restart();
+    }
+
+    Timer { id: toastPump; interval: 260; onTriggered: root.pumpToasts() }
 
     Timer {
         id: toastTimer
@@ -615,6 +831,7 @@ PanelWindow {
     function dismissToast() {
         toastTimer.stop();
         root.notifCurrent = null;
+        toastPump.restart();
     }
     function clearNotifications() {
         notifModel.clear();
@@ -853,6 +1070,127 @@ PanelWindow {
         pWifiConnect.running = true;
     }
 
+    // --------------------------------------------------------- запись экрана
+    // Всё состояние держит scripts/record.sh: пилюлю можно перезапустить
+    // прямо во время записи, и она подхватит её обратно.
+    property bool   recActive: false
+    property bool   recPaused: false
+    property int    recStarted: 0        // unix-время старта
+    property int    recPausedTotal: 0    // сколько секунд простояли на паузе
+    property string recFile: ""
+    property string recError: ""
+    property int    recNow: 0            // «сейчас» для таймера, тикает раз в секунду
+
+    readonly property int recSeconds:
+        recActive ? Math.max(0, recNow - recStarted - recPausedTotal) : 0
+    readonly property string recTimeText: {
+        var s = recSeconds;
+        var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+        var mm = (m < 10 ? "0" : "") + m, ss = (x < 10 ? "0" : "") + x;
+        return h > 0 ? h + ":" + mm + ":" + ss : mm + ":" + ss;
+    }
+
+    readonly property string recScript: root.scriptDir + "/record.sh"
+
+    Process {
+        id: pRecStatus
+        command: ["sh", "-c", root.recScript + " status"]
+        running: true
+        stdout: SplitParser {
+            onRead: line => {
+                var p = line.trim().split("|");
+                if (p[0] === "idle") {
+                    root.recActive = false;
+                    root.recPaused = false;
+                    return;
+                }
+                root.recActive = true;
+                root.recPaused = (p[0] === "paused");
+                root.recStarted = parseInt(p[2]) || 0;
+                root.recPausedTotal = parseInt(p[3]) || 0;
+                root.recFile = p[4] || "";
+            }
+        }
+    }
+    Timer {
+        interval: 1000; running: true; repeat: true; triggeredOnStart: true
+        onTriggered: {
+            root.recNow = Math.floor(Date.now() / 1000);
+            // пока не пишем — опрашиваем реже, чтобы не дёргать скрипт зря
+            if (root.recActive || (root.recNow % 5) === 0) pRecStatus.running = true;
+        }
+    }
+
+    Process {
+        id: pRecCmd
+        onRunningChanged: if (!running) pRecStatus.running = true
+        stderr: SplitParser {
+            onRead: line => {
+                var t = line.trim();
+                if (!t.length) return;
+                root.recError = t === "already" ? root.tr("Запись уже идёт")
+                              : t === "failed"  ? root.tr("Не удалось начать запись")
+                                                : t;
+                recErrorClear.restart();
+            }
+        }
+    }
+    Timer { id: recErrorClear; interval: 4000; onTriggered: root.recError = "" }
+
+    function startRecord() {
+        if (root.recActive) return;
+        root.recError = "";
+        pRecCmd.command = ["sh", "-c",
+            root.recScript + " start \"$1\" \"$2\" \"$3\" \"$4\" \"$5\"", "_",
+            String(root.cfg.recFps), String(root.cfg.recDir),
+            root.cfg.recSysAudio ? "1" : "0",
+            root.cfg.recMic ? "1" : "0",
+            String(root.cfg.recMicDevice)];
+        pRecCmd.running = true;
+    }
+    function stopRecord() {
+        if (!root.recActive) return;
+        pRecCmd.command = ["sh", "-c", root.recScript + " stop"];
+        pRecCmd.running = true;
+    }
+    function pauseRecord() {
+        if (!root.recActive) return;
+        pRecCmd.command = ["sh", "-c", root.recScript + " pause"];
+        pRecCmd.running = true;
+    }
+    function toggleRecord() { if (root.recActive) stopRecord(); else startRecord(); }
+
+    // список микрофонов для выбора в пульте записи
+    ListModel { id: micModel }
+    readonly property var recMics: micModel
+    Process {
+        id: pRecMics
+        command: ["sh", "-c", root.recScript + " mics"]
+        stdout: SplitParser {
+            onRead: line => {
+                var p = line.trim().split("|");
+                if (p.length < 2) return;
+                micModel.append({ mName: p[0], mDesc: p[1] });
+            }
+        }
+    }
+    function refreshMics() {
+        micModel.clear();
+        pRecMics.running = false;
+        pRecMics.running = true;
+    }
+
+    Process { id: pMkRecDir }
+    function openRecordDir() {
+        var d = String(root.cfg.recDir);
+        if (d.indexOf("~") === 0) d = Quickshell.env("HOME") + d.slice(1);
+        // папки может ещё не быть: создаём, иначе проводник покажет пустоту
+        pMkRecDir.command = ["sh", "-c", "mkdir -p \"$1\"", "_", d];
+        pMkRecDir.running = true;
+        root.filesDir = d;
+        root.togglePage("files");
+    }
+
     // -------------------------------------------------------------- Bluetooth
     readonly property var btAdapter: Bluetooth.defaultAdapter
     readonly property bool btOn: btAdapter ? btAdapter.enabled : false
@@ -899,6 +1237,12 @@ PanelWindow {
         function audio(): void { root.togglePage("audio"); }
         function calendar(): void { root.togglePage("cal"); }
         function theme(): void { root.togglePage("theme"); }
+        function record(): void { root.togglePage("record"); }
+        function files(): void { root.togglePage("files"); }
+        function media(path: string): void { root.openMedia(path); }
+        // переключить выделение области в плеере (то же, что кнопка «Кроп»)
+        function mediaCrop(): void { root.mediaCropToggle(); }
+        function recordToggle(): void { root.toggleRecord(); }
         function dnd(): void { root.dnd = !root.dnd; }
         // яркость приходит от smart_brightness.sh: службы для неё нет
         function brightness(pct: string): void {
@@ -921,8 +1265,12 @@ PanelWindow {
     implicitHeight: root.screen ? root.screen.height : 1080
     color: "transparent"
     // зазор между пилюлей и окнами
-    exclusiveZone: pillH + gap
+    exclusiveZone: (root.fullscreenActive && !root.expanded) ? 0 : pillH + gap
     WlrLayershell.layer: WlrLayer.Overlay
+    // Пока поверх экрана развёрнутое окно, пилюли не видно совсем.
+    // Показываем её обратно, если панель раскрыли клавишами или если
+    // нужно показать уровень громкости/яркости.
+    visible: !root.fullscreenActive || root.expanded || root.osdActive
     // клики ловим только там, где нарисована пилюля
     // Пока открыта закреплённая страница, ввод принимает всё окно:
     // иначе клики по панели (особенно по центрированным настройкам)
@@ -1065,7 +1413,10 @@ PanelWindow {
                 // наведение сбрасывало бы уже открытый список сетей
                 if (!root.expanded) {
                     pageResetTimer.stop();
-                    root.page = root.mediaActive ? "player" : "main";
+                    // во время записи наведение открывает пульт записи —
+                    // это то, что нужно под рукой прямо сейчас
+                    root.page = root.recActive ? "record"
+                              : root.mediaActive ? "player" : "main";
                 }
                 root.expanded = true;
             }
@@ -1262,6 +1613,33 @@ PanelWindow {
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
+            // идёт запись — мигающая точка и таймер слева от даты
+            RowLayout {
+                spacing: 6
+                visible: root.recActive
+
+                Rectangle {
+                    Layout.preferredWidth: 9
+                    Layout.preferredHeight: 9
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: 5
+                    color: root.recPaused ? "#fbbf24" : "#ef4444"
+                    // на паузе точка горит ровно, при записи — пульсирует
+                    SequentialAnimation on opacity {
+                        running: root.recActive && !root.recPaused
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.25; duration: 620; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1.0;  duration: 620; easing.type: Easing.InOutSine }
+                    }
+                    onVisibleChanged: if (!visible) opacity = 1
+                }
+                Text {
+                    text: root.recTimeText
+                    color: root.recPaused ? "#fbbf24" : "#ef4444"
+                    font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                }
+            }
+
             Text {
                 text: root.dayText
                 color: root.colMuted
@@ -1374,6 +1752,14 @@ PanelWindow {
             // сворачивания и выглядело как размазанная краска.
             width: (root.settingsMode ? root.settingsW : root.panelW) - 30
             active: root.expanded || capsule.height > root.pillH + 4
+            // без этого клавиатура не доходила до содержимого страницы:
+            // сам Loader фокуса не имел, и forceActiveFocus() внутри вида
+            // ни к чему не приводил
+            focus: true
+            onLoaded: if (item) item.forceActiveFocus()
+            // Esc закрывает любую страницу: если сам вид его не обработал
+            // (или обработал только на подстранице), событие всплывает сюда
+            Keys.onEscapePressed: root.collapse()
             opacity: root.expanded ? 1 : 0
             Behavior on opacity {
                 NumberAnimation { duration: root.expanded ? root.animFast : 70 }
@@ -1388,6 +1774,9 @@ PanelWindow {
                            : root.page === "audio"    ? audioComp
                            : root.page === "cal"      ? calComp
                            : root.page === "theme"    ? themeComp
+                           : root.page === "record"   ? recordComp
+                           : root.page === "files"    ? filesComp
+                           : root.page === "media"    ? mediaComp
                            : root.page === "auth"     ? authComp
                                                       : controlsComp
         }
@@ -1402,6 +1791,9 @@ PanelWindow {
         Component { id: audioComp;    AudioView { sys: root } }
         Component { id: calComp;      CalendarView { sys: root } }
         Component { id: themeComp;    ThemeView { sys: root } }
+        Component { id: recordComp;   RecordView { sys: root } }
+        Component { id: filesComp;    FilesView { sys: root } }
+        Component { id: mediaComp;    MediaView { sys: root } }
         Component { id: authComp;     AuthView { sys: root } }
     }
 

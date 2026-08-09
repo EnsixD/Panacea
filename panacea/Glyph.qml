@@ -38,10 +38,16 @@ Item {
     Text {
         text: glyph.glyph
         color: glyph.color
-        font { family: glyph.fontFam; pixelSize: glyph.size }
+        font {
+            family: glyph.fontFam; pixelSize: glyph.size
+            // на мелких размерах глиф без хинтинга расплывается
+            hintingPreference: Font.PreferFullHinting
+        }
 
-        x: glyph.width  / 2 - glyph.inkX
-        y: glyph.height / 2 - glyph.inkY
+        // округляем позицию: на дробных координатах иконка размывается
+        // по субпикселям и выглядит грязной
+        x: Math.round(glyph.width  / 2 - glyph.inkX)
+        y: Math.round(glyph.height / 2 - glyph.inkY)
 
         Behavior on color { ColorAnimation { duration: 160 } }
     }

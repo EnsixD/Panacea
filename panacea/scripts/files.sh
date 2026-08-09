@@ -1,0 +1,214 @@
+#!/bin/bash
+# Бэкенд проводника пилюли.
+#
+#   list DIR              -> строки  тип|имя|размер|мтайм|mime
+#                            тип: d (каталог) | f (файл)
+#   apps PATH             -> чем можно открыть: desktop-файл|Название|Иконка
+#                            первым идёт приложение по умолчанию
+#   open PATH [DESKTOP]   -> открыть (без DESKTOP — приложением по умолчанию)
+#   mkdir DIR NAME        -> создать папку
+#   rename PATH NEWNAME   -> переименовать
+#   trash PATH            -> в корзину (обратимо, в отличие от rm)
+#   places                -> закладки: ключ|путь|подпись
+
+py() { python3 "$@"; }
+
+case "$1" in
+    list)
+        DIR="${2:-$HOME}"
+        DIR="${DIR/#\~/$HOME}"
+        py - "$DIR" <<'EOF'
+import os, sys, mimetypes
+
+d = sys.argv[1]
+try:
+    entries = list(os.scandir(d))
+except OSError:
+    sys.exit(0)
+
+dirs, files = [], []
+for e in entries:
+    if e.name.startswith('.'):
+        continue
+    try:
+        st = e.stat()
+    except OSError:
+        continue
+    if e.is_dir():
+        dirs.append((e.name, 0, int(st.st_mtime), 'inode/directory'))
+    else:
+        mime = mimetypes.guess_type(e.name)[0] or 'application/octet-stream'
+        files.append((e.name, st.st_size, int(st.st_mtime), mime))
+
+key = lambda t: t[0].lower()
+for name, size, mtime, mime in sorted(dirs, key=key):
+    print(f"d|{name}|{size}|{mtime}|{mime}")
+for name, size, mtime, mime in sorted(files, key=key):
+    print(f"f|{name}|{size}|{mtime}|{mime}")
+EOF
+        ;;
+
+    apps)
+        P="${2:?}"
+        P="${P/#\~/$HOME}"
+        MIME=$(xdg-mime query filetype "$P" 2>/dev/null)
+        DEFAULT=$(xdg-mime query default "$MIME" 2>/dev/null)
+        py - "$MIME" "$DEFAULT" <<'EOF'
+import configparser, os, sys
+
+mime, default = sys.argv[1], sys.argv[2]
+dirs = [os.path.expanduser("~/.local/share/applications"),
+        "/usr/local/share/applications", "/usr/share/applications"]
+
+group = mime.split("/")[0] + "/" if "/" in mime else ""
+
+exact, similar, rest = {}, {}, {}
+for d in dirs:
+    if not os.path.isdir(d):
+        continue
+    for fn in os.listdir(d):
+        if not fn.endswith(".desktop"):
+            continue
+        if fn in exact or fn in similar or fn in rest:
+            continue
+        cp = configparser.RawConfigParser(strict=False)
+        try:
+            cp.read(os.path.join(d, fn), encoding="utf-8")
+            e = cp["Desktop Entry"]
+        except Exception:
+            continue
+        if e.get("NoDisplay", "false").lower() == "true":
+            continue
+        if e.get("Type", "Application") != "Application":
+            continue
+
+        item = (e.get("Name", fn), e.get("Icon", ""))
+        mimes = [m for m in e.get("MimeType", "").split(";") if m]
+        if mime and mime in mimes:
+            exact[fn] = item
+        elif group and any(m.startswith(group) for m in mimes):
+            similar[fn] = item
+        else:
+            # Мало какая программа объявляет все типы, которые тянет.
+            # Показываем и остальные — пусть выбор будет за человеком.
+            rest[fn] = item
+
+def emit(fn, table):
+    name, icon = table[fn]
+    print(f"{fn}|{name}|{icon}")
+
+# приложение по умолчанию — первой строкой, в какой бы группе ни оказалось
+for table in (exact, similar, rest):
+    if default in table:
+        emit(default, table)
+        break
+
+for table in (exact, similar, rest):
+    for fn in sorted(table, key=lambda f: table[f][0].lower()):
+        if fn != default:
+            emit(fn, table)
+EOF
+        ;;
+
+    open)
+        P="${2:?}"
+        P="${P/#\~/$HOME}"
+        DESKTOP="$3"
+        if [ -n "$DESKTOP" ]; then
+            for d in "$HOME/.local/share/applications" /usr/local/share/applications \
+                     /usr/share/applications; do
+                if [ -f "$d/$DESKTOP" ]; then
+                    setsid gio launch "$d/$DESKTOP" "$P" >/dev/null 2>&1 &
+                    exit 0
+                fi
+            done
+        fi
+        setsid xdg-open "$P" >/dev/null 2>&1 &
+        ;;
+
+    mkdir)
+        D="${2:?}"; N="${3:?}"
+        D="${D/#\~/$HOME}"
+        mkdir -p "$D/$N"
+        ;;
+
+    rename)
+        P="${2:?}"; N="${3:?}"
+        P="${P/#\~/$HOME}"
+        mv -n "$P" "$(dirname "$P")/$N"
+        ;;
+
+    trash)
+        P="${2:?}"
+        P="${P/#\~/$HOME}"
+        gio trash "$P"
+        ;;
+
+    copy)
+        SRC="${2:?}"; DST="${3:?}"
+        SRC="${SRC/#\~/$HOME}"; DST="${DST/#\~/$HOME}"
+        name=$(basename "$SRC")
+        target="$DST/$name"
+        # не затираем существующее молча: дописываем номер.
+        # Слова тут нарочно нет — скрипт не знает язык интерфейса.
+        if [ -e "$target" ]; then
+            base="${name%.*}"; ext="${name##*.}"
+            n=2
+            while [ -e "$target" ]; do
+                if [ "$base" = "$name" ]; then target="$DST/$name-$n"
+                else target="$DST/$base-$n.$ext"; fi
+                n=$((n + 1))
+            done
+        fi
+        cp -r --no-clobber "$SRC" "$target"
+        ;;
+
+    move)
+        SRC="${2:?}"; DST="${3:?}"
+        SRC="${SRC/#\~/$HOME}"; DST="${DST/#\~/$HOME}"
+        mv -n "$SRC" "$DST/"
+        ;;
+
+    copypath)
+        P="${2:?}"
+        P="${P/#\~/$HOME}"
+        printf '%s' "$P" | wl-copy
+        ;;
+
+    places)
+        # Подписи здесь черновые: интерфейс переводит их сам по ключу.
+        printf 'home|%s|Home\n' "$HOME"
+        for k in Downloads Documents Pictures Videos Music Desktop; do
+            [ -d "$HOME/$k" ] && printf '%s|%s/%s|%s\n' "${k,,}" "$HOME" "$k" "$k"
+        done
+        printf 'root|/|System\n'
+        # корзина — последней: это не место, куда ходят по делу
+        printf 'trash|%s/Trash/files|Trash\n' "${XDG_DATA_HOME:-$HOME/.local/share}"
+        ;;
+
+    emptytrash)
+        # gio trash --empty ходит через gvfs, а его в системе может не быть
+        # («Operation not supported»). Чистим корзину сами — она устроена
+        # ровно по freedesktop-спецификации: files, info и expunged.
+        base="${XDG_DATA_HOME:-$HOME/.local/share}/Trash"
+        case "$base" in
+            */Trash) ;;
+            *) exit 1 ;;          # подстраховка: мало ли что в переменной
+        esac
+        for d in files info expunged; do
+            [ -d "$base/$d" ] || continue
+            find "$base/$d" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+        done
+        ;;
+
+    trashcount)
+        d="${XDG_DATA_HOME:-$HOME/.local/share}/Trash/files"
+        [ -d "$d" ] || { echo 0; exit 0; }
+        find "$d" -mindepth 1 -maxdepth 1 | wc -l
+        ;;
+
+    *)
+        echo "usage: files.sh list DIR | apps P | open P [D] | mkdir D N | rename P N | trash P | copy S D | move S D | copypath P | places | emptytrash | trashcount" >&2
+        exit 1
+        ;;
+esac

@@ -6,7 +6,11 @@ import Quickshell
 
 // Лаунчер приложений: поиск, иконки, навигация стрелками, Enter — запуск.
 // Живёт внутри той же пилюли, поэтому раскрывается той же анимацией.
-Item {
+//
+// Корень именно FocusScope, а не Item: панель отдаёт фокус загруженному виду
+// целиком, и обычный Item забирал бы его СЕБЕ, оставляя поле ввода мёртвым.
+// Область фокуса переадресует его тому ребёнку, у которого focus: true.
+FocusScope {
     id: view
     property var sys
 
@@ -15,6 +19,41 @@ Item {
     property string query: ""
     property int index: 0
     readonly property int maxRows: 6
+
+    // Недавно запущенные: список идентификаторов, свежие в начале.
+    // Хранится в ~/.cache/panacea/recent-apps, поэтому переживает перезапуск.
+    property var recent: []
+    readonly property string recentFile:
+        (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache"))
+        + "/panacea/recent-apps"
+
+    Process {
+        id: pRecentRead
+        command: ["sh", "-c", "cat \"$1\" 2>/dev/null", "_", view.recentFile]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: view.recent = text.trim().split("\n").filter(x => x.length)
+        }
+    }
+    Process { id: pRecentWrite }
+
+    function rememberApp(app) {
+        var id = String(app.id || app.name || "");
+        if (!id.length) return;
+        var list = view.recent.filter(x => x !== id);
+        list.unshift(id);
+        if (list.length > 20) list = list.slice(0, 20);
+        view.recent = list;
+        pRecentWrite.command = ["sh", "-c",
+            "mkdir -p \"$(dirname \"$1\")\"; printf '%s' \"$2\" > \"$1\"",
+            "_", view.recentFile, list.join("\n")];
+        pRecentWrite.running = true;
+    }
+
+    function recentRank(app) {
+        var i = view.recent.indexOf(String(app.id || app.name || ""));
+        return i < 0 ? 999 : i;
+    }
 
     // Отбор и сортировка: сперва совпадения с начала имени, потом остальные.
     readonly property var results: {
@@ -34,6 +73,15 @@ Item {
         var byName = function (x, y) {
             return String(x.name || "").localeCompare(String(y.name || ""));
         };
+        // Пустой запрос — сверху то, что запускали недавно: курсор сразу
+        // стоит на последнем открытом приложении.
+        if (q.length === 0) {
+            starts.sort(function (x, y) {
+                var d = view.recentRank(x) - view.recentRank(y);
+                return d !== 0 ? d : byName(x, y);
+            });
+            return starts;
+        }
         starts.sort(byName); contains.sort(byName);
         return starts.concat(contains);
     }
@@ -77,6 +125,7 @@ Item {
         if (view.mathResult.length > 0) { copyResult(); return; }
         var app = results[index];
         if (!app) return;
+        rememberApp(app);
         app.execute();
         sys.closeLauncher();
     }
@@ -94,7 +143,10 @@ Item {
         interval: 16; repeat: true; triggeredOnStart: true
         property int tries: 0
         onTriggered: {
-            if (input.activeFocus || tries++ > 12) { stop(); return; }
+            // Клавиатуру слой получает не сразу, поэтому долбимся полсекунды:
+            // раньше окно успевало открыться быстрее, чем приходил фокус,
+            // и первые буквы улетали в никуда.
+            if (input.activeFocus || tries++ > 30) { stop(); return; }
             input.forceActiveFocus();
         }
     }
@@ -127,6 +179,7 @@ Item {
                 }
                 TextField {
                     id: input
+                    focus: true
                     Layout.fillWidth: true
                     placeholderText: view.sys.tr("Поиск приложений…")
                     color: view.sys.colFg

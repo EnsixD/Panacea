@@ -28,6 +28,7 @@ B("pillBt",       mainMod .. " + SHIFT + B",     hl.dsp.exec_cmd(QS .. "bluetoot
 B("pillClip",     mainMod .. " + V",             hl.dsp.exec_cmd(QS .. "clipboard"))
 B("pillPower",    "CTRL + ALT + delete",         hl.dsp.exec_cmd(QS .. "powermenu"))
 B("pillNotif",    mainMod .. " + SHIFT + N",     hl.dsp.exec_cmd(QS .. "notifications"))
+B("pillRecord",   mainMod .. " + P",             hl.dsp.exec_cmd(QS .. "record"))
 
 -- Basic binds
 -- Буквы в Hyprland регистронезависимы: SUPER+f == SUPER+F
@@ -44,7 +45,7 @@ B("floatCenter", mainMod .. " + SHIFT + Space", function()
     hl.dispatch(hl.dsp.window.resize({ x = 800, y = 600, relative = false }))
     hl.dispatch(hl.dsp.window.center())
 end)
-B("fileManager",  mainMod .. " + E",         hl.dsp.exec_cmd(p.fileManager))
+B("fileManager",  mainMod .. " + E",         hl.dsp.exec_cmd(QS .. "files"))
 B("fileManagerTui", mainMod .. " + SHIFT + E", hl.dsp.exec_cmd(p.fileManagerTui))
 B("toggleSplit",  mainMod .. " + J",         hl.dsp.layout("togglesplit"))
 B("notes",        mainMod .. " + O",         hl.dsp.exec_cmd(p.note))
@@ -132,8 +133,8 @@ hl.bind("XF86AudioPlay",  hl.dsp.exec_cmd("playerctl play-pause"), { locked = tr
 hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
 
 -- Switch
-hl.bind("switch:on:Lid Switch", hl.dsp.exec_cmd("hyprlock"), { locked = true })
-hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd("hyprlock"), { locked = true })
+hl.bind("switch:on:Lid Switch", hl.dsp.exec_cmd(p.lock), { locked = true })
+hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd(p.lock), { locked = true })
 
 
 -- Пилюля: панели открываются в ней же

@@ -22,12 +22,14 @@ Item {
 
     Process { id: pRun }
 
+    // Иконки подобраны из одного семейства Material Design и одной весовой
+    // группы: залитые силуэты читаются на 20 px лучше, чем тонкие контуры.
     readonly property var actions: [
-        { icon: String.fromCodePoint(0xF0904), label: view.sys.tr("Сон"),         cmd: "systemctl suspend",  accent: "#38bdf8" },
-        { icon: String.fromCodePoint(0xF033E), label: view.sys.tr("Блокировка"),  cmd: "hyprlock",           accent: "#a78bfa" },
-        { icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),       cmd: "hyprctl dispatch exit", accent: "#fbbf24" },
-        { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",   accent: "#fb923c" },
-        { icon: String.fromCodePoint(0xF0425), label: view.sys.tr("Выключить"),   cmd: "systemctl poweroff", accent: "#ef4444" }
+        { icon: String.fromCodePoint(0xF0904), label: view.sys.tr("Сон"),          cmd: "systemctl suspend",     accent: "#38bdf8" },  // md-power_sleep
+        { icon: String.fromCodePoint(0xF033E), label: view.sys.tr("Блокировка"),   cmd: view.sys.scriptDir + "/lock.sh", accent: "#a78bfa" },  // md-lock
+        { icon: String.fromCodePoint(0xF05FD), label: view.sys.tr("Выйти"),        cmd: "hyprctl dispatch exit", accent: "#fbbf24" },  // md-logout_variant
+        { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",      accent: "#fb923c" },  // md-restart
+        { icon: String.fromCodePoint(0xF0425), label: view.sys.tr("Выключить"),    cmd: "systemctl poweroff",    accent: "#ef4444" }   // md-power
     ]
 
     function trigger(i) {
@@ -147,7 +149,7 @@ Item {
                                 glyph: modelData.icon
                                 color: body.parent.isArmed ? "#0b0b0b" : modelData.accent
                                 fontFam: view.sys.fontFam
-                                size: view.sys.iconSize + 3
+                                size: view.sys.iconSize + 6
                             }
                         }
 

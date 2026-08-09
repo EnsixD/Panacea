@@ -32,9 +32,36 @@ make_thumb() {
     printf '%s\n' "$dst"
 }
 
+# Фон для экрана блокировки: те же обои, но ужатые под экран.
+# Исходники бывают на 75 мегапикселей — Qt отказывается их декодировать
+# (лимит 256 МБ на картинку), да и открывались бы они полсекунды.
+LOCKBG="${XDG_CACHE_HOME:-$HOME/.cache}/panacea/lockbg"
+LOCK_WIDTH=1920
+
+make_lockbg() {
+    local src="$1"
+    [ -f "$src" ] || return 1
+    mkdir -p "$LOCKBG"
+
+    local name
+    name=$(basename "$src")
+    name="${name%.*}.jpg"
+    local dst="$LOCKBG/$name"
+
+    if [ ! -f "$dst" ] || [ "$src" -nt "$dst" ]; then
+        # уменьшаем только то, что больше экрана; мелкие обои не трогаем
+        ffmpeg -loglevel error -y -i "$src" \
+               -vf "scale='min($LOCK_WIDTH,iw)':-2" -q:v 2 "$dst" </dev/null || return 1
+    fi
+    printf '%s\n' "$dst"
+}
+
 case "$1" in
     thumb)
         make_thumb "$2"
+        ;;
+    lockbg)
+        make_lockbg "$2"
         ;;
     all)
         for f in "$WALLS"/*.jpg "$WALLS"/*.png; do
@@ -43,7 +70,7 @@ case "$1" in
         done
         ;;
     *)
-        echo "usage: thumbs.sh thumb <path> | all" >&2
+        echo "usage: thumbs.sh thumb <path> | lockbg <path> | all" >&2
         exit 1
         ;;
 esac

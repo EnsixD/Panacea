@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import Quickshell
 
 // Раскрытая панель без музыки: Wi-Fi и Bluetooth.
 //
@@ -19,6 +20,10 @@ Item {
     Keys.onEscapePressed: {
         // с подстраниц Esc возвращает назад, с главной — закрывает панель
         if (view.sys.page === "wifi" || view.sys.page === "bt") view.sys.page = "main";
+        else if (view.sys.page === "traymenu") {
+            view.sys.page = "main";
+            view.sys.trayMenuItem = null;
+        }
         else view.sys.collapse();
     }
 
@@ -132,8 +137,10 @@ Item {
                 Layout.fillWidth: true
                 spacing: 1
                 Text {
+                    Layout.fillWidth: true
                     text: iconBtn.parent.parent.label
                     color: view.sys.colFg
+                    elide: Text.ElideRight
                     font { family: view.sys.fontFam; pixelSize: 13; bold: true }
                 }
                 Text {
@@ -283,6 +290,7 @@ Item {
         width: parent.width
         implicitHeight: view.sys.page === "main" ? mainPage.implicitHeight
                       : view.sys.page === "wifi" ? wifiPage.implicitHeight
+                      : view.sys.page === "traymenu" ? trayPage.implicitHeight
                       : btPage.implicitHeight
         // Высоту анимирует сама капсула в shell.qml. Вторая анимация здесь
         // складывалась с ней: капсула догоняла уже анимируемое значение,
@@ -433,9 +441,13 @@ Item {
             Tile {
                 icon: view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
                                        : view.sys.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
-                label: "Wi-Fi"
+                // подключены — в заголовке имя сети, иначе обычное «Wi-Fi»
+                label: (view.sys.wifiOn && view.sys.wifiSsid.length)
+                       ? view.sys.wifiSsid : "Wi-Fi"
                 sub: !view.sys.wifiOn ? view.sys.tr("Выключен")
-                   : (view.sys.wifiSsid.length ? view.sys.wifiSsid : view.sys.tr("Не подключено"))
+                   : (view.sys.wifiSsid.length
+                      ? view.sys.tr("Подключено") + " · " + view.sys.wifiQuality + "%"
+                      : view.sys.tr("Не подключено"))
                 on: view.sys.wifiOn
                 onIconClicked: view.sys.toggleWifi()
                 onBodyClicked: {
@@ -448,9 +460,12 @@ Item {
 
             Tile {
                 icon: view.sys.btOn ? "󰂯" : "󰂲"
-                label: "Bluetooth"
+                // подключено устройство — его имя вместо «Bluetooth»
+                label: (view.sys.btOn && view.sys.btConnectedName.length)
+                       ? view.sys.btConnectedName : "Bluetooth"
                 sub: !view.sys.btOn ? view.sys.tr("Выключен")
-                   : (view.sys.btConnectedName.length ? view.sys.btConnectedName : view.sys.tr("Нет подключений"))
+                   : (view.sys.btConnectedName.length ? view.sys.tr("Подключено")
+                                                      : view.sys.tr("Нет подключений"))
                 on: view.sys.btOn
                 accent: "#0ea5e9"
                 onIconClicked: view.sys.toggleBt()
@@ -471,6 +486,22 @@ Item {
                 accent: "#a855f7"
                 onIconClicked: view.sys.togglePage("audio")
                 onBodyClicked: view.sys.togglePage("audio")
+            }
+
+            // ---------------------------------------------- запись экрана
+            Tile {
+                icon: String.fromCodePoint(view.sys.recActive ? 0xF04DB : 0xF044A)
+                label: view.sys.recActive
+                       ? view.sys.tr("Запись") + " · " + view.sys.recTimeText
+                       : view.sys.tr("Запись экрана")
+                sub: !view.sys.recActive
+                     ? view.sys.cfg.recFps + " FPS · " + view.sys.cfg.recDir
+                     : (view.sys.recPaused ? view.sys.tr("Пауза")
+                                           : view.sys.recFile.split("/").pop())
+                on: view.sys.recActive
+                accent: "#ef4444"
+                onIconClicked: view.sys.toggleRecord()
+                onBodyClicked: view.sys.togglePage("record")
             }
 
             // ------------------------------------------- режимы питания
@@ -589,6 +620,7 @@ Item {
 
                         Layout.preferredWidth: 32
                         Layout.preferredHeight: 32
+                        z: trayMa.containsMouse ? 10 : 0
                         radius: 10
                         color: trayMa.containsMouse ? Qt.rgba(1, 1, 1, 0.13) : Qt.rgba(1, 1, 1, 0.05)
                         border.color: view.sys.colLine
@@ -610,8 +642,16 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+                            acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
                             onClicked: mouse => {
+                                // ПКМ — контекстное меню приложения (Telegram и т.п.)
+                                if (mouse.button === Qt.RightButton) {
+                                    if (!trayBtn.modelData.hasMenu) return;
+                                    view.sys.trayMenuItem = trayBtn.modelData;
+                                    view.sys.page = "traymenu";
+                                    view.sys.holdOpen = true;
+                                    return;
+                                }
                                 if (mouse.button === Qt.MiddleButton)
                                     trayBtn.modelData.secondaryActivate();
                                 else
@@ -620,10 +660,41 @@ Item {
                             }
                         }
 
-                        ToolTip.visible: trayMa.containsMouse
-                        ToolTip.text: String(trayBtn.modelData.tooltipTitle
-                                             || trayBtn.modelData.title || "")
-                        ToolTip.delay: 400
+                        // Свой тултип вместо системного: та же чёрная капсула,
+                        // что и вся пилюля.
+                        Rectangle {
+                            id: tip
+                            readonly property string label:
+                                String(trayBtn.modelData.tooltipTitle
+                                       || trayBtn.modelData.title || "")
+
+                            visible: opacity > 0.01
+                            opacity: (trayMa.containsMouse && label.length) ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: 140 } }
+
+                            width: tipText.implicitWidth + 20
+                            height: 26
+                            radius: 13
+                            x: (parent.width - width) / 2
+                            y: -height - 8
+                            color: Qt.rgba(0.04, 0.04, 0.05, 0.96)
+                            border.color: view.sys.colLine
+                            border.width: 1
+
+                            scale: trayMa.containsMouse ? 1 : 0.92
+                            transformOrigin: Item.Bottom
+                            Behavior on scale {
+                                NumberAnimation { duration: 160; easing.type: Easing.OutBack }
+                            }
+
+                            Text {
+                                id: tipText
+                                anchors.centerIn: parent
+                                text: tip.label
+                                color: view.sys.colFg
+                                font { family: view.sys.fontFam; pixelSize: 11 }
+                            }
+                        }
                     }
                 }
 
@@ -754,6 +825,154 @@ Item {
             }
 
             Timer { id: pwFocus; interval: 80; onTriggered: pwField.forceActiveFocus() }
+        }
+
+        // ------------------------------------------- контекстное меню трея
+        ColumnLayout {
+            id: trayPage
+            width: parent.width
+            spacing: 3
+            opacity: view.sys.page === "traymenu" ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: view.sys.animFast } }
+
+            // цепочка вложенных подменю: последний элемент — текущее меню
+            property var chain: []
+            readonly property var rootHandle:
+                view.sys.trayMenuItem ? view.sys.trayMenuItem.menu : null
+            readonly property var handle:
+                chain.length > 0 ? chain[chain.length - 1] : rootHandle
+
+            // новая иконка — начинаем с её корневого меню.
+            // Присваиваем только когда есть что сбрасывать: иначе QML видит
+            // цикл chain -> handle -> chain и ругается на каждом открытии.
+            onRootHandleChanged: if (chain.length > 0) chain = []
+
+            QsMenuOpener {
+                id: menuOpener
+                menu: trayPage.handle
+            }
+
+            Header {
+                title: view.sys.trayMenuItem
+                       ? String(view.sys.trayMenuItem.tooltipTitle
+                                || view.sys.trayMenuItem.title || view.sys.tr("Меню"))
+                       : view.sys.tr("Меню")
+                busy: false
+                onBack: {
+                    if (trayPage.chain.length > 0) {
+                        var c = trayPage.chain.slice();
+                        c.pop();
+                        trayPage.chain = c;
+                    } else {
+                        view.sys.page = "main";
+                        view.sys.trayMenuItem = null;
+                    }
+                }
+                onRefresh: {}
+            }
+
+            Repeater {
+                model: menuOpener.children
+
+                // разделитель и обычный пункт — в одном делегате: Repeater
+                // не умеет выбирать компонент по данным модели
+                Item {
+                    id: entry
+                    required property var modelData
+
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: modelData.isSeparator ? 9 : 34
+
+                    Rectangle {
+                        visible: entry.modelData.isSeparator
+                        height: 1
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: view.sys.colLine
+                    }
+
+                    Rectangle {
+                        visible: !entry.modelData.isSeparator
+                        anchors.fill: parent
+                        radius: 10
+                        color: entryMa.containsMouse && entry.modelData.enabled
+                               ? view.sys.colHover : "transparent"
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 11
+                            anchors.rightMargin: 11
+                            spacing: 9
+
+                            // галочка/радио для переключаемых пунктов
+                            Text {
+                                visible: entry.modelData.buttonType !== QsMenuButtonType.None
+                                text: entry.modelData.checkState === Qt.Checked
+                                      ? "󰄬" : "󰝦"
+                                color: entry.modelData.checkState === Qt.Checked
+                                       ? view.sys.colOn : view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: 12 }
+                            }
+
+                            Image {
+                                visible: String(entry.modelData.icon || "").length > 0
+                                Layout.preferredWidth: 16
+                                Layout.preferredHeight: 16
+                                source: String(entry.modelData.icon || "")
+                                fillMode: Image.PreserveAspectFit
+                                smooth: true
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: String(entry.modelData.text || "")
+                                color: entry.modelData.enabled
+                                       ? view.sys.colFg : view.sys.colMuted
+                                elide: Text.ElideRight
+                                font { family: view.sys.fontFam; pixelSize: 12 }
+                            }
+
+                            // стрелка у подменю
+                            Text {
+                                visible: entry.modelData.hasChildren
+                                text: ""
+                                color: view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: 11 }
+                            }
+                        }
+
+                        MouseArea {
+                            id: entryMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            enabled: entry.modelData.enabled
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (entry.modelData.hasChildren) {
+                                    var c = trayPage.chain.slice();
+                                    c.push(entry.modelData);
+                                    trayPage.chain = c;
+                                    return;
+                                }
+                                entry.modelData.triggered();
+                                view.sys.collapse();
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: !menuOpener.children || menuOpener.children.values.length === 0
+                text: view.sys.tr("Меню пустое")
+                color: view.sys.colMuted
+                horizontalAlignment: Text.AlignHCenter
+                font { family: view.sys.fontFam; pixelSize: 11 }
+            }
         }
 
         // -------------------------------------------------------- Bluetooth

@@ -1005,12 +1005,13 @@ Item {
                     BindRow { bindId: "pillBt";       label: view.sys.tr("Устройства Bluetooth") }
                     BindRow { bindId: "pillClip";     label: view.sys.tr("Буфер обмена") }
                     BindRow { bindId: "pillPower";    label: view.sys.tr("Меню питания") }
+                    BindRow { bindId: "pillRecord";   label: view.sys.tr("Запись экрана") }
+                    BindRow { bindId: "fileManager";  label: view.sys.tr("Проводник") }
 
                     Section { text: view.sys.tr("Приложения") }
                     BindRow { bindId: "terminal";       label: view.sys.tr("Терминал") }
                     BindRow { bindId: "terminalAlt";    label: view.sys.tr("Терминал (запасная)") }
                     BindRow { bindId: "browser";        label: view.sys.tr("Браузер") }
-                    BindRow { bindId: "fileManager";    label: view.sys.tr("Файловый менеджер") }
                     BindRow { bindId: "fileManagerTui"; label: view.sys.tr("Файлы в терминале") }
                     BindRow { bindId: "notes";          label: view.sys.tr("Заметки") }
                     BindRow { bindId: "screenshot";     label: view.sys.tr("Скриншот области") }

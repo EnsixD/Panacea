@@ -11,9 +11,31 @@ Item {
 
     implicitHeight: col.implicitHeight
 
+    readonly property int columns: 4
+    property int current: 0
+
     focus: true
     Component.onCompleted: { reload(); forceActiveFocus(); }
     Keys.onEscapePressed: view.sys.collapse()
+    Keys.onLeftPressed:  view.move(-1)
+    Keys.onRightPressed: view.move(1)
+    Keys.onUpPressed:    view.move(-view.columns)
+    Keys.onDownPressed:  view.move(view.columns)
+    Keys.onReturnPressed: view.activateCurrent()
+    Keys.onEnterPressed:  view.activateCurrent()
+    Keys.onSpacePressed:  view.activateCurrent()
+
+    function move(delta) {
+        if (themes.count === 0) return;
+        var i = view.current + delta;
+        if (i < 0 || i >= themes.count) return;
+        view.current = i;
+    }
+    function activateCurrent() {
+        if (view.current < 0 || view.current >= themes.count) return;
+        var t = themes.get(view.current);
+        if (!t.tActive) view.apply(t.tName);
+    }
 
     ListModel { id: themes }
     property string applying: ""
@@ -30,6 +52,8 @@ Item {
                     tWall: p[1],
                     tActive: p[2] === "yes"
                 });
+                // курсор клавиатуры стартует с активной темы
+                if (p[2] === "yes") view.current = themes.count - 1;
             }
         }
     }
@@ -85,7 +109,7 @@ Item {
 
         GridLayout {
             Layout.fillWidth: true
-            columns: 4
+            columns: view.columns
             rowSpacing: 12
             columnSpacing: 12
 
@@ -94,22 +118,27 @@ Item {
 
                 Rectangle {
                     id: card
+                    required property int    index
                     required property string tName
                     required property string tWall
                     required property bool   tActive
 
+                    readonly property bool isCurrent: view.current === card.index
+
                     Layout.fillWidth: true
                     Layout.preferredHeight: 132
                     radius: 14
-                    color: Qt.rgba(1, 1, 1, 0.05)
+                    color: card.isCurrent ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05)
+                    Behavior on color { ColorAnimation { duration: 160 } }
                     border.color: card.tActive
                                   ? view.sys.colOn
-                                  : (cardMa.containsMouse ? Qt.rgba(1, 1, 1, 0.25)
-                                                          : view.sys.colLine)
-                    border.width: card.tActive ? 2 : 1
+                                  : (card.isCurrent || cardMa.containsMouse
+                                     ? Qt.rgba(1, 1, 1, 0.35) : view.sys.colLine)
+                    border.width: card.tActive ? 2 : (card.isCurrent ? 2 : 1)
                     Behavior on border.color { ColorAnimation { duration: 160 } }
 
-                    scale: cardMa.pressed ? 0.96 : (cardMa.containsMouse ? 1.03 : 1.0)
+                    scale: cardMa.pressed ? 0.96
+                         : (cardMa.containsMouse || card.isCurrent ? 1.03 : 1.0)
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
 
                     ColumnLayout {
@@ -198,6 +227,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onEntered: { view.current = card.index; view.forceActiveFocus() }
                         onClicked: if (!card.tActive) view.apply(card.tName)
                     }
                 }
