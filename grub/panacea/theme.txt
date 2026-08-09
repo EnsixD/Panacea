@@ -1,0 +1,100 @@
+# Тема GRUB «Panacea» — тот же язык, что у динамического острова:
+# чёрный фон, капсула-подсветка на выбранном пункте, ничего лишнего.
+
+desktop-image: "background.png"
+desktop-color: "#050506"
+
+title-text: ""
+
+terminal-font: "Panacea Regular 18"
+terminal-box: "menu_*.png"
+terminal-left: "12%"
+terminal-top: "16%"
+terminal-width: "76%"
+terminal-height: "62%"
+
+message-font: "Panacea Regular 18"
+message-color: "#f2f2f2"
+message-bg-color: "#050506"
+
+# ------------------------------------------------------------------ шапка
++ label {
+    left = 0
+    top = 16%
+    width = 100%
+    align = "center"
+    text = "Panacea"
+    font = "Panacea Bold 22"
+    color = "#f2f2f2"
+}
+
++ label {
+    left = 0
+    top = 16%+34
+    width = 100%
+    align = "center"
+    text = "выберите систему"
+    font = "Panacea Small 14"
+    color = "#7a7a7a"
+}
+
+# -------------------------------------------------------------- само меню
++ boot_menu {
+    left = 50%-260
+    width = 520
+    top = 30%
+    height = 46%
+
+    item_font = "Panacea Regular 18"
+    item_color = "#9a9a9a"
+    selected_item_font = "Panacea Regular 18"
+    selected_item_color = "#ffffff"
+
+    # тонкие строки с заметным зазором: подсветка не должна касаться соседей
+    item_height = 36
+    item_spacing = 14
+    item_padding = 16
+    item_icon_space = 0
+    icon_width = 0
+    icon_height = 0
+
+    selected_item_pixmap_style = "select_*.png"
+
+    scrollbar = false
+}
+
+# ------------------------------------------------- полоса обратного отсчёта
++ progress_bar {
+    id = "__timeout__"
+    left = 50%-180
+    width = 360
+    top = 82%
+    height = 4
+
+    show_text = false
+    fg_color = "#c65a47"
+    bg_color = "#1c1c20"
+    border_color = "#00000000"
+}
+
++ label {
+    id = "__timeout__"
+    left = 0
+    top = 82%+16
+    width = 100%
+    align = "center"
+    text = "@TIMEOUT_NOTIFICATION_SHORT@"
+    font = "Panacea Small 14"
+    color = "#6e6e6e"
+}
+
+# ------------------------------------------------------- подсказка по клавишам
++ label {
+    left = 0
+    top = 100%-42
+    width = 100%
+    align = "center"
+    text = "Стрелки - выбор     Enter - запуск     E - правка     C - консоль"
+    font = "Panacea Small 14"
+    color = "#5a5a5a"
+}
