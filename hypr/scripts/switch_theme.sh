@@ -69,6 +69,10 @@ WALLPAPER=$(grep '$wallpaper' "$THEME_FILE" | awk -F'=' '{print $2}' | xargs)
 ACCENT=$(grep '$accent_color' "$THEME_FILE" | awk -F'=' '{print $2}' | xargs)
 BG=$(grep '$bg_color' "$THEME_FILE" | awk -F'=' '{print $2}' | xargs)
 FG=$(grep '$fg_color' "$THEME_FILE" | awk -F'=' '{print $2}' | xargs)
+# Необязательный $term_bg: фон терминалов может быть темнее общего фона темы.
+# Если в теме его нет — берём обычный bg.
+TERM_BG=$(grep '$term_bg' "$THEME_FILE" | awk -F'=' '{print $2}' | xargs)
+[ -z "$TERM_BG" ] && TERM_BG="$BG"
 TOFI_SEL=$(grep '$tofi_selection' "$THEME_FILE" | awk -F'=' '{print $2}' | xargs)
 
 # Fallback
@@ -122,20 +126,20 @@ fi
 printf "@define-color accent %s;\n@define-color bg %s;\n@define-color fg %s;\n" "$ACCENT" "$BG" "$FG" > ~/.config/waybar/theme.css
 cat > ~/.config/kitty/theme.conf <<EOF
 foreground $FG
-background $BG
+background $TERM_BG
 cursor $ACCENT
 EOF
 
 # Ghostty
 cat > ~/.config/ghostty/theme <<EOF
 foreground = $FG
-background = $BG
+background = $TERM_BG
 cursor-color = $ACCENT
 EOF
 
 # Foot
 # Foot doesn't want the '#' in its color values
-FOOT_BG=$(echo $BG | sed 's/#//')
+FOOT_BG=$(echo $TERM_BG | sed 's/#//')
 FOOT_FG=$(echo $FG | sed 's/#//')
 FOOT_ACCENT=$(echo $ACCENT | sed 's/#//')
 cat > ~/.config/foot/theme <<EOF
@@ -145,6 +149,12 @@ background=$FOOT_BG
 selection-foreground=$FOOT_BG
 selection-background=$FOOT_FG
 EOF
+
+# Секцию [colors-dark] foot читает, только если портал сообщает
+# color-scheme=prefer-dark. По умолчанию в системе стоит «default», и тема
+# молча игнорировалась: терминал оставался на сером 242424 вместо нашего
+# почти чёрного фона. Темы у нас все тёмные — заявляем это один раз здесь.
+gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
 
 # --- 6. PYTHON: FISH, ZED & BTOP ---
 python3 <<EOF
