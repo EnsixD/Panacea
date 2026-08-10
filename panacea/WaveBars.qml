@@ -1,11 +1,14 @@
 import QtQuick
-import Quickshell.Io
 
 // Живой эквалайзер.
 //
-// Если в системе есть cava — рисуем настоящий спектр звука.
-// Если нет — мягкая синтетическая волна, чтобы капсула не выглядела мёртвой.
-// Как только cava установят, он подхватится сам при следующем запуске.
+// Сам спектр не считает: берёт общий поток из CavaSource и усредняет его
+// до своего barCount. Благодаря этому раскрытие капсулы в плеер сразу
+// показывает настоящий звук — cava уже крутится ради полос в капсуле,
+// стартовать заново и мелькать заглушкой больше нечему.
+//
+// Если cava в системе нет — мягкая синтетическая волна, чтобы капсула не
+// выглядела мёртвой. Как только cava установят, он подхватится сам.
 Item {
     id: wave
 
@@ -17,45 +20,47 @@ Item {
     // уровни 0..1 для каждой полосы
     property var levels: []
 
+    // ------------------------------------------------------------- настоящий
+    // Пока полосы видимы и звучат, держим общий cava живым.
+    onActiveChanged: active ? CavaSource.acquire() : CavaSource.release()
+    Component.onDestruction: if (active) CavaSource.release()
+
+    // Усреднение общего спектра до barCount полос.
+    function resample(src) {
+        var n = src.length;
+        if (n === 0) return;
+        var a = [];
+        for (var i = 0; i < wave.barCount; i++) {
+            var from = Math.floor(i * n / wave.barCount);
+            var to   = Math.max(from + 1, Math.floor((i + 1) * n / wave.barCount));
+            var sum = 0;
+            for (var j = from; j < to; j++) sum += src[j];
+            a.push(sum / (to - from));
+        }
+        wave.levels = a;
+    }
+
+    Connections {
+        target: CavaSource
+        enabled: wave.active && CavaSource.hasCava
+        function onLevelsChanged() { wave.resample(CavaSource.levels); }
+    }
+
     Component.onCompleted: {
         var a = [];
         for (var i = 0; i < barCount; i++) a.push(0.2);
         levels = a;
+        if (active) CavaSource.acquire();
+        // Первый кадр — сразу, не дожидаясь следующего пакета от cava:
+        // иначе на раскрытии успевал мигнуть стартовый уровень 0.2.
+        if (CavaSource.hasCava) resample(CavaSource.levels);
     }
-
-    // ------------------------------------------------------------- настоящий
-    Process {
-        id: cava
-        // -1 = бесконечный вывод; ascii-режим даёт числа 0..100 через ';'
-        command: ["sh", "-c",
-            "command -v cava >/dev/null || exit 1; " +
-            "cfg=$(mktemp); " +
-            "printf '[general]\\nbars=%d\\nframerate=60\\n" +
-            "[smoothing]\\nnoise_reduction=0.77\\nmonstercat=1.5\\n" +
-            "[output]\\nmethod=raw\\nraw_target=/dev/stdout\\ndata_format=ascii\\nascii_max_range=100\\n' " +
-            wave.barCount + " > \"$cfg\"; " +
-            "exec cava -p \"$cfg\""]
-        running: wave.active
-        stdout: SplitParser {
-            onRead: line => {
-                var parts = line.trim().split(";");
-                var a = [];
-                for (var i = 0; i < wave.barCount; i++) {
-                    var v = parseInt(parts[i]);
-                    a.push(isNaN(v) ? 0 : Math.min(1, v / 100));
-                }
-                wave.levels = a;
-                wave.hasCava = true;
-            }
-        }
-    }
-    property bool hasCava: false
 
     // -------------------------------------------------------------- запасной
     Timer {
         // 30 кадров/с: на 90 мс волна заметно ступенчатая
         interval: 33
-        running: wave.active && !wave.hasCava
+        running: wave.active && !CavaSource.hasCava
         repeat: true
         onTriggered: {
             var a = [];
@@ -99,13 +104,17 @@ Item {
                 radius: width / 2
                 color: wave.barColor
                 opacity: 0.55 + 0.45 * height / Math.max(1, wave.height)
-                height: Math.max(2, (wave.levels[index] || 0.1) * wave.height)
+                // Степенная кривая (0.6) поднимает средние значения: тихие
+                // места ещё видны, а на музыке полосы уверенно бьют почти
+                // во всю высоту, а не жмутся к низу.
+                height: Math.max(2,
+                    Math.pow(Math.min(1, wave.levels[index] || 0.06), 0.6) * wave.height)
                 anchors.verticalCenter: parent.verticalCenter
 
                 // Кадры приходят каждые ~33 мс, а кривая длиннее — движение
                 // получается непрерывным, без рывков между значениями.
                 Behavior on height {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: 90; easing.type: Easing.OutCubic }
                 }
                 Behavior on opacity {
                     NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
