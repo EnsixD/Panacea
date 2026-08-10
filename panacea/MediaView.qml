@@ -357,8 +357,10 @@ FocusScope {
                 asynchronous: true
                 cache: true
                 smooth: true
-                // огромные снимки Qt отказывается декодировать целиком
-                sourceSize: Qt.size(stage.width * 2, stage.height * 2)
+                // Декодируем ровно под размер полотна: двойной запас на
+                // четырёхтысячных снимках стоил двух секунд чёрного экрана,
+                // а на качество кропа не влияет — ffmpeg режет оригинал.
+                sourceSize: Qt.size(stage.width, stage.height)
             }
 
             // Прямоугольник, в котором реально нарисован кадр: у картинки
