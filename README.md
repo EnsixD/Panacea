@@ -14,10 +14,12 @@ gap, no border — only the content changes.
 
 ## Demo
 
-<!-- Drop the demo video here: drag the .mp4 into this line on GitHub's editor,
-     or replace the link below with the uploaded asset URL. -->
+https://github.com/user-attachments/assets/REPLACE-WITH-VIDEO
 
-https://github.com/EnsixD/Panacea/assets/REPLACE-WITH-VIDEO
+<sub>A ~1-minute silent tour, recorded with the pill's own screen recorder.
+The file also lives in the repo as [`demo.mp4`](demo.mp4) — for inline
+playback on GitHub, drag it into this line in the editor and replace the
+link above with the upload URL it produces.</sub>
 
 ## Pages
 
