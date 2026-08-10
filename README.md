@@ -14,8 +14,6 @@ gap, no border — only the content changes.
 
 ## Demo
 
-[Watch the demo](https://github.com/EnsixD/Panacea/raw/main/demo.mp4)
-
 https://github.com/user-attachments/assets/d6ff68b3-8e88-4528-b36e-5a4df7b3ca77
 
 
