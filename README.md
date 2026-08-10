@@ -14,7 +14,7 @@ gap, no border — only the content changes.
 
 ## Demo
 
-[![Watch the demo](https://github.com/EnsixD/Panacea/raw/main/demo.mp4)
+[Watch the demo](https://github.com/EnsixD/Panacea/raw/main/demo.mp4)
 
 <sub>A ~1-minute silent tour, recorded with the pill's own screen recorder —
 click the image to play. <br>
