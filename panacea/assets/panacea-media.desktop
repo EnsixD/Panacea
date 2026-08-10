@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Panacea Media
+Comment=Open images and video in the Panacea pill
+Exec=sh -c 'exec "$HOME/.config/panacea/scripts/openmedia.sh" "$1"' _ %f
+Terminal=false
+NoDisplay=true
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/tiff;image/svg+xml;video/mp4;video/x-matroska;video/webm;video/quicktime;video/x-msvideo;video/mpeg;

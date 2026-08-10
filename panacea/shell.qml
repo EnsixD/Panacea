@@ -202,6 +202,19 @@ PanelWindow {
         "Вставить": "Paste",
         "Переименовать": "Rename",
         "Копировать путь": "Copy path",
+        "Свойства": "Properties",
+        "Тип": "Type",
+        "Внутри": "Contains",
+        "элементов": "items",
+        "Размер": "Size",
+        "байт": "bytes",
+        "Разрешение": "Resolution",
+        "Длительность": "Duration",
+        "Изменён": "Modified",
+        "Создан": "Created",
+        "Права": "Permissions",
+        "Владелец": "Owner",
+        "Путь": "Path",
         "Создать папку": "New folder",
         "Обновить": "Refresh",
         "Новая папка": "New folder",
@@ -544,7 +557,25 @@ PanelWindow {
     property bool mediaCrop: false
     function mediaCropToggle() { root.mediaCrop = !root.mediaCrop; }
 
+    // ---------------------------------------------------- добавление обоев
+    // «+» на странице обоев открывает проводник в режиме выбора: следующая
+    // выбранная картинка не откроется в плеере, а уедет на страницу обоев,
+    // где её просят назвать и сохранить.
+    property bool   wallpaperPickMode: false
+    property string wallpaperPick: ""       // путь выбранной, ждёт имени
+    function startWallpaperPick() {
+        wallpaperPickMode = true;
+        togglePage("files");
+    }
+    function finishWallpaperPick(path) {
+        wallpaperPickMode = false;
+        wallpaperPick = path;
+        togglePage("theme");
+    }
+    function cancelWallpaperPick() { wallpaperPick = ""; }
+
     function openMedia(path) {
+        if (!cfg.featMedia) return;
         root.mediaCrop = false;
         root.mediaPath = path;
         pageResetTimer.stop();

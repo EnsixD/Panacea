@@ -181,6 +181,12 @@ Item {
         var e = entries.get(i);
         var full = (view.dir === "/" ? "" : view.dir) + "/" + e.eName;
         if (e.eType === "d") { go(full); return; }
+        // режим выбора обоев: картинку не открываем в плеере, а отдаём
+        // странице обоев для сохранения
+        if (view.sys.wallpaperPickMode) {
+            var m = String(e.eMime);
+            if (m.indexOf("image/") === 0) { view.sys.finishWallpaperPick(full); return; }
+        }
         if (view.isMedia(e)) { view.sys.openMedia(full); return; }
         // остальное — сначала спрашиваем, чем открывать
         view.openWithFile = full;
@@ -302,6 +308,40 @@ Item {
         closeMenu();
         run(["sh", "-c", view.scripts + " trash \"$1\"", "_", path],
             view.sys.tr("В корзину: ") + view.baseName(path));
+    }
+
+    // ---------------------------------------------------------- свойства
+    property bool  propsOpen: false
+    property var   propsData: ({})
+    property string propsPath: ""
+    function showProps(path) {
+        closeMenu();
+        view.propsPath = path;
+        view.propsData = ({});
+        pProps.command = ["sh", "-c", view.sys.scriptDir + "/props.sh \"$1\"", "_", path];
+        pProps.running = true;
+        view.propsOpen = true;
+    }
+    Process {
+        id: pProps
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var o = {};
+                var lines = text.split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var t = lines[i].split("\t");
+                    if (t.length >= 2) o[t[0]] = t.slice(1).join("\t");
+                }
+                view.propsData = o;
+            }
+        }
+    }
+    function fmtDuration(sec) {
+        var s = Math.floor(parseFloat(sec) || 0);
+        var h = Math.floor(s / 3600); s -= h * 3600;
+        var m = Math.floor(s / 60); s -= m * 60;
+        var p2 = function (n) { return n < 10 ? "0" + n : "" + n; };
+        return (h > 0 ? h + ":" + p2(m) : m) + ":" + p2(s);
     }
     function startRename(path) {
         closeMenu();
@@ -984,6 +1024,12 @@ Item {
                 label: view.sys.tr("Копировать путь")
                 onChosen: view.doCopyPath(view.menuPath)
             }
+            MenuItem {
+                visible: view.menuPath.length > 0 && view.menuKind !== "trash"
+                glyph: String.fromCodePoint(0xF02FD)   // информация
+                label: view.sys.tr("Свойства")
+                onChosen: view.showProps(view.menuPath)
+            }
 
             Rectangle {
                 visible: view.menuKind !== "trash"
@@ -1088,6 +1134,112 @@ Item {
                     onClicked: view.confirmDialog()
                 }
             }
+        }
+    }
+
+    // ------------------------------------------------------ панель «Свойства»
+    MouseArea {
+        anchors.fill: parent
+        z: 97
+        visible: view.propsOpen
+        onClicked: view.propsOpen = false
+    }
+    Rectangle {
+        id: propsPanel
+        z: 98
+        visible: view.propsOpen
+        anchors.centerIn: parent
+        width: 440
+        implicitHeight: propsCol.implicitHeight + 36
+        radius: 20
+        color: Qt.rgba(0.04, 0.04, 0.05, 0.98)
+        border.color: view.sys.colLine
+        border.width: 1
+        scale: view.propsOpen ? 1 : 0.94
+        opacity: view.propsOpen ? 1 : 0
+        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        readonly property bool isDir: String(view.propsData.kind || "") === "inode/directory"
+
+        component PropRow: RowLayout {
+            property string k: ""
+            property string v: ""
+            visible: v.length > 0
+            Layout.fillWidth: true
+            spacing: 12
+            Text {
+                Layout.preferredWidth: 130
+                text: k
+                color: view.sys.colMuted
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: v
+                color: view.sys.colFg
+                wrapMode: Text.WrapAnywhere
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+            }
+        }
+
+        ColumnLayout {
+            id: propsCol
+            anchors.fill: parent
+            anchors.margins: 18
+            spacing: 7
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 11
+                Rectangle {
+                    Layout.preferredWidth: 40; Layout.preferredHeight: 40
+                    radius: 11
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                    Glyph {
+                        anchors.fill: parent
+                        glyph: String.fromCodePoint(propsPanel.isDir ? 0xF024B : 0xF0224)
+                        color: view.sys.colOn
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: String(view.propsData.name || "")
+                    color: view.sys.colFg
+                    elide: Text.ElideMiddle
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize; bold: true }
+                }
+                Text {
+                    text: "×"
+                    color: view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 6 }
+                    MouseArea {
+                        anchors.fill: parent; anchors.margins: -8
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.propsOpen = false
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true; Layout.preferredHeight: 1
+                Layout.topMargin: 4; Layout.bottomMargin: 4
+                color: view.sys.colLine
+            }
+
+            PropRow { k: view.sys.tr("Тип");        v: String(view.propsData.kind || "") }
+            PropRow { k: view.sys.tr("Внутри");     v: propsPanel.isDir ? (String(view.propsData.items || "") + " " + view.sys.tr("элементов")) : "" }
+            PropRow { k: view.sys.tr("Размер");     v: String(view.propsData.size_human || "")
+                                                       + (view.propsData.size_bytes ? "  (" + view.propsData.size_bytes + " " + view.sys.tr("байт") + ")" : "") }
+            PropRow { k: view.sys.tr("Разрешение"); v: String(view.propsData.resolution || "") }
+            PropRow { k: view.sys.tr("Длительность"); v: view.propsData.duration ? view.fmtDuration(view.propsData.duration) : "" }
+            PropRow { k: view.sys.tr("Изменён");    v: String(view.propsData.modified || "") }
+            PropRow { k: view.sys.tr("Создан");     v: String(view.propsData.created || "") }
+            PropRow { k: view.sys.tr("Права");      v: String(view.propsData.perms || "") }
+            PropRow { k: view.sys.tr("Владелец");   v: String(view.propsData.owner || "") }
+            PropRow { k: view.sys.tr("Путь");       v: String(view.propsData.path || "") }
         }
     }
 }
