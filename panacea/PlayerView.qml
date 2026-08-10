@@ -34,7 +34,9 @@ Item {
                 Image {
                     id: art
                     anchors.fill: parent
-                    source: view.p && view.p.trackArtUrl ? view.p.trackArtUrl : ""
+                    // та же память обложки, что и в капсуле: не сбрасывается
+                    // на паузе/переключении, когда MPRIS на миг отдаёт пустой url
+                    source: view.sys.mediaArt
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 160
@@ -85,6 +87,8 @@ Item {
                     Layout.preferredHeight: 18
                     barCount: 22
                     barColor: view.sys.colFg
+                    // на паузе полосы должны стоять, а не дёргаться: раз плеер
+                    // «липкий», isPlaying теперь честно отражает воспроизведение
                     active: view.p ? view.p.isPlaying : false
                 }
             }
@@ -104,30 +108,47 @@ Item {
                 color: Qt.rgba(1, 1, 1, 0.12)
 
                 Rectangle {
-                    width: parent.width * view.progress
+                    id: fill
+                    width: parent.width * view.displayFrac
                     height: parent.height
                     radius: 2
                     color: view.sys.colFg
-                    Behavior on width { NumberAnimation { duration: 400 } }
+                }
+
+                // ползунок-«головка»: за неё удобно тянуть и видно позицию
+                Rectangle {
+                    width: 11; height: 11; radius: 6
+                    color: view.sys.colFg
+                    y: (parent.height - height) / 2
+                    x: Math.max(0, Math.min(track.width - width,
+                                fill.width - width / 2))
+                    opacity: seekMa.containsMouse || seekMa.pressed ? 1 : 0.85
                 }
 
                 MouseArea {
+                    id: seekMa
                     anchors.fill: parent
                     anchors.margins: -7
+                    hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     enabled: view.p && view.p.canSeek
-                    onClicked: mouse => {
-                        if (!view.p || !view.p.length) return;
-                        var frac = Math.max(0, Math.min(1, mouse.x / track.width));
-                        view.p.position = frac * view.p.length;
+                    // тянем — головка плавно идёт за курсором; отпускаем — перемотка
+                    onPressed: mouse => { view.seeking = true; view.updateSeek(mouse.x); }
+                    onPositionChanged: mouse => { if (view.seeking) view.updateSeek(mouse.x); }
+                    onReleased: {
+                        if (view.p && view.p.length)
+                            view.p.position = view.seekFrac * view.p.length;
+                        view.posSec = view.seekFrac * (view.p ? view.p.length : 0);
+                        view.seeking = false;
                     }
+                    onCanceled: view.seeking = false
                 }
             }
 
             RowLayout {
                 Layout.fillWidth: true
                 Text {
-                    text: view.fmt(view.p ? view.p.position : 0)
+                    text: view.fmt(view.shownPos)
                     color: view.sys.colMuted
                     font { family: view.sys.fontFam; pixelSize: 10 }
                 }
@@ -198,10 +219,34 @@ Item {
     }
 
     // ------------------------------------------------------------ помощники
-    readonly property real progress: {
+    // Плавная позиция: MPRIS отдаёт секунду раз в секунду, поэтому между
+    // запросами доводим её сами — тогда ползунок плывёт, а не прыгает.
+    property real posSec: 0
+    property bool seeking: false
+    property real seekFrac: 0
+
+    readonly property real displayFrac: {
+        if (seeking) return seekFrac;
         if (!p || !p.length || p.length <= 0) return 0;
-        return Math.max(0, Math.min(1, p.position / p.length));
+        return Math.max(0, Math.min(1, posSec / p.length));
     }
+
+    function updateSeek(mx) {
+        seekFrac = Math.max(0, Math.min(1, mx / track.width));
+    }
+
+    // время под ползунком: во время перетаскивания показываем целевую точку
+    readonly property real shownPos:
+        seeking ? seekFrac * (p ? p.length : 0) : posSec
+
+    function syncPos() { if (p) posSec = p.position; }
+    Connections {
+        target: view.p
+        ignoreUnknownSignals: true
+        function onPositionChanged() { if (!view.seeking) view.syncPos(); }
+        function onPostTrackChanged() { view.posSec = 0; }
+    }
+    onPChanged: syncPos()
 
     function fmt(sec) {
         if (!sec || sec < 0) return "0:00";
@@ -210,11 +255,18 @@ Item {
         return m + ":" + (s < 10 ? "0" + s : s);
     }
 
-    // позиция обновляется только по запросу
+    // раз в секунду тянем свежую позицию из MPRIS (коррекция дрейфа)
     Timer {
         interval: 1000
-        running: view.p && view.p.isPlaying
+        running: view.p && view.p.isPlaying && !view.seeking
         repeat: true
         onTriggered: if (view.p) view.p.positionChanged()
+    }
+    // и 20 раз в секунду доводим её сами, чтобы полоса шла непрерывно
+    Timer {
+        interval: 50
+        running: view.p && view.p.isPlaying && !view.seeking
+        repeat: true
+        onTriggered: view.posSec += 0.05
     }
 }

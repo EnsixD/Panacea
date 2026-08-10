@@ -1709,16 +1709,18 @@ PanelWindow {
                 color: Qt.rgba(1, 1, 1, 0.08)
                 clip: true
                 Image {
+                    id: capsuleArt
                     anchors.fill: parent
-                    source: root.player && root.player.trackArtUrl ? root.player.trackArtUrl : ""
+                    source: root.mediaArt
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
+                    cache: true
                     sourceSize.width: 56
                     visible: status === Image.Ready
                 }
                 Text {
                     anchors.centerIn: parent
-                    visible: !root.player || !root.player.trackArtUrl
+                    visible: capsuleArt.status !== Image.Ready
                     text: "󰝚"
                     color: root.colMuted
                     font { family: root.fontFam; pixelSize: 13 }
