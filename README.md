@@ -14,7 +14,7 @@ gap, no border — only the content changes.
 
 ## Demo
 
-https://github.com/user-attachments/assets/REPLACE-WITH-VIDEO
+https://github.com/EnsixD/Panacea/blob/main/demo.mp4
 
 <sub>A ~1-minute silent tour, recorded with the pill's own screen recorder.
 The file also lives in the repo as [`demo.mp4`](demo.mp4) — for inline
