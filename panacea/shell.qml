@@ -627,20 +627,56 @@ PanelWindow {
     function togglePlayer() { togglePage("player"); }
 
     // ------------------------------------------------------------------ медиа
+    // «Липкий» текущий плеер: пока выбранный плеер ещё существует, держимся
+    // за него, даже когда на паузе он перестаёт быть «играющим». Иначе на
+    // паузе выбор перескакивал на другой MPRIS-источник (например, вкладку
+    // браузера без обложки) — и обложка/название мигали.
+    property var stickyPlayer: null
     readonly property var player: {
         var list = Mpris.players ? Mpris.players.values : [];
-        var playing = null, any = null;
+        var playing = null, any = null, stickyAlive = null;
         for (var i = 0; i < list.length; i++) {
             var p = list[i];
             if (!p) continue;
             if (!any) any = p;
+            if (p === root.stickyPlayer) stickyAlive = p;
             if (p.isPlaying && !playing) playing = p;
         }
-        return playing || any;
+        // играющий побеждает; иначе прежний, если он ещё жив; иначе любой
+        return playing || stickyAlive || any;
     }
+    onPlayerChanged: { if (player) stickyPlayer = player; refreshMediaArt(); }
     readonly property bool mediaActive:
-        player !== null && player !== undefined
+        cfg.featPlayer
+        && player !== null && player !== undefined
         && String(player.trackTitle).trim().length > 0
+
+    // Обложка мигала: на паузе/возобновлении MPRIS на миг отдаёт пустой
+    // trackArtUrl, и картинка в капсуле пропадала. Запоминаем последнюю
+    // непустую обложку текущего трека и показываем её, пока трек не сменился.
+    property string mediaArt: ""
+    property string mediaArtTrack: ""
+    function refreshMediaArt() {
+        if (!player) { return; }
+        var title = String(player.trackTitle || "");
+        var art = String(player.trackArtUrl || "");
+        // Пустое название на миг проскакивает при паузе — такие «полукадры»
+        // игнорируем, чтобы не сбросить обложку в ноту.
+        if (title.length === 0) return;
+        if (title !== root.mediaArtTrack) {
+            root.mediaArtTrack = title;
+            root.mediaArt = art;           // новый трек — берём что есть
+        } else if (art.length > 0) {
+            root.mediaArt = art;           // тот же трек — обновляем лишь непустым
+        }
+    }
+    Connections {
+        target: root.player
+        ignoreUnknownSignals: true
+        function onTrackArtUrlChanged() { root.refreshMediaArt(); }
+        function onTrackTitleChanged()  { root.refreshMediaArt(); }
+        function onPostTrackChanged()   { root.refreshMediaArt(); }
+    }
 
     // ---------------------------------------------------------------- батарея
     // Батарея через UPower: свойства приходят по сигналам D-Bus, поэтому
@@ -661,6 +697,16 @@ PanelWindow {
     readonly property var battIcons: [
         0xF008E, 0xF007A, 0xF007B, 0xF007C, 0xF007D, 0xF007E,
         0xF007F, 0xF0080, 0xF0081, 0xF0082, 0xF0079]
+
+    // Только уровень, без подмены на молнию: в Quick settings молния стоит
+    // отдельным значком рядом, а сама батарея должна показывать заряд.
+    readonly property string batteryLevelIcon:
+        String.fromCodePoint(battIcons[Math.max(0, Math.min(10, Math.round(batteryPct / 10)))])
+
+    // Есть ли вообще батарея — на десктопе блок заряда прятать целиком.
+    // По ready сводного устройства, а не по isLaptopBattery: у displayDevice
+    // это составной агрегат, и признак ноутбучной батареи на нём не выставлен.
+    readonly property bool batteryPresent: battDev !== null && battDev.ready
 
     readonly property string batteryIcon: {
         // Заряжается — молния. От сети без зарядки — обычная батарея,
@@ -1202,10 +1248,42 @@ PanelWindow {
             if (list[i] && list[i].connected) return list[i].name || "Устройство";
         return "";
     }
+    // Заряд подключённого устройства (наушников). -1, если батарею не сообщают.
+    readonly property int btConnectedBattery: {
+        if (!btDevices) return -1;
+        var list = btDevices.values;
+        for (var i = 0; i < list.length; i++) {
+            var d = list[i];
+            if (d && d.connected && d.batteryAvailable)
+                return Math.round(d.battery * 100);
+        }
+        return -1;
+    }
 
-    function toggleBt() { if (btAdapter) btAdapter.enabled = !btAdapter.enabled; }
+    // rfkill может держать адаптер программно заблокированным (после
+    // предыдущей сессии, гибернации, ядра). Пока он заблокирован, BlueZ не даёт
+    // включить питание, и плитка «щёлкала» вхолостую. Снимаем блокировку перед
+    // включением. rfkill без root снимает только soft-block — этого достаточно.
+    Process { id: pBtUnblock; command: ["rfkill", "unblock", "bluetooth"] }
+    function toggleBt() {
+        if (!btAdapter) return;
+        if (!btAdapter.enabled) {
+            pBtUnblock.running = true;
+            btPowerOn.restart();           // дать rfkill вступить в силу
+        } else {
+            btAdapter.enabled = false;
+        }
+    }
+    Timer {
+        id: btPowerOn
+        interval: 250
+        onTriggered: if (root.btAdapter) root.btAdapter.enabled = true;
+    }
     function scanBt() {
         if (!btAdapter || !btAdapter.enabled) return;
+        // без pairable сопряжение нового устройства не начиналось, и наушники
+        // зависали в цикле «подключилось — отвалилось»
+        btAdapter.pairable = true;
         btAdapter.discovering = true;
         btScanStop.restart();
     }
@@ -1592,6 +1670,12 @@ PanelWindow {
             text: "100%"
         }
         TextMetrics {
+            id: mBattIcon
+            font { family: root.fontFam; pixelSize: root.iconSize }
+            // глифы заряда моноширинные между собой, хватит одного образца
+            text: String.fromCodePoint(0xF0079)
+        }
+        TextMetrics {
             id: mOsdIcon
             font { family: root.fontFam; pixelSize: root.iconSize }
             // самый широкий из используемых глифов уровня
@@ -1672,22 +1756,34 @@ PanelWindow {
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            RowLayout {
-                spacing: 5
-                Text {
-                    text: root.batteryIcon
-                    color: root.batteryCharging || root.acOnline ? root.colOk
-                         : root.batteryPct <= 15 ? root.colCrit
-                         : root.colFg
-                    font { family: root.fontFam; pixelSize: root.iconSize }
-                    Behavior on color { ColorAnimation { duration: 200 } }
-                }
-                Text {
-                    text: root.batteryPct + "%"
-                    color: root.colMuted
-                    Layout.preferredWidth: mBatt.width
-                    horizontalAlignment: Text.AlignRight
-                    font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+            // Место резервируется под самый широкий вариант («100%»), иначе
+            // пилюля дышала бы на каждом проценте. Но раньше эталонная
+            // ширина висела на самом числе, и весь запас копился между
+            // иконкой и цифрами — на «48%» там зияла дыра. Теперь ширину
+            // держит контейнер, а пара внутри стоит по центру вплотную.
+            Item {
+                Layout.preferredWidth: mBattIcon.width + battPair.spacing + mBatt.width
+                Layout.preferredHeight: root.pillH
+                Layout.alignment: Qt.AlignVCenter
+
+                RowLayout {
+                    id: battPair
+                    anchors.centerIn: parent
+                    spacing: 4
+
+                    Text {
+                        text: root.batteryIcon
+                        color: root.batteryCharging || root.acOnline ? root.colOk
+                             : root.batteryPct <= 15 ? root.colCrit
+                             : root.colFg
+                        font { family: root.fontFam; pixelSize: root.iconSize }
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                    }
+                    Text {
+                        text: root.batteryPct + "%"
+                        color: root.colMuted
+                        font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                    }
                 }
             }
         }

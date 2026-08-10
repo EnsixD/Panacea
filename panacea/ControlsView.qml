@@ -464,13 +464,16 @@ Item {
                 label: (view.sys.btOn && view.sys.btConnectedName.length)
                        ? view.sys.btConnectedName : "Bluetooth"
                 sub: !view.sys.btOn ? view.sys.tr("Выключен")
-                   : (view.sys.btConnectedName.length ? view.sys.tr("Подключено")
-                                                      : view.sys.tr("Нет подключений"))
+                   : (view.sys.btConnectedName.length
+                      ? (view.sys.tr("Подключено")
+                         + (view.sys.btConnectedBattery >= 0
+                            ? " · 󰥉 " + view.sys.btConnectedBattery + "%" : ""))
+                      : view.sys.tr("Нет подключений"))
                 on: view.sys.btOn
                 accent: "#0ea5e9"
                 onIconClicked: view.sys.toggleBt()
                 onBodyClicked: {
-                    if (!view.sys.btOn) return;
+                    if (!view.sys.btOn || !view.sys.cfg.featBluetooth) return;
                     view.sys.page = "bt";
                     view.sys.scanBt();
                 }
@@ -530,7 +533,14 @@ Item {
                 }
             }
 
-            // ----------------------------------------------------- не спать
+            // ------------------------------------------- не спать + батарея
+            // Заряд стоит компактной плашкой справа от Coffee mode: обе
+            // строчки про «сколько машина ещё протянет», и вместе они
+            // занимают одну полосу вместо двух.
+            RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 44
@@ -593,6 +603,59 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: view.sys.keepAwake = !view.sys.keepAwake
                 }
+            }
+
+            // ------------------------------------------------------ батарея
+            Rectangle {
+                id: battChip
+                visible: view.sys.batteryPresent
+                // По содержимому, а не на всю строку: Coffee mode тянется,
+                // плашка остаётся ровно такой, какой нужна.
+                Layout.preferredWidth: battRow.implicitWidth + 24
+                Layout.preferredHeight: 44
+                radius: 12
+                color: Qt.rgba(1, 1, 1, 0.05)
+                border.color: view.sys.colLine
+                border.width: 1
+
+                readonly property color tint:
+                    view.sys.batteryCharging || view.sys.acOnline ? view.sys.colOk
+                  : view.sys.batteryPct <= 15 ? view.sys.colCrit
+                  : view.sys.colFg
+
+                RowLayout {
+                    id: battRow
+                    anchors.centerIn: parent
+                    spacing: 5
+
+                    Glyph {
+                        Layout.preferredWidth: 22
+                        Layout.preferredHeight: 22
+                        glyph: view.sys.batteryLevelIcon
+                        color: battChip.tint
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize - 2
+                    }
+                    Glyph {
+                        visible: view.sys.batteryCharging
+                        Layout.preferredWidth: visible ? 12 : 0
+                        Layout.preferredHeight: 22
+                        glyph: String.fromCodePoint(0xF0241)  // молния
+                        color: view.sys.colOk
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize - 6
+                    }
+                    Text {
+                        text: view.sys.batteryPct + "%"
+                        color: battChip.tint
+                        font {
+                            family: view.sys.fontFam
+                            pixelSize: view.sys.fontSize - 2
+                            bold: true
+                        }
+                    }
+                }
+            }
             }
 
             // ------------------------------------------------ системный трей
@@ -997,21 +1060,40 @@ Item {
                 Repeater {
                     model: view.sys.btDevices
                     Row1 {
+                        id: row1
                         required property var modelData
                         icon: modelData.icon === "audio-headset" ? "󰋋"
                             : modelData.icon === "input-mouse" ? "󰦋"
                             : modelData.icon === "input-keyboard" ? "󰌌"
                             : modelData.icon === "phone" ? "󰄞" : "󰂯"
                         title: modelData.name || modelData.address
-                        sub: modelData.connected ? view.sys.tr("Подключено")
+                        // Статус проходит через «Сопряжение…» и «Подключение…»,
+                        // чтобы было видно, что происходит, а не «моргало».
+                        sub: modelData.pairing ? view.sys.tr("Сопряжение…")
+                           : modelData.state === BluetoothDeviceState.Connecting ? view.sys.tr("Подключение…")
+                           : modelData.connected ? view.sys.tr("Подключено")
                            : (modelData.paired || modelData.bonded ? view.sys.tr("Сопряжено") : view.sys.tr("Доступно"))
                              + (modelData.batteryAvailable
                                 ? " · " + Math.round(modelData.battery * 100) + "%" : "")
-                        highlight: modelData.connected
+                        highlight: modelData.connected || modelData.pairing
+                                   || modelData.state === BluetoothDeviceState.Connecting
                         onActivated: {
-                            if (modelData.connected) modelData.disconnect();
-                            else if (modelData.paired || modelData.bonded) modelData.connect();
+                            if (modelData.connected) { modelData.disconnect(); return; }
+                            // Недоверенное устройство BlueZ подключает и тут же
+                            // роняет; несопряжённое вообще не держится. Делаем
+                            // доверенным, сопрягаем, а после сопряжения — сами
+                            // подключаемся (pair не всегда доводит до звука).
+                            modelData.trusted = true;
+                            if (modelData.paired || modelData.bonded) modelData.connect();
                             else modelData.pair();
+                        }
+                        // как только сопряжение завершилось — подключаемся
+                        property var dev: modelData
+                        Connections {
+                            target: row1.dev
+                            function onPairedChanged() {
+                                if (row1.dev.paired && !row1.dev.connected) row1.dev.connect();
+                            }
                         }
                     }
                 }
