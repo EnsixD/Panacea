@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Bluetooth
 
 // Раскрытая панель без музыки: Wi-Fi и Bluetooth.
 //

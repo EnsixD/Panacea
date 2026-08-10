@@ -391,8 +391,6 @@ PanelWindow {
         "Сети": "Networks",
         "Устройства": "Devices",
         "Назад": "Back",
-        "Обновить": "Refresh",
-        "Пароль": "Password",
         "Подключить": "Connect",
         "Забыть": "Forget",
         "Подключение…": "Connecting…",
@@ -409,6 +407,8 @@ PanelWindow {
         "Сети Wi-Fi": "Wi-Fi networks",
         "Сети не найдены": "No networks found",
         "Сопряжено": "Paired",
+        "Сопряжение…": "Pairing…",
+        "Подключение…": "Connecting…",
         "Устройства не найдены": "No devices found",
         "мс": "ms",
         "Сохранено": "Saved"
