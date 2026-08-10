@@ -250,6 +250,7 @@ Item {
             delegate: Rectangle {
                 id: row
                 required property int index
+                required property int nId
                 required property string nSummary
                 required property string nBody
                 required property string nApp
@@ -342,7 +343,7 @@ Item {
                             anchors.margins: -6
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: view.sys.notifications.remove(row.index)
+                            onClicked: view.sys.forgetNotification(row.index)
                         }
                     }
                 }

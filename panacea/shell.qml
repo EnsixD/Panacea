@@ -253,7 +253,57 @@ PanelWindow {
         "Меню": "Menu",
         "Меню пустое": "Menu is empty",
         "Закрыть окно": "Close window",
+        "Пароли": "Passwords",
+        "Менеджер паролей": "Password manager",
+        "записей": "entries",
+        "Введите пароль пользователя": "Enter your user password",
+        "Пароль": "Password",
+        "Пароль пользователя": "User password",
+        "Проверка…": "Checking\u2026",
+        "Неверный пароль": "Wrong password",
+        "Не удалось проверить пароль": "Could not verify the password",
+        "Хранилище не открылось": "The vault did not open",
+        "Ошибка хранилища": "Vault error",
+        "Не удалось сохранить": "Could not save",
+        "Хранилище шифруется этим же паролем и закрывается само через 15 минут простоя.": "The vault is encrypted with that same password and locks itself after 15 idle minutes.",
+        "Поиск": "Search",
+        "Новая запись": "New entry",
+        "Без названия": "Untitled",
+        "Название": "Name",
+        "Логин": "Login",
+        "Логин (необязательно)": "Login (optional)",
+        "Откуда пароль": "Where it is from",
+        "Пока ни одного пароля": "No passwords yet",
+        "Сохранить": "Save",
+        "Из браузеров": "From browsers",
+        "Из браузера": "From a browser",
+        "Ищем в браузерах…": "Searching browsers…",
+        "Не удалось прочитать браузеры": "Could not read the browsers",
+        "В браузерах ничего нового": "Nothing new in the browsers",
+        "Найдено в браузерах": "Found in browsers",
+        "Добавить все": "Add all",
+        "Добавить": "Add",
+        "Скрыть": "Hide",
+        "обои": "wallpapers",
+        "Свои обои": "Your wallpaper",
+        "Название обоев": "Wallpaper name",
+        "Например, Закат": "e.g. Sunset",
+        "Сохранить пароль?": "Save this password?",
+        "Он попадёт в менеджер паролей": "It will go to the password manager",
+        "Сначала откройте хранилище своим паролем": "Unlock the vault with your password first",
+        "Не сохранять": "Don\u0027t save",
+        "Предлагать сохранять пароли": "Offer to save passwords",
+        "ОК": "OK",
         "Во весь экран": "Fullscreen",
+        "Уведомления": "Notifications",
+        "Заблокировано": "Locked",
+        "колесо": "wheel",
+        "ЛКМ": "left click",
+        "ПКМ": "right click",
+        "Листать рабочие столы": "Cycle workspaces",
+        "Перетащить окно": "Drag window",
+        "Средняя кнопка мыши": "Middle mouse button",
+        "Плавающее окно": "Floating window",
         "Плавающее по центру": "Float \u0026 centre",
         "Сменить направление сплита": "Toggle split",
         "На пустой стол": "Empty workspace",
@@ -816,8 +866,19 @@ PanelWindow {
     property var  notifCurrent: null         // то, что показывается сейчас
     ListModel { id: notifModel }             // история
     readonly property var notifications: notifModel
+    // Демон уведомлений живёт в Loader: если функция выключена установщиком,
+    // сервер не создаётся и остров не регистрируется как daemon — тогда
+    // работает уже установленный mako/dunst без спора за шину.
+    readonly property bool hasNotifications: cfg.featNotifications
+    property var notifServer: notifLoader.item
+    Loader {
+        id: notifLoader
+        active: root.cfg.featNotifications
+        sourceComponent: notifServerComp
+    }
     // живые уведомления, которые ещё не закрыты программой или пользователем
-    readonly property var activeNotifications: notifServer.trackedNotifications
+    readonly property var activeNotifications:
+        notifServer ? notifServer.trackedNotifications : null
 
     readonly property bool toastActive: notifCurrent !== null && !expanded
     readonly property string notifSummary: notifCurrent ? String(notifCurrent.summary || "") : ""
@@ -827,8 +888,9 @@ PanelWindow {
     readonly property bool   notifUrgent:
         notifCurrent ? notifCurrent.urgency === NotificationUrgency.Critical : false
 
+    Component {
+    id: notifServerComp
     NotificationServer {
-        id: notifServer
         keepOnReload: false
         bodySupported: true
         bodyMarkupSupported: true
@@ -840,6 +902,7 @@ PanelWindow {
             n.tracked = true;
 
             notifModel.insert(0, {
+                nId: Number(n.id),
                 nSummary: String(n.summary || ""),
                 nBody: String(n.body || ""),
                 nApp: String(n.appName || ""),
@@ -849,11 +912,22 @@ PanelWindow {
             });
             while (notifModel.count > 50) notifModel.remove(notifModel.count - 1);
 
+            // Программа сама закрывает уведомление, когда оно потеряло смысл:
+            // Telegram делает это, как только сообщение прочитано в самом
+            // мессенджере. Раньше такая карточка всё равно висела в истории —
+            // теперь она уходит вместе с поводом.
+            var nid = Number(n.id);
+            n.closed.connect(function (reason) {
+                if (reason !== NotificationCloseReason.CloseRequested) return;
+                root.dropNotification(nid);
+            });
+
             // Критичные показываем даже в режиме «не беспокоить»
             if (root.dnd && n.urgency !== NotificationUrgency.Critical) return;
 
             root.enqueueToast(n);
         }
+    }
     }
 
     // Очередь карточек. Раньше уведомление, пришедшее пока панель раскрыта
@@ -897,6 +971,34 @@ PanelWindow {
             root.dismissToast();
         }
     }
+    // Крестик в истории: убираем строку и заодно говорим программе, что
+    // уведомление закрыто, — иначе оно так и висит у неё «непрочитанным».
+    function forgetNotification(index) {
+        var e = notifModel.get(index);
+        var nid = e ? Number(e.nId) : -1;
+        notifModel.remove(index);
+        if (nid < 0 || !notifServer) return;
+        var live = notifServer.trackedNotifications.values;
+        for (var i = 0; i < live.length; i++) {
+            if (live[i] && Number(live[i].id) === nid) { live[i].dismiss(); break; }
+        }
+        if (root.notifCurrent && Number(root.notifCurrent.id) === nid) root.dismissToast();
+    }
+
+    // Убрать уведомление из истории (и с экрана, если оно сейчас показывается)
+    function dropNotification(nid) {
+        for (var i = 0; i < notifModel.count; i++) {
+            if (Number(notifModel.get(i).nId) === nid) { notifModel.remove(i); break; }
+        }
+        // и из очереди карточек, до которой оно могло не дойти
+        var q = root.toastQueue.filter(function (it) {
+            return !it.notif || Number(it.notif.id) !== nid;
+        });
+        if (q.length !== root.toastQueue.length) root.toastQueue = q;
+
+        if (root.notifCurrent && Number(root.notifCurrent.id) === nid) root.dismissToast();
+    }
+
     function dismissToast() {
         toastTimer.stop();
         root.notifCurrent = null;
@@ -905,10 +1007,296 @@ PanelWindow {
     function clearNotifications() {
         notifModel.clear();
         // активные тоже закрываем — иначе «Очистить» убирает лишь половину
+        if (!notifServer) return;
         var live = notifServer.trackedNotifications.values;
         for (var i = live.length - 1; i >= 0; i--) {
             if (live[i]) live[i].dismiss();
         }
+    }
+
+    // ------------------------------------------------------- менеджер паролей
+    // Записи лежат в ~/.local/share/panacea/vault.enc, зашифрованные на пароле
+    // пользователя. Пилюля держит расшифрованный список и сам пароль в памяти,
+    // пока хранилище открыто, и забывает всё через 15 минут без обращений.
+    property bool   vaultUnlocked: false
+    property string vaultKey: ""            // пароль-ключ, только в памяти
+    property var    vaultEntries: []        // [{id,label,login,pw,at}]
+    property string vaultError: ""
+    property bool   vaultBusy: false
+    readonly property int vaultIdleMs: 15 * 60 * 1000
+
+    // окно ввода пароля от хранилища держит его открытым, пока им пользуются
+    Timer {
+        id: vaultIdle
+        interval: root.vaultIdleMs
+        onTriggered: root.lockVault()
+    }
+    function touchVault() { if (root.vaultUnlocked) vaultIdle.restart(); }
+
+    function lockVault() {
+        vaultIdle.stop();
+        root.vaultUnlocked = false;
+        root.vaultKey = "";
+        root.vaultEntries = [];
+        root.vaultError = "";
+    }
+
+    PamContext {
+        id: vaultPam
+        // тот же профиль, что у экрана блокировки: проверяет пароль
+        // пользователя — тот, который спрашивает sudo
+        config: "swaylock"
+        onPamMessage: {
+            if (responseRequired) respond(root.vaultKey);
+        }
+        onCompleted: result => {
+            if (result === PamResult.Success) {
+                root.vaultLoad();
+            } else {
+                root.vaultKey = "";
+                root.vaultBusy = false;
+                root.vaultError = root.tr("Неверный пароль");
+            }
+        }
+    }
+
+    // Открыть хранилище: сначала PAM подтверждает пароль, затем на нём же
+    // расшифровывается файл.
+    function unlockVault(password) {
+        if (root.vaultBusy) return;
+        root.vaultError = "";
+        root.vaultKey = String(password || "");
+        if (root.vaultKey.length === 0) return;
+        root.vaultBusy = true;
+        if (!vaultPam.start()) {
+            root.vaultBusy = false;
+            root.vaultKey = "";
+            root.vaultError = root.tr("Не удалось проверить пароль");
+        }
+    }
+
+    Process {
+        id: pVaultLoad
+        stdinEnabled: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var t = text.trim();
+                if (t.length === 0) return;
+                try { root.vaultEntries = JSON.parse(t); } catch (e) { root.vaultEntries = []; }
+            }
+        }
+        onExited: code => {
+            root.vaultBusy = false;
+            if (code === 0) {
+                root.vaultUnlocked = true;
+                vaultIdle.restart();
+                root.vaultError = "";
+            } else {
+                root.vaultKey = "";
+                root.vaultError = code === 2 ? root.tr("Хранилище не открылось")
+                                             : root.tr("Ошибка хранилища");
+            }
+        }
+    }
+    function vaultLoad() {
+        pVaultLoad.command = ["sh", "-c",
+            Quickshell.env("HOME") + "/.config/panacea/scripts/vault.sh load"];
+        pVaultLoad.running = true;
+        pVaultLoad.write(root.vaultKey + "\n");
+        pVaultLoad.stdinEnabled = false;
+    }
+
+    Process {
+        id: pVaultSave
+        stdinEnabled: true
+        onExited: code => { if (code !== 0) root.vaultError = root.tr("Не удалось сохранить"); }
+    }
+    function vaultSave() {
+        if (!root.vaultUnlocked) return;
+        touchVault();
+        pVaultSave.stdinEnabled = true;
+        pVaultSave.command = ["sh", "-c",
+            Quickshell.env("HOME") + "/.config/panacea/scripts/vault.sh save"];
+        pVaultSave.running = true;
+        pVaultSave.write(root.vaultKey + "\n" + JSON.stringify(root.vaultEntries));
+        pVaultSave.stdinEnabled = false;
+    }
+
+    function vaultAdd(label, login, pw) {
+        if (!root.vaultUnlocked) return;
+        var a = root.vaultEntries.slice();
+        a.unshift({
+            id: String(Date.now()) + "-" + Math.floor(Math.random() * 1e6),
+            label: String(label || root.tr("Без названия")),
+            login: String(login || ""),
+            pw: String(pw || ""),
+            at: Qt.formatDateTime(new Date(), "dd.MM.yyyy HH:mm")
+        });
+        root.vaultEntries = a;
+        vaultSave();
+    }
+    function vaultUpdate(id, label, login, pw) {
+        var a = root.vaultEntries.slice();
+        for (var i = 0; i < a.length; i++) {
+            if (a[i].id !== id) continue;
+            a[i] = { id: id, label: String(label), login: String(login),
+                     pw: String(pw), at: a[i].at };
+            break;
+        }
+        root.vaultEntries = a;
+        vaultSave();
+    }
+    function vaultRemove(id) {
+        root.vaultEntries = root.vaultEntries.filter(function (e) { return e.id !== id; });
+        vaultSave();
+    }
+    function vaultHas(pw) {
+        for (var i = 0; i < root.vaultEntries.length; i++)
+            if (root.vaultEntries[i].pw === pw) return true;
+        return false;
+    }
+
+    // --- импорт из браузеров
+    // browser_pw.py читает профили установленных браузеров и печатает
+    // найденное JSON-ом. Ничего сам не сохраняет: список показывается в
+    // хранилище, а переносит записи уже человек — кнопкой.
+    property var    browserFound: []      // [{url, login, pw, browser}]
+    property bool   browserScanning: false
+    property bool   browserScanned: false // был ли хоть один поиск в этом сеансе
+    property string browserError: ""
+
+    function browserScan() {
+        if (!root.vaultUnlocked || root.browserScanning) return;
+        root.browserError = "";
+        root.browserFound = [];
+        root.browserScanning = true;
+        pBrowserScan.running = true;
+    }
+
+    Process {
+        id: pBrowserScan
+        command: ["python3", root.scriptDir + "/browser_pw.py"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var a = [];
+                try { a = JSON.parse(text); } catch (e) { a = []; }
+                // Уже сохранённые не показываем: список должен состоять из
+                // того, что действительно можно добавить.
+                root.browserFound = a.filter(function (e) {
+                    return String(e.pw || "").length > 0 && !root.vaultHas(String(e.pw));
+                });
+                root.browserScanning = false;
+                root.browserScanned = true;
+                root.touchVault();
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: if (text.trim().length) root.browserError = text.trim()
+        }
+        onExited: (code, status) => {
+            root.browserScanning = false;
+            root.browserScanned = true;
+            if (code !== 0 && root.browserError.length === 0)
+                root.browserError = root.tr("Не удалось прочитать браузеры");
+        }
+    }
+
+    // Перенос одной найденной записи в хранилище.
+    function browserImport(item) {
+        if (!root.vaultUnlocked || !item) return;
+        root.vaultAdd(String(item.url || item.browser || root.tr("Из браузера")),
+                      String(item.login || ""), String(item.pw || ""));
+        root.browserFound = root.browserFound.filter(function (e) {
+            return !(e.pw === item.pw && e.login === item.login && e.url === item.url);
+        });
+    }
+
+    function browserImportAll() {
+        if (!root.vaultUnlocked) return;
+        var list = root.browserFound.slice();
+        for (var i = 0; i < list.length; i++) {
+            var e = list[i];
+            if (root.vaultHas(String(e.pw))) continue;
+            root.vaultAdd(String(e.url || e.browser || root.tr("Из браузера")),
+                          String(e.login || ""), String(e.pw || ""));
+        }
+        root.browserFound = [];
+    }
+
+    // --- предложение сохранить пароль
+    // Подсмотреть, что человек печатает в чужом окне, нельзя (и не нужно —
+    // это был бы кейлоггер). Зато пароль почти всегда проходит через буфер
+    // обмена: из менеджера, из письма, из генератора. Пилюля замечает такую
+    // строку и спрашивает, сохранить ли её.
+    property var vaultPrompt: null           // {pw, label}
+
+    function looksLikePassword(s) {
+        if (!root.cfg.featVault || !root.cfg.vaultCapture) return false;
+        if (!s || s.length < 8 || s.length > 128) return false;
+        if (/\s/.test(s)) return false;
+        if (/^(https?|ftp|file|magnet):/i.test(s)) return false;
+        if (s.indexOf("/") === 0 || s.indexOf("~/") === 0) return false;
+        if (/^[0-9]+$/.test(s)) return false;          // номера, коды, счета
+        if (/^[a-z]+$/.test(s)) return false;          // просто слово
+        if (/@[^@]+\.[a-z]{2,}$/i.test(s)) return false; // почта
+        var classes = 0;
+        if (/[a-z]/.test(s)) classes++;
+        if (/[A-Z]/.test(s)) classes++;
+        if (/[0-9]/.test(s)) classes++;
+        if (/[^A-Za-z0-9]/.test(s)) classes++;
+        return classes >= 3;
+    }
+
+    Process {
+        id: pClipWatch
+        running: root.cfg.featVault
+        // печатаем только первую строку: многострочный текст паролем не бывает
+        command: ["sh", "-c",
+            "wl-paste --type text --watch sh -c "
+            + "'printf \"%s\\n\" \"$(wl-paste -n -t text 2>/dev/null | head -1)\"'"]
+        stdout: SplitParser {
+            onRead: line => {
+                var s = String(line);
+                if (!root.looksLikePassword(s)) return;
+                if (root.vaultUnlocked && root.vaultHas(s)) return;
+                if (root.vaultPrompt && root.vaultPrompt.pw === s) return;
+                root.vaultPrompt = { pw: s, label: "" };
+                pVaultWhere.running = true;
+                root.togglePage("vaultsave");
+            }
+        }
+    }
+    // чьё окно сейчас активно — подставим как название записи
+    Process {
+        id: pVaultWhere
+        command: ["sh", "-c",
+            "hyprctl activewindow -j 2>/dev/null | jq -r '.initialClass // .class // \"\"'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var c = text.trim();
+                if (c.length === 0 || !root.vaultPrompt) return;
+                root.vaultPrompt = { pw: root.vaultPrompt.pw,
+                                     label: c.charAt(0).toUpperCase() + c.slice(1) };
+            }
+        }
+    }
+    // Копируем пароль в буфер. wl-copy запускаем с --sensitive-data, чтобы
+    // строка не осела в истории cliphist, и очищаем буфер через минуту.
+    Process { id: pVaultCopy }
+    function vaultCopy(pw) {
+        touchVault();
+        pVaultCopy.command = ["sh", "-c",
+            "printf '%s' \"$1\" | wl-copy --sensitive-data 2>/dev/null "
+            + "|| printf '%s' \"$1\" | wl-copy", "_", String(pw)];
+        pVaultCopy.running = true;
+        vaultClipClear.restart();
+    }
+    Process { id: pVaultClip; command: ["sh", "-c", "wl-copy --clear"] }
+    Timer { id: vaultClipClear; interval: 60000; onTriggered: pVaultClip.running = true }
+
+    function dismissVaultPrompt() {
+        root.vaultPrompt = null;
+        if (root.page === "vaultsave") root.collapse();
     }
 
     // ------------------------------------------------------------------ OSD
