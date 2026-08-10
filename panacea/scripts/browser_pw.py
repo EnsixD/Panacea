@@ -124,6 +124,14 @@ def collect_firefox():
             continue
         name = os.path.basename(prof)
         for item in data.get("logins", []):
+            host = item.get("hostname", "") or ""
+            # Firefox держит в том же logins.json служебную запись — ключ
+            # синхронизации аккаунта (chrome://FirefoxAccounts). Её «пароль» —
+            # это JSON со scopedKeys, а не пароль от сайта. Берём только
+            # обычные веб-логины, остальное (chrome://, moz-proxy: и пр.)
+            # пропускаем, иначе в хранилище утекал этот ключ.
+            if not host.startswith(("http://", "https://")):
+                continue
             user = nss.decrypt(item.get("encryptedUsername", ""))
             pw = nss.decrypt(item.get("encryptedPassword", ""))
             if pw is None:
@@ -231,6 +239,8 @@ def collect_chromium():
                     pass
             prof = os.path.basename(os.path.dirname(db))
             for url, user, enc in rows:
+                if not (url or "").startswith(("http://", "https://")):
+                    continue
                 pw = chromium_decrypt(enc, key)
                 if pw is None or pw == "":
                     continue
