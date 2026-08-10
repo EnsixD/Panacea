@@ -106,6 +106,18 @@ selection-background = #00000000
 EOF
 done
 
+# --- 5. FASTFETCH ---
+# Подписи и логотип красим акцентом темы. В конфиге строки помечены
+# комментарием panacea:accent — переписываем ровно следующую за ним.
+FF="$HOME/.config/fastfetch/config.jsonc"
+if [ -f "$FF" ]; then
+    R=$((16#${ACCENT:1:2})); G=$((16#${ACCENT:3:2})); B=$((16#${ACCENT:5:2}))
+    awk -v rgb="38;2;$R;$G;$B" '
+        prev ~ /panacea:accent/ { gsub(/38;2;[0-9]+;[0-9]+;[0-9]+/, rgb) }
+        { print; prev = $0 }
+    ' "$FF" > "$FF.new" && mv "$FF.new" "$FF"
+fi
+
 # --- 5. KITTY, GHOSTTY & WAYBAR ---
 printf "@define-color accent %s;\n@define-color bg %s;\n@define-color fg %s;\n" "$ACCENT" "$BG" "$FG" > ~/.config/waybar/theme.css
 cat > ~/.config/kitty/theme.conf <<EOF
