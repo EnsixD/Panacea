@@ -14,7 +14,9 @@ Item {
     implicitHeight: col.implicitHeight
 
     property int tab: 0                 // 0 — пилюля, 1 — клавиши
-    onTabChanged: view.sys.wideSettings = (tab === 1)
+    // обе вкладки раскладываются в две колонки, поэтому окно всегда широкое:
+    // «Пилюля» вертикально уже не помещалась и уезжала за нижнюю кромку
+    onTabChanged: view.sys.wideSettings = true
 
     // ------------------------------------------------------------- черновик
     // Копия оформления. Ползунки крутят её, настоящие настройки не трогаются,
@@ -107,7 +109,7 @@ Item {
         dirty = true;
     }
 
-    Component.onCompleted: { loadDraft(); forceActiveFocus(); }
+    Component.onCompleted: { loadDraft(); view.sys.wideSettings = true; forceActiveFocus(); }
     Component.onDestruction: {
         // не оставляем систему без горячих клавиш и не запоминаем широкий режим
         if (capturingKey.length) grabKeys(false);
@@ -700,6 +702,18 @@ Item {
                 onMoved: v => view.sys.tourStepMs = v * 1000
             }
 
+            // Дальше — в две колонки: одним столбцом «Пилюля» не помещалась
+            // по высоте и уезжала за нижнюю кромку экрана.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 26
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 12
+
             Section { text: view.sys.tr("Язык") }
 
             RowLayout {
@@ -815,6 +829,54 @@ Item {
                 }
                 Item { Layout.fillWidth: true }
             }
+
+            Section { text: view.sys.tr("Пароли") }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+                Text {
+                    Layout.fillWidth: true
+                    text: view.sys.tr("Предлагать сохранять пароли")
+                    color: view.sys.colFg
+                    wrapMode: Text.WordWrap
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+                }
+                Item { Layout.preferredWidth: 12 }
+                Rectangle {
+                    Layout.preferredWidth: 46
+                    Layout.preferredHeight: 26
+                    radius: 13
+                    color: view.sys.cfg.vaultCapture
+                           ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.55)
+                           : Qt.rgba(1, 1, 1, 0.10)
+                    Behavior on color { ColorAnimation { duration: 160 } }
+                    Rectangle {
+                        width: 20; height: 20; radius: 10
+                        color: "white"
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: view.sys.cfg.vaultCapture ? parent.width - width - 3 : 3
+                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        // тумблер действует сразу: он не про оформление
+                        onClicked: {
+                            view.sys.cfg.vaultCapture = !view.sys.cfg.vaultCapture;
+                            view.sys.saveCfg();
+                        }
+                    }
+                }
+            }
+
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 12
 
             Section { text: view.sys.tr("Шрифт") }
 
@@ -969,6 +1031,8 @@ Item {
                 value: draft.animMs
                 onMoved: v => { draft.animMs = v; view.touch(); }
             }
+                }
+            }
         }
 
         // ==================================================== ВКЛАДКА «КЛАВИШИ»
@@ -1006,7 +1070,9 @@ Item {
                     BindRow { bindId: "pillClip";     label: view.sys.tr("Буфер обмена") }
                     BindRow { bindId: "pillPower";    label: view.sys.tr("Меню питания") }
                     BindRow { bindId: "pillRecord";   label: view.sys.tr("Запись экрана") }
+                    BindRow { bindId: "pillNotif";    label: view.sys.tr("Уведомления") }
                     BindRow { bindId: "fileManager";  label: view.sys.tr("Проводник") }
+                    BindRow { bindId: "pillVault";    label: view.sys.tr("Менеджер паролей") }
 
                     Section { text: view.sys.tr("Приложения") }
                     BindRow { bindId: "terminal";       label: view.sys.tr("Терминал") }
@@ -1027,6 +1093,7 @@ Item {
                     Section { text: view.sys.tr("Окна") }
                     BindRow { bindId: "closeWindow"; label: view.sys.tr("Закрыть окно") }
                     BindRow { bindId: "fullscreen";  label: view.sys.tr("Во весь экран") }
+                    BindRow { bindId: "floatToggle"; label: view.sys.tr("Плавающее окно") }
                     BindRow { bindId: "floatCenter"; label: view.sys.tr("Плавающее по центру") }
                     BindRow { bindId: "toggleSplit"; label: view.sys.tr("Сменить направление сплита") }
 
@@ -1045,6 +1112,10 @@ Item {
                     InfoRow { keys: "Super + ←↑↓→";          label: view.sys.tr("Фокус по направлению") }
                     InfoRow { keys: "Super + Shift + ←↑↓→";  label: view.sys.tr("Двигать окно") }
                     InfoRow { keys: "Alt + ←↑↓→";            label: view.sys.tr("Менять размер окна") }
+                    InfoRow { keys: "Super + " + view.sys.tr("колесо");  label: view.sys.tr("Листать рабочие столы") }
+                    InfoRow { keys: "Super + " + view.sys.tr("ЛКМ");     label: view.sys.tr("Перетащить окно") }
+                    InfoRow { keys: "Super + " + view.sys.tr("ПКМ");     label: view.sys.tr("Менять размер окна") }
+                    InfoRow { keys: view.sys.tr("Средняя кнопка мыши");  label: view.sys.tr("Закрыть окно") }
                     InfoRow { keys: view.sys.tr("Мультимедиа-клавиши"); label: view.sys.tr("Громкость, яркость, плеер") }
                     InfoRow { keys: view.sys.tr("Крышка ноутбука");     label: view.sys.tr("Блокировка экрана") }
                 }

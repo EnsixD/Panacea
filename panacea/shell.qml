@@ -9,6 +9,7 @@ import Quickshell.Services.Pipewire
 import Quickshell.Services.Notifications
 import Quickshell.Services.SystemTray
 import Quickshell.Services.Polkit
+import Quickshell.Services.Pam
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
 
@@ -52,6 +53,33 @@ PanelWindow {
             property bool   recSysAudio: false   // звук системы
             property bool   recMic: false        // микрофон
             property string recMicDevice: ""     // "" = микрофон по умолчанию
+            // менеджер паролей: предлагать сохранять пароли из буфера обмена
+            property bool   vaultCapture: true
+
+            // Включённые функции. При установке дотфайлов целиком доступно всё
+            // (по умолчанию true); установщик острова выключает то, что человек
+            // не отметил, и тогда соответствующей кнопки/страницы в пилюле нет,
+            // а служба (демон уведомлений, агент polkit) не регистрируется —
+            // чтобы не спорить с уже установленными в системе.
+            property bool   featLauncher: true
+            property bool   featPlayer: true
+            property bool   featWifi: true
+            property bool   featBluetooth: true
+            property bool   featClipboard: true
+            property bool   featNotifications: true
+            property bool   featCalendar: true
+            property bool   featThemes: true
+            property bool   featRecord: true
+            property bool   featFiles: true
+            property bool   featMedia: true
+            property bool   featVault: true
+            property bool   featLock: true
+            property bool   featAudio: true
+            property bool   featPowerProfiles: true
+            property bool   featOsd: true
+            property bool   featPowermenu: true
+            property bool   featPolkit: true
+
             // сочетания; пересобираются в lua/binds_data.lua
             property string bind_pillLauncher: "SUPER + A"
             property string bind_pillControls: "SUPER + Z"
@@ -69,7 +97,9 @@ PanelWindow {
             property string bind_browser: "SUPER + F"
             property string bind_fullscreen: "SUPER + SHIFT + F"
             property string bind_exitHypr: "SUPER + SHIFT + M"
-            property string bind_themeSwitch: "SUPER + W"
+            property string bind_themeSwitch: "SUPER + SHIFT + T"
+            property string bind_floatToggle: "SUPER + W"
+            property string bind_pillVault: "SUPER + SHIFT + P"
             property string bind_floatCenter: "SUPER + SHIFT + Space"
             property string bind_fileManager: "SUPER + E"
             property string bind_fileManagerTui: "SUPER + SHIFT + E"
@@ -101,7 +131,9 @@ PanelWindow {
         browser:        "SUPER + F",
         fullscreen:     "SUPER + SHIFT + F",
         exitHypr:       "SUPER + SHIFT + M",
-        themeSwitch:    "SUPER + W",
+        themeSwitch:    "SUPER + SHIFT + T",
+        floatToggle:    "SUPER + W",
+        pillVault:      "SUPER + SHIFT + P",
         floatCenter:    "SUPER + SHIFT + Space",
         fileManager:    "SUPER + E",
         fileManagerTui: "SUPER + SHIFT + E",
@@ -341,10 +373,8 @@ PanelWindow {
         "Применяю…": "Applying…",
         "Результат скопирован": "Result copied",
         "Требуются права": "Authentication required",
-        "Пароль": "Password",
         "Подтвердить": "Authenticate",
         "Отмена": "Cancel",
-        "Неверный пароль": "Wrong password",
         "Календарь": "Calendar",
         "Сегодня": "Today",
         "Звук": "Sound",
@@ -703,7 +733,31 @@ PanelWindow {
     }
 
     // Открыть страницу закреплённо; повторный вызов той же страницы закрывает.
+    // Какая функция отвечает за страницу. Пустая строка — страница всегда есть
+    // (главная, календарь-из-часов и т.п. проверяются отдельно).
+    function pageEnabled(name) {
+        switch (name) {
+            case "launcher":  return cfg.featLauncher;
+            case "player":    return cfg.featPlayer;
+            case "wifi":      return cfg.featWifi;
+            case "bt":        return cfg.featBluetooth;
+            case "clip":      return cfg.featClipboard;
+            case "notif":     return cfg.featNotifications;
+            case "cal":       return cfg.featCalendar;
+            case "theme":     return cfg.featThemes;
+            case "record":    return cfg.featRecord;
+            case "files":     return cfg.featFiles;
+            case "media":     return cfg.featMedia;
+            case "vault":     return cfg.featVault;
+            case "vaultsave": return cfg.featVault;
+            case "audio":     return cfg.featAudio;
+            case "power":     return cfg.featPowermenu;
+            default:          return true;   // main, settings, auth
+        }
+    }
+
     function togglePage(name) {
+        if (!pageEnabled(name)) return;   // выключено установщиком — молчим
         if (expanded && page === name) { collapse(); return; }
         pageResetTimer.stop();
         page = name;
@@ -1781,6 +1835,7 @@ PanelWindow {
         function theme(): void { root.togglePage("theme"); }
         function record(): void { root.togglePage("record"); }
         function files(): void { root.togglePage("files"); }
+        function passwords(): void { root.togglePage("vault"); }
         function media(path: string): void { root.openMedia(path); }
         // переключить выделение области в плеере (то же, что кнопка «Кроп»)
         function mediaCrop(): void { root.mediaCropToggle(); }
@@ -2340,6 +2395,8 @@ PanelWindow {
                            : root.page === "files"    ? filesComp
                            : root.page === "media"    ? mediaComp
                            : root.page === "auth"     ? authComp
+                           : root.page === "vault"    ? vaultComp
+                           : root.page === "vaultsave" ? vaultSaveComp
                                                       : controlsComp
         }
 
@@ -2357,6 +2414,8 @@ PanelWindow {
         Component { id: filesComp;    FilesView { sys: root } }
         Component { id: mediaComp;    MediaView { sys: root } }
         Component { id: authComp;     AuthView { sys: root } }
+        Component { id: vaultComp;     VaultView { sys: root } }
+        Component { id: vaultSaveComp; VaultSaveView { sys: root } }
     }
 
     // ------------------------------------ плавное примыкание к кромке экрана

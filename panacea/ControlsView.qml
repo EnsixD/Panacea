@@ -351,15 +351,51 @@ Item {
                     MouseArea {
                         id: clockMa
                         anchors.fill: parent
-                        hoverEnabled: true
+                        hoverEnabled: view.sys.cfg.featCalendar
                         cursorShape: Qt.PointingHandCursor
                         onClicked: view.sys.togglePage("cal")
+                    }
+                }
+
+                // менеджер паролей: замок открыт, когда хранилище разблокировано
+                Rectangle {
+                    id: vaultBtn
+                    visible: view.sys.cfg.featVault
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 32
+                    radius: 16
+                    color: vaultMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
+                    border.color: view.sys.vaultUnlocked
+                                  ? Qt.rgba(0.13, 0.77, 0.37, 0.5) : view.sys.colLine
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: 160 } }
+                    Behavior on border.color { ColorAnimation { duration: 160 } }
+
+                    scale: vaultMa.pressed ? 0.9 : (vaultMa.containsMouse ? 1.08 : 1.0)
+                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
+
+                    Glyph {
+                        anchors.fill: parent
+                        glyph: String.fromCodePoint(view.sys.vaultUnlocked ? 0xF0FC6 : 0xF033E)
+                        color: view.sys.vaultUnlocked ? "#22c55e"
+                             : vaultMa.containsMouse ? view.sys.colFg : view.sys.colMuted
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize - 3
+                    }
+
+                    MouseArea {
+                        id: vaultMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.sys.togglePage("vault")
                     }
                 }
 
                 // колокольчик: активные уведомления и история
                 Rectangle {
                     id: bellBtn
+                    visible: view.sys.cfg.featNotifications
                     Layout.preferredWidth: 32
                     Layout.preferredHeight: 32
                     radius: 16
