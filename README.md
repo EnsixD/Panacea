@@ -14,10 +14,14 @@ gap, no border — only the content changes.
 
 ## Demo
 
-<video src="https://github.com/EnsixD/Panacea/raw/main/demo.mp4" controls muted width="100%"></video>
+[![Watch the demo](demo-poster.jpg)](https://github.com/EnsixD/Panacea/raw/main/demo.mp4)
 
-<sub>A ~1-minute silent tour, recorded with the pill's own screen recorder.
-If the player above doesn't load, watch it here: [`demo.mp4`](https://github.com/EnsixD/Panacea/raw/main/demo.mp4).</sub>
+<sub>A ~1-minute silent tour, recorded with the pill's own screen recorder —
+click the image to play. <br>
+GitHub only plays videos inline when they're uploaded through its editor, not
+when they're committed as files: to embed the player, edit this section on
+github.com, drag <code>demo.mp4</code> onto this line, and replace the image
+link above with the upload URL it generates.</sub>
 
 ## Pages
 
