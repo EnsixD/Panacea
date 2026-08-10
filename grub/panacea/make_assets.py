@@ -1,68 +1,70 @@
 #!/usr/bin/env python3
 """Генерация картинок для темы GRUB «Panacea».
 
-Обои намеренно не берутся из темы Hyprland: загрузчик живёт своей жизнью,
-и картинка тут своя — чёрный космос с двумя мягкими пятнами света и
-тонкими концентрическими кольцами. Всё рисуется кодом, файлов-исходников
-не требуется.
+Фон — обои темы Fav (тёмный монохромный кадр с цветком). Загрузчик читать
+конфиг Hyprland не может, поэтому картинку кладём рядом с темой и только
+затемняем/виньетируем здесь, чтобы текст меню читался.
 
-    python3 make_assets.py [ширина] [высота]
+    python3 make_assets.py [ширина] [высота] [путь_к_обоям]
 """
 import math
+import os
 import sys
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
 W = int(sys.argv[1]) if len(sys.argv) > 1 else 1920
 H = int(sys.argv[2]) if len(sys.argv) > 2 else 1080
-
-ACCENT = (198, 90, 71)      # тёплый — как $accent_color темы line
-COOL = (43, 106, 143)       # холодный контрапункт
-BASE = (5, 5, 6)
+HERE = os.path.dirname(os.path.abspath(__file__))
+WALL = sys.argv[3] if len(sys.argv) > 3 else os.path.join(HERE, "wallpaper.jpg")
 
 
-def glow_layer(cx, cy, rad, color, strength):
-    """Мягкое круглое пятно света на чёрном холсте во весь экран."""
-    layer = Image.new("RGB", (W, H), (0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    dim = tuple(int(c * strength) for c in color)
-    d.ellipse((cx - rad, cy - rad, cx + rad, cy + rad), fill=dim)
-    return layer.filter(ImageFilter.GaussianBlur(rad * 0.45))
+def cover(img, w, h):
+    """Масштаб «cover»: заполнить w×h без полей, лишнее обрезать по центру."""
+    iw, ih = img.size
+    scale = max(w / iw, h / ih)
+    nw, nh = int(iw * scale + 0.5), int(ih * scale + 0.5)
+    img = img.resize((nw, nh), Image.LANCZOS)
+    x = (nw - w) // 2
+    y = (nh - h) // 2
+    return img.crop((x, y, x + w, y + h))
 
 
 def build_background():
-    img = Image.new("RGB", (W, H), BASE)
+    base = Image.open(WALL).convert("RGB")
+    img = cover(base, W, H)
 
-    # два пятна света: тёплое снизу слева, холодное сверху справа.
-    # складываем аддитивно — так свет ложится поверх чёрного, а не смешивается
-    # с ним в серую муть
-    for cx, cy, rad, color, strength in (
-        (int(W * 0.22), int(H * 0.78), int(W * 0.30), ACCENT, 0.42),
-        (int(W * 0.82), int(H * 0.20), int(W * 0.26), COOL, 0.34),
-    ):
-        img = ImageChops.add(img, glow_layer(cx, cy, rad, color, strength))
+    # Обои и так тёмные — приглушаем ещё немного, чтобы белый текст меню
+    # уверенно читался поверх любой их части.
+    img = ImageEnhance.Brightness(img).enhance(0.62)
+    img = ImageEnhance.Contrast(img).enhance(0.96)
 
-    # тонкие концентрические кольца — «топография» вокруг центра меню
-    rings = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    rd = ImageDraw.Draw(rings)
-    cx, cy = int(W * 0.5), int(H * 0.52)
-    for i in range(14):
-        r = int(W * 0.10) + i * int(W * 0.035)
-        a = max(0, 26 - i * 2)
-        rd.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(255, 255, 255, a), width=1)
-    img = Image.alpha_composite(img.convert("RGBA"), rings).convert("RGB")
-
-    # виньетка: собираем внимание к центру
+    # Мягкая виньетка: собирает внимание к центру, где стоит меню, и топит
+    # края в чёрный — там подсказки набраны приглушённым серым.
     vign = Image.new("L", (W, H), 0)
     vd = ImageDraw.Draw(vign)
     maxd = math.hypot(W / 2, H / 2)
-    for y in range(0, H, 4):
-        for x in range(0, W, 4):
+    step = 4
+    for y in range(0, H, step):
+        for x in range(0, W, step):
             d = math.hypot(x - W / 2, y - H / 2) / maxd
-            vd.rectangle((x, y, x + 3, y + 3), fill=int(min(255, 255 * d ** 2 * 1.15)))
-    img = Image.composite(Image.new("RGB", (W, H), (0, 0, 0)), img, vign)
+            vd.rectangle((x, y, x + step - 1, y + step - 1),
+                         fill=int(min(255, 255 * d ** 2 * 1.1)))
+    vign = vign.filter(ImageFilter.GaussianBlur(40))
+    img = Image.composite(Image.new("RGB", (W, H), (3, 3, 4)), img, vign)
 
-    img.save("background.png")
+    # Лёгкая горизонтальная «подложка» под колонкой меню: ровная тёмная
+    # полоса по центру, чтобы строки не тонули в светлых пятнах боке.
+    band = Image.new("L", (W, H), 0)
+    bd = ImageDraw.Draw(band)
+    bx0, bx1 = int(W * 0.30), int(W * 0.70)
+    by0, by1 = int(H * 0.26), int(H * 0.80)
+    bd.rectangle((bx0, by0, bx1, by1), fill=150)
+    band = band.filter(ImageFilter.GaussianBlur(90))
+    dark = Image.new("RGB", (W, H), (0, 0, 0))
+    img = Image.composite(dark, img, band.point(lambda v: int(v * 0.55)))
+
+    img.save(os.path.join(HERE, "background.png"))
 
 
 def rounded(size, radius, fill, border, width=1):
@@ -88,23 +90,27 @@ def slice9(img, name, corner):
         "se": (w - corner, h - corner, w, h),
     }
     for key, box in parts.items():
-        img.crop(box).save(f"{name}_{key}.png")
+        img.crop(box).save(os.path.join(HERE, f"{name}_{key}.png"))
 
 
 def build_boxes():
-    # Выделенный пункт — чёрная капсула, как сама пилюля.
-    # Углы держим меньше половины item_height из theme.txt (36), иначе
-    # GRUB растягивает уголки и подсветка налезает на соседний пункт —
-    # соседние строки визуально слипаются в один блок.
-    corner = 14
-    sel = rounded((corner * 2 + 4, corner * 2 + 4), corner,
-                  (8, 8, 10, 242), (255, 255, 255, 46))
+    # Выделенный пункт — тёмная капсула со стеклянной обводкой.
+    #
+    # Углы держим заметно меньше половины строки (item_height=44 в theme.txt):
+    # если радиус ≥ половины высоты, GRUB тянет угловые части и подсветка
+    # налезает на соседний пункт — строки слипаются. corner=16 при высоте 44
+    # оставляет ровную прямую серединку сверху и снизу, поэтому капсула
+    # строго в своей строке и не «перетекает» на вкладку выше/ниже.
+    corner = 16
+    side = corner * 2 + 6
+    sel = rounded((side, side), corner,
+                  (10, 10, 12, 235), (255, 255, 255, 60))
     slice9(sel, "select", corner)
 
-    # коробка консоли (клавиша C) — тот же чёрный, углы крупнее
+    # Коробка консоли (клавиша C) — тот же тёмный, углы чуть крупнее.
     box = 18
-    menu = rounded((box * 2 + 4, box * 2 + 4), box,
-                   (8, 8, 10, 224), (255, 255, 255, 26))
+    menu = rounded((box * 2 + 6, box * 2 + 6), box,
+                   (8, 8, 10, 220), (255, 255, 255, 26))
     slice9(menu, "menu", box)
 
 

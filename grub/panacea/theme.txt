@@ -1,5 +1,5 @@
 # Тема GRUB «Panacea» — тот же язык, что у динамического острова:
-# чёрный фон, капсула-подсветка на выбранном пункте, ничего лишнего.
+# обои темы Fav, капсула-подсветка на выбранном пункте, ничего лишнего.
 
 desktop-image: "background.png"
 desktop-color: "#050506"
@@ -42,18 +42,20 @@ message-bg-color: "#050506"
 + boot_menu {
     left = 50%-260
     width = 520
-    top = 30%
-    height = 46%
+    top = 32%
+    height = 44%
 
     item_font = "Panacea Regular 18"
-    item_color = "#9a9a9a"
+    item_color = "#c8c8c8"
     selected_item_font = "Panacea Regular 18"
     selected_item_color = "#ffffff"
 
-    # тонкие строки с заметным зазором: подсветка не должна касаться соседей
-    item_height = 36
-    item_spacing = 14
-    item_padding = 16
+    # Высокая строка + большой зазор: капсула-подсветка целиком помещается
+    # внутри своей строки и между пунктами остаётся воздух, поэтому фон
+    # выделения никогда не налезает на соседний пункт.
+    item_height = 44
+    item_spacing = 16
+    item_padding = 18
     item_icon_space = 0
     icon_width = 0
     icon_height = 0
