@@ -475,6 +475,9 @@ PanelWindow {
 
     // ------------------------------------------------------------- обход
     // Показ всех страниц по очереди с паузой — чтобы рассмотреть каждую.
+    // Какая вкладка настроек откроется: 0 — пилюля, 1 — клавиши.
+    property int settingsTab: 0
+
     property bool tourRunning: false
     property int  tourIndex: 0
     readonly property var tourPages: ["main", "wifi", "bt", "player", "clip", "power", "launcher"]
@@ -1824,7 +1827,9 @@ PanelWindow {
             root.togglePage("bt");
             root.scanBt();
         }
-        function settings(): void { root.togglePage("settings"); }
+        function settings(): void { root.settingsTab = 0; root.togglePage("settings"); }
+        function shortcuts(): void { root.settingsTab = 1;
+            if (root.page !== "settings") root.togglePage("settings"); }
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }
         function cancelCapture(): void { root.cancelCaptureRequested(); }
@@ -2403,7 +2408,7 @@ PanelWindow {
         Component { id: controlsComp; ControlsView { sys: root } }
         Component { id: playerComp;   PlayerView   { sys: root } }
         Component { id: launcherComp; LauncherView { sys: root } }
-        Component { id: settingsComp; SettingsView { sys: root } }
+        Component { id: settingsComp; SettingsView { sys: root; tab: root.settingsTab } }
         Component { id: clipComp;     ClipboardView { sys: root } }
         Component { id: powerComp;    PowerView { sys: root } }
         Component { id: notifComp;    NotificationsView { sys: root } }
