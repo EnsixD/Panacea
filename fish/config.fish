@@ -11,6 +11,28 @@ fish_add_path $HOME/.local/bin
 
 set -g fish_greeting ""
 
+# eza вместо ls: цвета, иконки, дерево. Флаги подобраны под остров —
+# без рамок, группировка папок сверху.
+if type -q eza
+    alias ls   'eza --icons --group-directories-first'
+    alias ll   'eza --icons --group-directories-first -l --git'
+    alias la   'eza --icons --group-directories-first -la --git'
+    alias lt   'eza --icons --group-directories-first --tree --level=2'
+end
+
+# zoxide подменяет cd: он помнит, куда вы ходили, и прыгает по обрывку пути.
+# init отдаёт функцию cd, поэтому обычный cd продолжает работать как раньше.
+if type -q zoxide
+    zoxide init --cmd cd fish | source
+end
+
+# bat вместо cat: подсветка синтаксиса и номера строк. --paging=never, чтобы
+# в скриптах и пайпах вёл себя как обычный cat.
+if type -q bat
+    alias cat 'bat --paging=never'
+    set -gx BAT_THEME ansi
+end
+
 # Строка приглашения живёт в functions/fish_prompt.fish.
 # Определение здесь перекрывало файл, и правки в него не действовали.
 
