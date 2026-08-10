@@ -356,6 +356,26 @@ PanelWindow {
     readonly property bool isEn: cfg.lang === "en"
     function tr(k) { return isEn && dictEn[k] !== undefined ? dictEn[k] : k; }
 
+    // -------------------------------------------------- язык экрана входа
+    // Greeter работает от пользователя sddm и наши настройки прочитать не
+    // может: ~/ закрыт. Дублируем выбранный язык в общий каталог тем же
+    // QML-фрагментом, что и акцент темы, — иначе экран входа продолжал бы
+    // говорить по-русски после переключения системы на английский.
+    // Каталог заводит установщик; если его нет, молча ничего не делаем.
+    Process {
+        id: pGreeterLocale
+        command: ["sh", "-c",
+            "d=/var/lib/panacea; [ -w \"$d\" ] || exit 0; " +
+            "printf 'import QtQuick 2.15\\nQtObject { property string lang: \"%s\" }\\n' " +
+            "\"$1\" > \"$d/locale.qml\" && chmod 644 \"$d/locale.qml\"",
+            "_", root.cfg.lang]
+    }
+    function syncGreeterLocale() {
+        pGreeterLocale.running = false;
+        pGreeterLocale.running = true;
+    }
+    onIsEnChanged: syncGreeterLocale()
+
     readonly property string scriptDir:
         Quickshell.env("HOME") + "/.config/panacea/scripts"
 
@@ -516,7 +536,10 @@ PanelWindow {
                 fsProbe.restart();
         }
     }
-    Component.onCompleted: fsProbe.restart()
+    Component.onCompleted: {
+        fsProbe.restart();
+        syncGreeterLocale();
+    }
 
     // ------------------------------------------------- перетаскивание файлов
     // Источник живёт прямо в окне, а не внутри страницы: панель во время

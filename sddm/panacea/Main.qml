@@ -1,10 +1,14 @@
 import QtQuick 2.15
 
-// Экран входа в стиле Panacea: чёрный фон, капсула-остров с полем пароля,
-// выбор сессии и кнопки питания. Тот же язык форм, что у пилюли и локскрина.
+// Экран входа в стиле Panacea: размытые обои системы, капсула-остров с
+// полем пароля, выбор сессии и кнопки питания. Тот же язык форм, что у
+// пилюли и локскрина.
 //
-// Обои сюда не попадают намеренно: greeter работает от пользователя sddm,
-// а домашний каталог закрыт (drwx------), читать оттуда картинки он не может.
+// Напрямую из ~/ обои не читаются: greeter работает от пользователя sddm,
+// а домашний каталог закрыт (drwx------). Поэтому switch_theme.sh при
+// каждой смене темы кладёт готовую размытую копию текущих обоев в
+// /var/lib/panacea, откуда greeter её и берёт. Нет файла — остаётся
+// прежний градиент.
 Rectangle {
     id: root
     width: 1920
@@ -12,7 +16,42 @@ Rectangle {
     color: "#050506"
 
     readonly property string fontFam: "JetBrainsMono Nerd Font"
-    readonly property color accent: "#c65a47"
+    // Акцент текущей темы, положенный рядом с обоями. Значение по умолчанию
+    // остаётся, пока файла нет — например до первой смены темы.
+    //
+    // Забирается именно Loader'ом: Process в greeter'е недоступен, а XHR к
+    // file:// Qt 6 молча блокирует без QML_XHR_ALLOW_FILE_READ, которую
+    // greeter'у не выставить. Загрузка крошечного QML-фрагмента работает.
+    Loader {
+        id: accentLoader
+        source: "file:///var/lib/panacea/accent.qml"
+        asynchronous: false
+    }
+    readonly property color accent:
+        accentLoader.item ? accentLoader.item.value : "#c65a47"
+
+    // Язык — оттуда же и тем же способом. Пишет его сама пилюля, когда
+    // язык меняют в настройках (SUPER + I): экран входа не должен говорить
+    // по-русски, если вся остальная система переключена на английский.
+    Loader {
+        id: localeLoader
+        source: "file:///var/lib/panacea/locale.qml"
+        asynchronous: false
+    }
+    // По умолчанию английский — как и у пилюли, пока файла ещё нет.
+    readonly property bool isEn:
+        localeLoader.item ? localeLoader.item.lang === "en" : true
+
+    // Ключ — русский текст, как в пилюле: исходник остаётся читаемым, а
+    // словарь нужен только для английского.
+    readonly property var dictEn: ({
+        "Пароль": "Password",
+        "Неверный пароль": "Wrong password",
+        "Сон": "Sleep",
+        "Перезагрузка": "Restart",
+        "Выключить": "Shut down"
+    })
+    function tr(k) { return isEn && dictEn[k] !== undefined ? dictEn[k] : k; }
     readonly property color fg: "#f2f2f2"
     readonly property color muted: "#8a8a8a"
     readonly property color line: Qt.rgba(1, 1, 1, 0.12)
@@ -41,9 +80,33 @@ Rectangle {
     property bool busy: false
 
     // ------------------------------------------------------------------ фон
-    // мягкое пятно акцента, чтобы чёрный не был плоским
+    // Текущие обои системы, размытые заранее скриптом темы.
+    Image {
+        id: wallpaper
+        anchors.fill: parent
+        source: "file:///var/lib/panacea/sddm-bg.jpg"
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: false
+        visible: status === Image.Ready
+        opacity: status === Image.Ready ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 320 } }
+    }
+
+    // Затемнение поверх обоев: капсула и часы должны читаться и на светлой
+    // картинке. Слабое — темы у нас и без того тёмные, на 0.45 экран входа
+    // превращался в сплошной чёрный и обоев было не видно вовсе.
     Rectangle {
         anchors.fill: parent
+        visible: wallpaper.visible
+        color: Qt.rgba(0, 0, 0, 0.28)
+    }
+
+    // мягкое пятно акцента, чтобы чёрный не был плоским
+    // (запасной фон, когда картинки нет — например на первой загрузке)
+    Rectangle {
+        anchors.fill: parent
+        visible: !wallpaper.visible
         gradient: Gradient {
             GradientStop { position: 0.0; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.10) }
             GradientStop { position: 0.55; color: "#050506" }
@@ -186,7 +249,7 @@ Rectangle {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: password.text.length === 0
-                        text: root.errorText.length ? root.errorText : "Пароль"
+                        text: root.errorText.length ? root.errorText : root.tr("Пароль")
                         color: root.errorText.length ? "#ef4444" : Qt.rgba(1, 1, 1, 0.32)
                         font { family: root.fontFam; pixelSize: 15 }
                     }
@@ -338,9 +401,9 @@ Rectangle {
 
         Repeater {
             model: [
-                { glyph: String.fromCodePoint(0xF0904), tip: "Сон",          act: "suspend" },
-                { glyph: String.fromCodePoint(0xF0709), tip: "Перезагрузка", act: "reboot"  },
-                { glyph: String.fromCodePoint(0xF0425), tip: "Выключить",    act: "power"   }
+                { glyph: String.fromCodePoint(0xF0904), tip: root.tr("Сон"),          act: "suspend" },
+                { glyph: String.fromCodePoint(0xF0709), tip: root.tr("Перезагрузка"), act: "reboot"  },
+                { glyph: String.fromCodePoint(0xF0425), tip: root.tr("Выключить"),    act: "power"   }
             ]
 
             Rectangle {
@@ -403,7 +466,7 @@ Rectangle {
         }
         function onLoginFailed() {
             root.busy = false;
-            root.errorText = "Неверный пароль";
+            root.errorText = root.tr("Неверный пароль");
             password.text = "";
             shake.restart();
             password.forceActiveFocus();

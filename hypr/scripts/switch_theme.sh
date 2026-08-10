@@ -332,5 +332,33 @@ else
     pkill hyprpaper
 fi
 
+# --- 8b. ФОН ЭКРАНА ВХОДА ---
+# Greeter работает от пользователя sddm и в ~/ заглянуть не может: домашний
+# каталог закрыт (drwx------). Поэтому кладём готовую размытую копию в
+# общий каталог, который install.sh создал и отдал нам во владение.
+# Размываем заранее, а не в теме: QML-блюр на greeter'е стоит кадров, а
+# картинка меняется только здесь, при смене темы.
+SDDM_BG_DIR=/var/lib/panacea
+if [ -d "$SDDM_BG_DIR" ] && [ -w "$SDDM_BG_DIR" ]; then
+    if [ "$WALLPAPER" != "black" ] && [ -f "$WALLPAPER" ] && command -v ffmpeg >/dev/null; then
+        # уменьшение до 1280 перед блюром: и быстрее, и размытие мягче
+        ffmpeg -y -loglevel error -i "$WALLPAPER" \
+            -vf "scale=1280:-1,gblur=sigma=28,eq=saturation=0.9" \
+            -frames:v 1 "$SDDM_BG_DIR/sddm-bg.jpg" 2>/dev/null \
+            && chmod 644 "$SDDM_BG_DIR/sddm-bg.jpg"
+    else
+        # тема без обоев — убираем старую картинку, greeter вернётся к градиенту
+        rm -f "$SDDM_BG_DIR/sddm-bg.jpg"
+    fi
+    # Акцент туда же: иначе экран входа остаётся с цветом, зашитым в тему
+    # при установке, и спорит с остальной системой. Кладём QML-фрагментом —
+    # greeter умеет подтянуть его Loader'ом, а простой текст ему не прочесть.
+    {
+        printf 'import QtQuick 2.15\n'
+        printf 'QtObject { property color value: "%s" }\n' "$ACCENT"
+    } > "$SDDM_BG_DIR/accent.qml"
+    chmod 644 "$SDDM_BG_DIR/accent.qml"
+fi
+
 killall -SIGUSR2 waybar > /dev/null 2>&1
 killall -USR1 kitty > /dev/null 2>&1
