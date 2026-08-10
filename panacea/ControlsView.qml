@@ -337,6 +337,7 @@ Item {
                                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
                             }
                             Text {
+                                visible: view.sys.cfg.featCalendar
                                 text: view.sys.tr("Календарь")
                                 color: clockMa.containsMouse ? view.sys.colOn
                                                             : Qt.rgba(1, 1, 1, 0.28)
@@ -451,7 +452,9 @@ Item {
                 on: view.sys.wifiOn
                 onIconClicked: view.sys.toggleWifi()
                 onBodyClicked: {
-                    if (!view.sys.wifiOn) return;
+                    // страница сетей могла быть отключена установщиком —
+                    // тогда плитка только переключает Wi-Fi
+                    if (!view.sys.wifiOn || !view.sys.cfg.featWifi) return;
                     view.sys.page = "wifi";
                     view.sys.refreshWifiList();
                     view.sys.scanWifi();
@@ -481,6 +484,7 @@ Item {
 
             // ------------------------------------------------------ звук
             Tile {
+                visible: view.sys.cfg.featAudio
                 icon: String.fromCodePoint(0xF057E)
                 label: view.sys.tr("Звук")
                 sub: view.sys.sinkName.length ? view.sys.sinkName
@@ -493,6 +497,7 @@ Item {
 
             // ---------------------------------------------- запись экрана
             Tile {
+                visible: view.sys.cfg.featRecord
                 icon: String.fromCodePoint(view.sys.recActive ? 0xF04DB : 0xF044A)
                 label: view.sys.recActive
                        ? view.sys.tr("Запись") + " · " + view.sys.recTimeText
@@ -509,6 +514,7 @@ Item {
 
             // ------------------------------------------- режимы питания
             RowLayout {
+                visible: view.sys.cfg.featPowerProfiles
                 Layout.fillWidth: true
                 Layout.topMargin: 2
                 spacing: 9

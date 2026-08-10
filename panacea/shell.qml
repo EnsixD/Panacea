@@ -185,7 +185,6 @@ PanelWindow {
         "Запись экрана": "Screen recording",
         "Проводник": "File manager",
         "Домашняя": "Home",
-        "Система": "System",
         "Просто печатайте": "Just type",
         "Ничего не найдено": "Nothing found",
         "Пусто": "Empty",
@@ -373,7 +372,6 @@ PanelWindow {
             "Shortcuts live in ~/.config/hypr/lua/keybindings.lua",
         "Поиск в буфере": "Search clipboard",
         "Изображение": "Image",
-        "Ничего не найдено": "Nothing found",
         "Буфер пуст": "Clipboard is empty",
         "Завершение работы": "Power",
         "Ещё раз, чтобы подтвердить: ": "Press again to confirm: ",
@@ -696,6 +694,7 @@ PanelWindow {
         holdOpen = true;
     }
     function openLauncher() {
+        if (!cfg.featLauncher) return;
         pageResetTimer.stop();
         page = "launcher";
         expanded = true;
@@ -826,14 +825,19 @@ PanelWindow {
     property var authFlow: null
     readonly property bool authActive: authFlow !== null && !authFlow.isCompleted
 
-    PolkitAgent {
-        id: polkit
-        onAuthenticationRequestStarted: {
-            root.authFlow = polkit.flow;
-            pageResetTimer.stop();
-            root.page = "auth";
-            root.expanded = true;
-            root.holdOpen = true;
+    // Агент polkit — тоже в Loader: выключен установщиком, значит остров не
+    // регистрируется агентом и место остаётся за уже установленным
+    // (hyprpolkitagent и т.п.); polkit допускает только одного на сессию.
+    Loader {
+        active: root.cfg.featPolkit
+        sourceComponent: PolkitAgent {
+            onAuthenticationRequestStarted: {
+                root.authFlow = flow;
+                pageResetTimer.stop();
+                root.page = "auth";
+                root.expanded = true;
+                root.holdOpen = true;
+            }
         }
     }
 
@@ -1344,6 +1348,7 @@ PanelWindow {
         onTriggered: root.osdKind = ""
     }
     function showOsd(kind, value, muted) {
+        if (!cfg.featOsd) return;
         osdKind = kind;
         osdValue = Math.max(0, Math.min(1, value));
         osdMuted = muted === true;
@@ -1935,8 +1940,8 @@ PanelWindow {
                     pageResetTimer.stop();
                     // во время записи наведение открывает пульт записи —
                     // это то, что нужно под рукой прямо сейчас
-                    root.page = root.recActive ? "record"
-                              : root.mediaActive ? "player" : "main";
+                    root.page = (root.recActive && root.cfg.featRecord) ? "record"
+                              : (root.mediaActive && root.cfg.featPlayer) ? "player" : "main";
                 }
                 root.expanded = true;
             }
