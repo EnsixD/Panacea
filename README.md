@@ -16,6 +16,10 @@ gap, no border — only the content changes.
 
 [Watch the demo](https://github.com/EnsixD/Panacea/raw/main/demo.mp4)
 
+https://github.com/user-attachments/assets/d6ff68b3-8e88-4528-b36e-5a4df7b3ca77
+
+
+
 <sub>A ~1-minute silent tour, recorded with the pill's own screen recorder —
 click the image to play. <br>
 GitHub only plays videos inline when they're uploaded through its editor, not
