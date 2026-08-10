@@ -14,12 +14,10 @@ gap, no border — only the content changes.
 
 ## Demo
 
-https://github.com/EnsixD/Panacea/blob/main/demo.mp4
+<video src="https://github.com/EnsixD/Panacea/raw/main/demo.mp4" controls muted width="100%"></video>
 
 <sub>A ~1-minute silent tour, recorded with the pill's own screen recorder.
-The file also lives in the repo as [`demo.mp4`](demo.mp4) — for inline
-playback on GitHub, drag it into this line in the editor and replace the
-link above with the upload URL it produces.</sub>
+If the player above doesn't load, watch it here: [`demo.mp4`](https://github.com/EnsixD/Panacea/raw/main/demo.mp4).</sub>
 
 ## Pages
 
