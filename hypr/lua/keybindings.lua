@@ -29,6 +29,7 @@ B("pillClip",     mainMod .. " + V",             hl.dsp.exec_cmd(QS .. "clipboar
 B("pillPower",    "CTRL + ALT + delete",         hl.dsp.exec_cmd(QS .. "powermenu"))
 B("pillNotif",    mainMod .. " + SHIFT + N",     hl.dsp.exec_cmd(QS .. "notifications"))
 B("pillRecord",   mainMod .. " + P",             hl.dsp.exec_cmd(QS .. "record"))
+B("pillVault",    mainMod .. " + SHIFT + P",     hl.dsp.exec_cmd(QS .. "passwords"))
 
 -- Basic binds
 -- Буквы в Hyprland регистронезависимы: SUPER+f == SUPER+F
@@ -38,7 +39,9 @@ B("closeWindow",  mainMod .. " + Q",         hl.dsp.window.close())
 B("browser",      mainMod .. " + F",         hl.dsp.exec_cmd(p.browser))
 B("fullscreen",   mainMod .. " + SHIFT + F", hl.dsp.window.fullscreen())
 B("exitHypr",     mainMod .. " + SHIFT + M", hl.dsp.exit())
-B("themeSwitch",  mainMod .. " + W",         hl.dsp.exec_cmd(QS .. "theme"))
+B("themeSwitch",  mainMod .. " + SHIFT + T", hl.dsp.exec_cmd(QS .. "theme"))
+-- окно в «плавающее» и обратно
+B("floatToggle",  mainMod .. " + W",         hl.dsp.window.float({ action = "toggle" }))
 -- панель настроек: динамический остров раскрывается по центру
 B("floatCenter", mainMod .. " + SHIFT + Space", function()
     hl.dispatch(hl.dsp.window.float({ action = "toggle" }))

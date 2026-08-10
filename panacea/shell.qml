@@ -494,11 +494,28 @@ PanelWindow {
 
     // Пересобрать binds_data.lua и перечитать конфиг Hyprland
     Process { id: pGenBinds }
+    // Скрипт читает settings.json, а запись файла асинхронная: если запускать
+    // его сразу после saveCfg(), он успевал прочитать ещё старое сочетание —
+    // и «Применить» не меняло ничего. Ждём сигнала о завершении записи.
+    property bool bindsPending: false
     function applyBinds() {
+        root.bindsPending = true;
         saveCfg();
+        bindsFallback.restart();
+    }
+    function runGenBinds() {
+        if (!root.bindsPending) return;
+        root.bindsPending = false;
+        bindsFallback.stop();
         pGenBinds.command = ["sh", "-c",
             Quickshell.env("HOME") + "/.config/panacea/scripts/genbinds.sh"];
         pGenBinds.running = true;
+    }
+    // страховка, если сигнала о записи почему-то не будет
+    Timer { id: bindsFallback; interval: 700; onTriggered: root.runGenBinds() }
+    Connections {
+        target: cfgFile
+        function onSaved() { root.runGenBinds(); }
     }
 
     // ---------------------------------------------------------------- палитра
