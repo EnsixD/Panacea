@@ -18,12 +18,10 @@ https://github.com/user-attachments/assets/d6ff68b3-8e88-4528-b36e-5a4df7b3ca77
 
 
 
-<sub>A ~1-minute silent tour, recorded with the pill's own screen recorder —
-click the image to play. <br>
-GitHub only plays videos inline when they're uploaded through its editor, not
-when they're committed as files: to embed the player, edit this section on
-github.com, drag <code>demo.mp4</code> onto this line, and replace the image
-link above with the upload URL it generates.</sub>
+<sub>A ~1-minute silent tour, recorded with the pill's own screen recorder.
+The same clip is committed as <code>demo.mp4</code>; the link above is GitHub's
+own upload, since it only plays videos inline when they come from its editor
+rather than from a file in the repository.</sub>
 
 ## Pages
 
