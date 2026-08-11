@@ -52,6 +52,39 @@ unload_modules() {
     for id in $ids; do pactl unload-module "$id" 2>/dev/null; done
 }
 
+# Доводка готового файла.
+#
+# Мессенджеры (Telegram и не только) считают mp4 БЕЗ звуковой дорожки не видео,
+# а анимацией, и показывают его как GIF: без звука, без плеера, зациклено.
+# Поэтому если писали без звука — подшиваем тишину. Видео не перекодируется
+# (-c:v copy), это быстро и без потери качества.
+#
+# Заодно moov-атом уезжает в начало (+faststart): без этого превью в чатах и
+# перемотка появляются только после полной загрузки файла.
+finalize() {
+    f="$1"
+    [ -s "$f" ] || return 0
+    command -v ffmpeg >/dev/null 2>&1 || return 0
+
+    has_audio=""
+    if command -v ffprobe >/dev/null 2>&1; then
+        has_audio=$(ffprobe -v error -select_streams a -show_entries stream=index \
+                            -of csv=p=0 "$f" 2>/dev/null | head -1)
+    fi
+
+    tmp="${f%.mp4}.tmp.mp4"
+    if [ -n "$has_audio" ]; then
+        ffmpeg -y -v error -i "$f" -c copy -movflags +faststart "$tmp" 2>/dev/null
+    else
+        ffmpeg -y -v error -i "$f" \
+               -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000 \
+               -shortest -c:v copy -c:a aac -b:a 96k \
+               -movflags +faststart "$tmp" 2>/dev/null
+    fi
+
+    if [ -s "$tmp" ]; then mv -f "$tmp" "$f"; else rm -f "$tmp"; fi
+}
+
 case "$1" in
     start)
         if read_state; then echo "already" >&2; exit 1; fi
@@ -138,6 +171,7 @@ case "$1" in
         kill -0 "$PID" 2>/dev/null && kill -TERM "$PID" 2>/dev/null
         unload_modules "$MODULES"
         rm -f "$STATE"
+        finalize "$FILE"
         echo "$FILE"
         ;;
 
