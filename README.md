@@ -96,7 +96,7 @@ touching your keybinds.
 
 ```
 panacea/   the pill: QML, scripts, settings.json
-hypr/      Hyprland (Lua config, themes, wallpapers, scripts)
+hypr/      Hyprland (Lua config, palette, wallpapers, scripts)
 bin/       standalone helper scripts
 fish/      shell config and prompt
 foot/ ghostty/ kitty/   terminals

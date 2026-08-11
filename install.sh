@@ -8,6 +8,7 @@
 #   ./install.sh              install everything
 #   ./install.sh --no-deps    skip the package step (configs only)
 #   ./install.sh --no-sddm    don't touch the SDDM login theme
+#   ./install.sh --no-grub    don't touch the GRUB boot theme
 #   ./install.sh --yes        answer yes to every prompt
 #
 # Whatever already sits at a destination is moved to <name>.bak-<timestamp>
@@ -21,11 +22,13 @@ CONF="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 DO_DEPS=1
 DO_SDDM=1
+DO_GRUB=1
 ASSUME_YES=0
 for arg in "$@"; do
     case "$arg" in
         --no-deps) DO_DEPS=0 ;;
         --no-sddm) DO_SDDM=0 ;;
+        --no-grub) DO_GRUB=0 ;;
         --yes|-y)  ASSUME_YES=1 ;;
         --help|-h) sed -n '2,13p' "$0"; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 1 ;;
@@ -79,10 +82,16 @@ DEPS=(
     "upower|upower|battery state and the battery page"
     "lsblk|util-linux|disks and removable media in the file manager"
     "cava|cava|the audio spectrum in the pill"
+    "curl|curl|downloading the wallpaper pack"
+    "file|file|sanity-checking downloaded wallpapers"
 )
 FILE_DEPS=(
     "/usr/lib/qt6/qml/QtMultimedia/qmldir|qt6-multimedia|video playback"
     "/usr/lib/qt6/qml/QtQuick/Controls/qmldir|qt6-declarative|UI controls"
+    # MultiEffect — скруглённые маски превью обоев и макетов настроек,
+    # Shapes — вогнутые уголки примыкания острова на макетах
+    "/usr/lib/qt6/qml/QtQuick/Effects/qmldir|qt6-declarative|rounded image masks"
+    "/usr/lib/qt6/qml/QtQuick/Shapes/qmldir|qt6-declarative|island notch corners"
 )
 EXTRA_PKGS=(power-profiles-daemon bluez bluez-utils iwd cava pipewire-audio
             ttf-jetbrains-mono-nerd papirus-icon-theme
@@ -219,13 +228,115 @@ install_sddm() {
 
     # Мостик к экрану входа: greeter работает от пользователя sddm и в
     # закрытый ~/ заглянуть не может. Каталог отдаём во владение
-    # пользователю — switch_theme.sh кладёт туда размытые обои и акцент
-    # темы, пилюля дописывает выбранный язык, а sddm только читает.
+    # пользователю — switch_theme.sh кладёт туда размытые обои, palette.sh
+    # акцент палитры, пилюля дописывает выбранный язык, а sddm только читает.
     sudo mkdir -p /var/lib/panacea
     sudo chown "$(id -un):$(id -gn)" /var/lib/panacea
     sudo chmod 755 /var/lib/panacea
 
     ok "SDDM login theme installed and selected"
+}
+
+
+
+# ------------------------------------------------------------------------ grub
+# Тема загрузчика живёт не в ~/.config, а в /boot — поэтому отдельным шагом и
+# под sudo. Раньше каталог grub/ вообще не устанавливался: на диске оставалась
+# та версия темы, что попала туда руками, и правки в репозитории ни на что не
+# влияли.
+install_grub() {
+    local src="$SRC/grub/panacea"
+    [ -d "$src" ] || { warn "no grub theme in this checkout — skipping"; return; }
+    command -v grub-mkconfig >/dev/null 2>&1 || command -v grub2-mkconfig >/dev/null 2>&1 || {
+        warn "grub-mkconfig not found — skipping the boot theme"; return; }
+
+    local dst=/boot/grub/themes/panacea
+    sudo mkdir -p /boot/grub/themes || { warn "cannot write to /boot/grub — skipping"; return; }
+    sudo rm -rf "$dst" && sudo cp -r "$src" "$dst" \
+        || { warn "boot theme copy failed"; return; }
+
+    # Прописываем тему и режим меню в /etc/default/grub, если их там ещё нет.
+    # Существующие строки правим на месте, чтобы не плодить дубликаты.
+    local def=/etc/default/grub
+    if [ -f "$def" ]; then
+        sudo cp "$def" "$def.bak-$STAMP"
+        set_grub_key "$def" GRUB_THEME "\"$dst/theme.txt\""
+        set_grub_key "$def" GRUB_TIMEOUT_STYLE "menu"
+        # 1920x1080 с запасным auto: без явного режима GRUB иногда встаёт в
+        # 640x480, и тема с её процентами выглядит растянутой
+        set_grub_key "$def" GRUB_GFXMODE "1920x1080,auto"
+        set_grub_key "$def" GRUB_GFXPAYLOAD_LINUX "keep"
+    fi
+
+    local out=/boot/grub/grub.cfg
+    if command -v grub-mkconfig >/dev/null 2>&1; then
+        sudo grub-mkconfig -o "$out" >/dev/null 2>&1 && ok "boot theme installed → $dst"
+    else
+        sudo grub2-mkconfig -o "$out" >/dev/null 2>&1 && ok "boot theme installed → $dst"
+    fi
+}
+
+# set_grub_key <файл> <ключ> <значение>
+set_grub_key() {
+    local f="$1" k="$2" v="$3"
+    if sudo grep -qE "^[[:space:]]*$k=" "$f"; then
+        sudo sed -i "s|^[[:space:]]*$k=.*|$k=$v|" "$f"
+    else
+        printf '%s=%s\n' "$k" "$v" | sudo tee -a "$f" >/dev/null
+    fi
+}
+
+# ------------------------------------------------------------------ wallpapers
+# Репозиторий несёт только пару обоев: набор целиком — это 400 МБ, в dotfiles
+# такому места нет. Поэтому предлагаем скачать его отдельно, файлами, без
+# истории (git clone тянул бы полгигабайта).
+WALLS_REPO="ilyamiro/shell-wallpapers"
+install_wallpapers() {
+    local dst="$CONF/hypr/wallpaper/shell"
+    command -v curl >/dev/null 2>&1 || { warn "curl not found — skipping the wallpaper pack"; return; }
+    command -v python3 >/dev/null 2>&1 || { warn "python3 not found — skipping the wallpaper pack"; return; }
+
+    mkdir -p "$dst" || return
+    local list; list=$(mktemp)
+    curl -fsSL "https://api.github.com/repos/$WALLS_REPO/git/trees/master?recursive=1" \
+        | python3 -c "
+import json, sys, urllib.parse
+try:
+    tree = json.load(sys.stdin).get('tree', [])
+except Exception:
+    sys.exit(1)
+for e in tree:
+    p = e.get('path', '')
+    if e.get('type') == 'blob' and p.startswith('images/') \
+       and p.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        print('https://raw.githubusercontent.com/$WALLS_REPO/master/' + urllib.parse.quote(p))
+" > "$list" || { warn "could not read the wallpaper list"; rm -f "$list"; return; }
+
+    local n; n=$(wc -l < "$list")
+    [ "$n" -gt 0 ] || { warn "the wallpaper list came back empty"; rm -f "$list"; return; }
+    printf '  downloading %s wallpapers (about 400 MB)\n' "$n"
+    (cd "$dst" && xargs -P 8 -n 1 curl -sfLO --retry 2 --max-time 180 < "$list")
+    rm -f "$list"
+
+    # Битые и не-картинки выбрасываем: одна такая ломала бы карусель
+    local bad=0
+    for f in "$dst"/*; do
+        [ -f "$f" ] || continue
+        case "$(file -b --mime-type "$f")" in
+            image/*) ;;
+            *) rm -f "$f"; bad=$((bad + 1)) ;;
+        esac
+    done
+    # Имена с процентами и пробелами ломают file://-пути в Qt
+    local before after
+    for f in "$dst"/*; do
+        [ -f "$f" ] || continue
+        before=$(basename "$f")
+        after=$(printf '%s' "$before" | tr ' ' '_' | tr -cd '[:alnum:]._-')
+        [ -n "$after" ] && [ "$after" != "$before" ] && [ ! -e "$dst/$after" ] \
+            && mv -f "$f" "$dst/$after"
+    done
+    ok "wallpapers → $dst$( [ "$bad" -gt 0 ] && printf ' (%s broken files dropped)' "$bad" )"
 }
 
 # ------------------------------------------------------------------------ run
@@ -249,20 +360,46 @@ install_configs
 step "Enabling services"
 enable_services
 
+if ask "Download the wallpaper pack (~400 MB, $WALLS_REPO)?"; then
+    step "Downloading wallpapers"
+    install_wallpapers
+fi
+
+if [ "$DO_GRUB" = "1" ] && [ -d /boot/grub ]; then
+    if ask "Install the Panacea GRUB theme? (writes to /boot, needs root)"; then
+        step "Installing the boot theme"; install_grub
+    fi
+fi
+
 if [ "$DO_SDDM" = "1" ] && command -v sddm >/dev/null 2>&1; then
     if ask "Also install the Panacea SDDM login theme? (replaces your current login screen, needs root)"; then
         step "Installing the login theme"; install_sddm
     fi
 fi
 
+# Палитра одна и лежит в hypr/palette.conf: palette.sh разносит её по
+# терминалам, waybar, btop, редакторам и экрану входа. Компоновщик ей не нужен,
+# поэтому шаг стоит отдельно: при установке из TTY цвета всё равно встанут, а
+# раньше они ждали первого запуска руками.
+step "Applying the palette"
+if [ -x "$CONF/hypr/scripts/palette.sh" ]; then
+    "$CONF/hypr/scripts/palette.sh" >/dev/null 2>&1 && ok "colours → terminals, waybar, btop, editors"
+else
+    warn "palette.sh missing — colours stay at their defaults"
+fi
+# Миниатюры обоев — в фоне: карусель показывает их мгновенно, а без прогрева
+# первое открытие читало бы исходники по 4K.
+[ -x "$CONF/panacea/scripts/thumbs.sh" ] \
+    && (setsid "$CONF/panacea/scripts/thumbs.sh" all >/dev/null 2>&1 &) \
+    && ok "wallpaper thumbnails warming up in the background"
+
 step "Starting the shell"
 if command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
     hyprctl reload >/dev/null 2>&1
-    # Прогоняем текущую тему: она раскладывает цвета по терминалам, ставит
-    # обои и заодно готовит картинку с акцентом для экрана входа. Без этого
-    # login-screen оставался бы на цветах по умолчанию до первой смены темы.
+    # Обои живут отдельно от палитры: ставим последние выбранные (на чистой
+    # установке — те, что лежат в wallpaper.conf репозитория).
     [ -x "$CONF/hypr/scripts/switch_theme.sh" ] \
-        && "$CONF/hypr/scripts/switch_theme.sh" >/dev/null 2>&1
+        && "$CONF/hypr/scripts/switch_theme.sh" --restore >/dev/null 2>&1
     pkill -x qs >/dev/null 2>&1; sleep 1
     (setsid qs -c "$CONF/panacea" >/dev/null 2>&1 &)
     ok "reloaded Hyprland and started the pill"
