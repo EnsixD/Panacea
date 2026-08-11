@@ -10,6 +10,15 @@ import Quickshell.Io
 Item {
     id: view
     property var sys
+    // true — проводник открыт отдельным окном Hyprland: закрывать надо окно,
+    // а пилюля живёт своей жизнью и трогать её нельзя
+    property bool windowMode: false
+    property int  windowId: 0
+
+    function leave() {
+        if (view.windowMode) view.sys.closeFilesWindow(view.windowId);
+        else                 view.sys.collapse();
+    }
 
     implicitHeight: col.implicitHeight
 
@@ -17,6 +26,11 @@ Item {
     property string dir: ""
     property int current: 0
     property string filter: ""
+    // Сортировка: "name" | "time" | "size" | "type". Порядок и «папки сверху»
+    // отдельными переключателями — так же, как в любом привычном проводнике.
+    property string sortBy: "name"
+    property bool   sortDesc: false
+    property bool   foldersFirst: true
     property string status: ""
 
     // выбранный файл, для которого показываем «чем открыть»
@@ -48,6 +62,10 @@ Item {
     ListModel { id: entries }      // отфильтрованный список
     ListModel { id: rawEntries }   // всё, что вернул files.sh
     ListModel { id: places }
+    // Смонтированные носители. Съёмные держим отдельной моделью: их раздел
+    // должен появляться только когда что-то воткнули.
+    ListModel { id: disks }
+    ListModel { id: removables }
     ListModel { id: apps }
 
     readonly property string scripts: view.sys.scriptDir + "/files.sh"
@@ -101,7 +119,31 @@ Item {
         }
     }
 
-    Process { id: pAction; onRunningChanged: if (!running) { view.reload(); view.countTrash(); } }
+    Process {
+        id: pAction
+        onRunningChanged: {
+            if (running) return;
+            view.reload();
+            view.countTrash();
+            // Соседние окна проводника про наши правки не знают: после
+            // переноса файл исчезает здесь, но у них в списке ещё висит.
+            // Флаг — чтобы не перечитать список ещё раз у самих себя: две
+            // перезагрузки подряд дёргают анимацию появления.
+            view.selfChange = true;
+            view.sys.filesChanged();
+            view.selfChange = false;
+        }
+    }
+    property bool selfChange: false
+    // ...и наоборот: правку в соседнем окне подхватываем сами
+    Connections {
+        target: view.sys
+        ignoreUnknownSignals: true
+        function onFilesChanged() {
+            if (view.selfChange || pAction.running) return;
+            view.reload();
+        }
+    }
 
     // сколько файлов в корзине — показываем счётчиком у закладки
     property int trashCount: 0
@@ -117,6 +159,65 @@ Item {
         stdout: StdioCollector {
             onStreamFinished: view.trashCount = parseInt(text.trim()) || 0
         }
+    }
+
+    Process {
+        id: pDisks
+        command: ["sh", "-c", view.scripts + " disks"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var lines = text.split("\n");
+                var d = [], r = [];
+                for (var i = 0; i < lines.length; i++) {
+                    var p = lines[i].split("|");
+                    if (p.length < 6) continue;
+                    var row = {
+                        dPath: p[1], dLabel: p[2],
+                        dSize: parseFloat(p[3]) || 0,
+                        dUsed: parseFloat(p[4]) || 0,
+                        dDev: p[5]
+                    };
+                    if (p[0] === "removable") r.push(row); else d.push(row);
+                }
+                // Раньше модель очищалась и набивалась заново каждые 4 секунды:
+                // делегаты пересоздавались, и полоса заполнения каждый раз
+                // заново уезжала от нуля. Теперь правим строки на месте, а
+                // список трогаем, только если носитель появился или пропал.
+                view.syncDisks(disks, d);
+                view.syncDisks(removables, r);
+            }
+        }
+    }
+    function syncDisks(model, rows) {
+        if (model.count !== rows.length) {
+            model.clear();
+            for (var i = 0; i < rows.length; i++) model.append(rows[i]);
+            return;
+        }
+        for (var j = 0; j < rows.length; j++) {
+            var cur = model.get(j);
+            if (cur.dPath !== rows[j].dPath) { model.set(j, rows[j]); continue; }
+            // меняем только цифры — делегат остаётся тем же
+            if (cur.dUsed !== rows[j].dUsed) model.setProperty(j, "dUsed", rows[j].dUsed);
+            if (cur.dSize !== rows[j].dSize) model.setProperty(j, "dSize", rows[j].dSize);
+        }
+    }
+    function reloadDisks() { pDisks.running = false; pDisks.running = true; }
+    // Воткнули флешку или подключили телефон — раздел появится сам.
+    Timer {
+        interval: 4000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: view.reloadDisks()
+    }
+
+    function human(b) {
+        if (!b || b <= 0) return "";
+        var u = ["B", "KB", "MB", "GB", "TB"];
+        var i = 0;
+        while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+        return (b >= 100 || i < 2 ? Math.round(b) : b.toFixed(1)) + " " + u[i];
     }
     function countTrash() { pTrashCount.running = false; pTrashCount.running = true; }
 
@@ -148,12 +249,58 @@ Item {
         view.listOpacity = 1;
         view.listShift = 0;
         var f = view.filter.toLowerCase();
+        var rows = [];
         for (var i = 0; i < rawEntries.count; i++) {
             var e = rawEntries.get(i);
             if (f.length && e.eName.toLowerCase().indexOf(f) < 0) continue;
-            entries.append(e);
+            rows.push({ eType: e.eType, eName: e.eName, eSize: e.eSize,
+                        eTime: e.eTime, eMime: e.eMime });
         }
+        rows.sort(view.compare);
+        for (var j = 0; j < rows.length; j++) entries.append(rows[j]);
         view.current = 0;
+    }
+
+    // Сравнение двух строк списка. Каталоги держим отдельной группой, если
+    // включено «папки сверху»: иначе при сортировке по размеру они, все
+    // нулевые, сваливались в одну кучу посреди файлов.
+    function compare(a, b) {
+        if (view.foldersFirst && a.eType !== b.eType)
+            return a.eType === "d" ? -1 : 1;
+
+        var r = 0;
+        if (view.sortBy === "time") r = a.eTime - b.eTime;
+        else if (view.sortBy === "size") r = a.eSize - b.eSize;
+        else if (view.sortBy === "type") {
+            var ea = view.extOf(a), eb = view.extOf(b);
+            r = ea < eb ? -1 : ea > eb ? 1 : 0;
+        }
+        if (r === 0) {
+            var na = a.eName.toLowerCase(), nb = b.eName.toLowerCase();
+            r = na < nb ? -1 : na > nb ? 1 : 0;
+            // имя всегда по возрастанию, если сортируем не по нему
+            if (view.sortBy !== "name") return r;
+        }
+        return view.sortDesc ? -r : r;
+    }
+    function extOf(e) {
+        if (e.eType === "d") return "";
+        var i = e.eName.lastIndexOf(".");
+        return i > 0 ? e.eName.substring(i + 1).toLowerCase() : "";
+    }
+    function setSort(k) {
+        if (view.sortBy === k) view.sortDesc = !view.sortDesc;
+        else { view.sortBy = k; view.sortDesc = (k === "time" || k === "size"); }
+        view.applyFilter();
+    }
+
+    // «12 авг, 14:32», а для прошлых лет — с годом
+    function timeText(e) {
+        if (!e.eTime) return "";
+        var d = new Date(e.eTime * 1000);
+        var now = new Date();
+        var fmt = d.getFullYear() === now.getFullYear() ? "d MMM, hh:mm" : "d MMM yyyy";
+        return Qt.formatDateTime(d, fmt);
     }
 
     function go(path) {
@@ -204,7 +351,7 @@ Item {
             : ["sh", "-c", view.scripts + " open \"$1\"", "_", view.openWithFile];
         pAction.running = true;
         view.openWithFile = "";
-        view.sys.collapse();
+        view.leave();
     }
 
     function trashCurrent() {
@@ -383,7 +530,7 @@ Item {
         if (view.menuOpen) { view.closeMenu(); return; }
         if (view.openWithFile.length) { view.openWithFile = ""; return; }
         if (view.filter.length) { view.filter = ""; applyFilter(); return; }
-        view.sys.collapse();
+        view.leave();
     }
     Keys.onUpPressed:    if (view.current > 0) view.current--;
     Keys.onDownPressed:  if (view.current < entries.count - 1) view.current++;
@@ -495,6 +642,142 @@ Item {
     }
 
     // ---------------------------------------------------------------- вид
+    // Раздел «Диски» / «Съёмные»: подпись, занятое место и полоска заполнения.
+    // Пустой раздел не рисуется вовсе — флешки нет, и заголовка быть не должно.
+    component DiskSection: ColumnLayout {
+        property string title: ""
+        property var items: null
+        property bool removable: false
+
+        Layout.fillWidth: true
+        Layout.topMargin: 8
+        spacing: 3
+        visible: items && items.count > 0
+
+        Text {
+            Layout.leftMargin: 10
+            Layout.bottomMargin: 2
+            text: parent.title
+            color: Qt.rgba(1, 1, 1, 0.32)
+            font {
+                family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5
+                bold: true; capitalization: Font.AllUppercase; letterSpacing: 1
+            }
+        }
+
+        Repeater {
+            model: parent.items
+
+            Rectangle {
+                id: disk
+                required property var model
+                readonly property bool active: view.dir === disk.model.dPath
+                readonly property real frac: disk.model.dSize > 0
+                                             ? disk.model.dUsed / disk.model.dSize : 0
+
+                Layout.fillWidth: true
+                Layout.preferredHeight: disk.model.dSize > 0 ? 58 : 34
+                radius: 12
+                color: diskMa.containsMouse ? view.sys.colHover
+                     : (disk.active ? Qt.rgba(1, 1, 1, 0.07) : "transparent")
+                Behavior on color { ColorAnimation { duration: 130 } }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    anchors.topMargin: 5
+                    anchors.bottomMargin: 5
+                    spacing: 3
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 9
+                        Text {
+                            text: String.fromCodePoint(
+                                      disk.model.dDev === "mtp" ? 0xF011C
+                                    : disk.parent.parent.removable ? 0xF129B
+                                                                   : 0xF02CA)
+                            color: disk.active ? view.sys.colOn : view.sys.colMuted
+                            font { family: view.sys.fontFam; pixelSize: 15 }
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: disk.model.dLabel
+                            color: disk.active ? view.sys.colFg : view.sys.colMuted
+                            elide: Text.ElideRight
+                            font {
+                                family: view.sys.fontFam
+                                pixelSize: view.sys.fontSize - 2
+                                bold: disk.active
+                            }
+                        }
+                        Text {
+                            visible: disk.model.dSize > 0
+                            text: Math.round(disk.frac * 100) + "%"
+                            color: disk.frac > 0.9 ? view.sys.colCrit
+                                                   : Qt.rgba(1, 1, 1, 0.42)
+                            font {
+                                family: view.sys.fontFam
+                                pixelSize: view.sys.fontSize - 6
+                                bold: true
+                            }
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        visible: disk.model.dSize > 0
+                        text: view.human(disk.model.dUsed) + " / " + view.human(disk.model.dSize)
+                        color: Qt.rgba(1, 1, 1, 0.28)
+                        elide: Text.ElideRight
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 7 }
+                    }
+
+                    // полоска заполнения; у телефонов размера нет — и полосы тоже
+                    Rectangle {
+                        visible: disk.model.dSize > 0
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 3
+                        radius: 2
+                        color: Qt.rgba(1, 1, 1, 0.10)
+                        Rectangle {
+                            width: parent.width * Math.max(0, Math.min(1, disk.frac))
+                            height: parent.height
+                            radius: 2
+                            color: disk.frac > 0.9 ? view.sys.colCrit : view.sys.colOn
+                            Behavior on width { NumberAnimation { duration: 240 } }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: diskMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.go(disk.model.dPath)
+                }
+            }
+        }
+    }
+
+    // Колонка закладок и список лежат на одном фоне, без черты граница не
+    // читалась. В раскладке она обрывалась вместе со строкой, поэтому рисуем
+    // её слоем: от шапки и до самого низа окна.
+    Rectangle {
+        z: 1
+        width: 1
+        x: 190 + 7
+        // Не anchors: headSep лежит внутри col, а не рядом, и привязка к
+        // не-родителю и не-соседу молча не срабатывает — черта просто
+        // не имела высоты. Считаем координату через положение в раскладке.
+        y: col.y + headSep.y + headSep.height
+        height: Math.max(0, view.height - y)
+        color: Qt.rgba(1, 1, 1, 0.14)
+        visible: !view.openWithFile.length && height > 0
+    }
+
     ColumnLayout {
         id: col
         width: parent.width
@@ -579,6 +862,7 @@ Item {
         }
 
         Rectangle {
+            id: headSep
             Layout.fillWidth: true
             Layout.preferredHeight: 1
             color: view.sys.colLine
@@ -667,13 +951,133 @@ Item {
                         }
                     }
                 }
+
+                // ------------------------------------------- носители
+                DiskSection {
+                    title: view.sys.tr("Диски")
+                    items: disks
+                }
+                DiskSection {
+                    title: view.sys.tr("Съёмные")
+                    items: removables
+                    removable: true
+                }
             }
+
+            // место под вертикальную черту: сама она нарисована отдельно,
+            // чтобы идти до самого низа окна, а не до конца строки
+            Item { Layout.preferredWidth: 1 }
 
             // список файлов — занимает всё оставшееся место
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 380
                 spacing: 1
+
+                // ---------------------------------------------- сортировка
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 4
+                    spacing: 6
+
+                    component SortBtn: Rectangle {
+                        property string key: ""
+                        property string label: ""
+                        readonly property bool on: view.sortBy === key
+
+                        Layout.preferredHeight: 26
+                        Layout.preferredWidth: sortTxt.implicitWidth + (on ? 30 : 18)
+                        radius: 9
+                        color: on ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                            view.sys.colOn.b, 0.20)
+                             : (sortMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent")
+                        Behavior on color { ColorAnimation { duration: 140 } }
+                        Behavior on Layout.preferredWidth { NumberAnimation { duration: 140 } }
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 4
+                            Text {
+                                id: sortTxt
+                                text: parent.parent.label
+                                color: parent.parent.on ? view.sys.colFg : view.sys.colMuted
+                                font {
+                                    family: view.sys.fontFam
+                                    pixelSize: view.sys.fontSize - 4
+                                    bold: parent.parent.on
+                                }
+                            }
+                            // стрелка показывает направление и переключает его
+                            Text {
+                                visible: parent.parent.on
+                                text: view.sortDesc ? "󰄼" : "󰄿"
+                                color: view.sys.colOn
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                            }
+                        }
+                        MouseArea {
+                            id: sortMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: view.setSort(parent.key)
+                        }
+                    }
+
+                    Text {
+                        text: view.sys.tr("Сортировка")
+                        color: Qt.rgba(1, 1, 1, 0.30)
+                        font {
+                            family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5
+                            bold: true; capitalization: Font.AllUppercase; letterSpacing: 1
+                        }
+                    }
+                    SortBtn { key: "name"; label: view.sys.tr("Имя") }
+                    SortBtn { key: "time"; label: view.sys.tr("Дата") }
+                    SortBtn { key: "size"; label: view.sys.tr("Размер") }
+                    SortBtn { key: "type"; label: view.sys.tr("Тип") }
+
+                    Item { Layout.fillWidth: true }
+
+                    // папки сверху — отдельным переключателем, а не частью
+                    // порядка: он нужен при любой сортировке
+                    Rectangle {
+                        Layout.preferredHeight: 26
+                        Layout.preferredWidth: ffTxt.implicitWidth + 26
+                        radius: 9
+                        color: view.foldersFirst
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                         view.sys.colOn.b, 0.18)
+                             : (ffMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent")
+                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 5
+                            Text {
+                                text: String.fromCodePoint(0xF024B)
+                                color: view.foldersFirst ? view.sys.colOn : view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                            }
+                            Text {
+                                id: ffTxt
+                                text: view.sys.tr("Папки сверху")
+                                color: view.foldersFirst ? view.sys.colFg : view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                            }
+                        }
+                        MouseArea {
+                            id: ffMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                view.foldersFirst = !view.foldersFirst;
+                                view.applyFilter();
+                            }
+                        }
+                    }
+                }
 
                 // Сдвиг делаем трансформом, а не x: координатами элементов
                 // внутри Layout распоряжается сам Layout, и присвоение x
@@ -715,9 +1119,30 @@ Item {
                         width: ListView.view.width
                         height: 42
                         radius: 12
-                        color: index === view.current ? Qt.rgba(1, 1, 1, 0.09)
+                        readonly property bool dropTarget:
+                            row.model.eType === "d" && rowDrop.containsDrag
+
+                        color: row.dropTarget
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                         view.sys.colOn.b, 0.28)
+                             : index === view.current ? Qt.rgba(1, 1, 1, 0.09)
                              : (rowMa.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
                         Behavior on color { ColorAnimation { duration: 120 } }
+                        border.color: view.sys.colOn
+                        border.width: row.dropTarget ? 1 : 0
+
+                        // Папку можно выбрать курсором: бросили на строку —
+                        // кладём внутрь неё, а не в открытый каталог.
+                        DropArea {
+                            id: rowDrop
+                            anchors.fill: parent
+                            keys: ["text/uri-list"]
+                            enabled: row.model.eType === "d"
+                            onDropped: drop => {
+                                var p = view.mapFromItem(row, drop.x, drop.y);
+                                view.takeDrop(drop, view.fullPath(row.model.eName), p.x, p.y);
+                            }
+                        }
 
                         RowLayout {
                             anchors.fill: parent
@@ -741,9 +1166,18 @@ Item {
                                     bold: row.index === view.current
                                 }
                             }
+                            // дата изменения — у всех, включая папки
                             Text {
+                                text: view.timeText(row.model)
+                                color: Qt.rgba(1, 1, 1, 0.26)
+                                horizontalAlignment: Text.AlignRight
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                            }
+                            Text {
+                                Layout.preferredWidth: 62
                                 text: view.sizeText(row.model)
                                 color: Qt.rgba(1, 1, 1, 0.32)
+                                horizontalAlignment: Text.AlignRight
                                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
                             }
                         }
@@ -769,7 +1203,7 @@ Item {
                                 view.current = row.index;
                                 dragging = true;
                                 // панель сворачивается, файл остаётся на курсоре
-                                view.sys.startFileDrag(view.fullPath(row.model.eName));
+                                view.sys.startFileDrag(view.fullPath(row.model.eName), view.windowMode);
                             }
 
                             onClicked: mouse => {
@@ -926,13 +1360,154 @@ Item {
             }
         }
 
-        // ------------------------------------------------------ подсказка
-        Text {
-            Layout.fillWidth: true
-            text: view.sys.tr("ПКМ — меню · Enter — открыть · Backspace — назад · Esc — закрыть")
-            color: Qt.rgba(1, 1, 1, 0.26)
-            horizontalAlignment: Text.AlignHCenter
-            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 6 }
+        // Строки-подсказки внизу больше нет: длинный список наезжал на неё,
+        // и получалась каша из имён файлов и справки.
+    }
+
+    // ------------------------------------------------------ приём файлов
+    // Перетаскивание идёт через системный drag (Drag.Automatic), поэтому
+    // работает и между двумя окнами проводника, а не только внутри одного.
+    property var dropUrls: []
+    property real dropX: 0
+    property real dropY: 0
+    property bool dropMenu: false
+    // Куда именно кладём: пусто — в открытую папку, иначе в ту, над которой
+    // отпустили. Так можно бросить прямо на строку каталога.
+    property string dropDir: ""
+    property string dropHover: ""
+
+    function pathsOf(urls) {
+        var out = [];
+        for (var i = 0; i < urls.length; i++) {
+            var u = String(urls[i]);
+            if (u.indexOf("file://") === 0) u = u.substring(7);
+            out.push(decodeURIComponent(u));
+        }
+        return out;
+    }
+    function dropRun(move) {
+        var paths = view.pathsOf(view.dropUrls);
+        if (paths.length === 0) { view.dropMenu = false; return; }
+        // Все файлы одним процессом: pAction здесь один на всех, и цикл с
+        // повторным running = true просто затирал бы предыдущий запуск.
+        // Имена уходят отдельными аргументами, поэтому пробелы и кавычки
+        // внутри них ничего не ломают.
+        var op = move ? " move " : " copy ";
+        var dest = view.dropDir.length ? view.dropDir : view.dir;
+        var args = ["sh", "-c",
+                    'd="$1"; shift; for f in "$@"; do ' + view.scripts + op
+                    + '"$f" "$d"; done', "_", dest];
+        pAction.command = args.concat(paths);
+        pAction.running = true;
+        view.dropMenu = false;
+        view.dropUrls = [];
+        view.dropDir = "";
+        // перечитывать список тут не надо: pAction сделает это сам, когда
+        // закончит. Две перезагрузки подряд запускали анимацию списка дважды,
+        // и появление файла дёргалось.
+    }
+
+    // Общий приём: если отпустили не над папкой — кладём в открытый каталог.
+    // Лежит под строками списка, поэтому их собственные области получают
+    // событие первыми.
+    function takeDrop(drop, targetDir, px, py) {
+        if (!drop.hasUrls || drop.urls.length === 0) return;
+        drop.accept(Qt.CopyAction);
+        view.dropUrls = drop.urls;
+        view.dropDir = targetDir;
+        view.dropX = Math.max(6, Math.min(px, view.width - 192));
+        view.dropY = Math.max(6, Math.min(py, view.height - 84));
+        view.dropMenu = true;
+    }
+
+    DropArea {
+        id: dropZone
+        // Ниже всего: событие перетаскивания достаётся самой ВЕРХНЕЙ области
+        // под курсором и дальше не идёт. Пока эта висела сверху, строки папок
+        // до неё не доживали, и бросить файл в папку было нельзя.
+        z: -1
+        anchors.fill: parent
+        keys: ["text/uri-list"]
+        onDropped: drop => {
+            var p = view.mapFromItem(dropZone, drop.x, drop.y);
+            view.takeDrop(drop, "", p.x, p.y);
+        }
+    }
+
+    // тонкая рамка, пока над окном что-то тащат: заливка во весь экран
+    // мешала целиться в конкретную папку
+    Rectangle {
+        z: 6
+        anchors.fill: parent
+        visible: dropZone.containsDrag
+        color: "transparent"
+        border.color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.55)
+        border.width: 2
+        radius: 14
+    }
+
+    // что делать с перенесённым — спрашиваем, а не угадываем по модификатору
+    MouseArea {
+        z: 92
+        anchors.fill: parent
+        visible: view.dropMenu
+        onClicked: { view.dropMenu = false; view.dropUrls = []; }
+    }
+    Rectangle {
+        z: 93
+        visible: view.dropMenu
+        x: view.dropX
+        y: view.dropY
+        width: 186
+        height: dropCol.implicitHeight + 12
+        radius: 12
+        color: Qt.rgba(0.06, 0.06, 0.07, 0.99)
+        border.color: view.sys.colLine
+        border.width: 1
+
+        ColumnLayout {
+            id: dropCol
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 2
+
+            Repeater {
+                model: [
+                    { t: view.sys.tr("Скопировать сюда"), g: 0xF018F, mv: false },
+                    { t: view.sys.tr("Переместить сюда"), g: 0xF0552, mv: true }
+                ]
+                Rectangle {
+                    id: dropItem
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    radius: 9
+                    color: dropItemMa.containsMouse ? view.sys.colHover : "transparent"
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        spacing: 9
+                        Text {
+                            text: String.fromCodePoint(dropItem.modelData.g)
+                            color: view.sys.colMuted
+                            font { family: view.sys.fontFam; pixelSize: 14 }
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: dropItem.modelData.t
+                            color: view.sys.colFg
+                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                        }
+                    }
+                    MouseArea {
+                        id: dropItemMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.dropRun(dropItem.modelData.mv)
+                    }
+                }
+            }
         }
     }
 

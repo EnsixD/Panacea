@@ -186,6 +186,45 @@ EOF
         printf 'trash|%s/Trash/files|Trash\n' "${XDG_DATA_HOME:-$HOME/.local/share}"
         ;;
 
+disks)
+    # Смонтированные носители: свои разделы и съёмные отдельно.
+    #   вид|путь|подпись|всего_байт|занято_байт|устройство
+    # вид: disk (внутренний) | removable (флешка, карта, телефон)
+    #
+    # Список берём у df, а не у lsblk с eval: колонка PATH у lsblk
+    # затирала бы переменную PATH самого скрипта, и дальше в нём не
+    # находилось бы ни одной команды.
+    df -B1 --output=source,target,size,used -x tmpfs -x devtmpfs -x squashfs \
+           -x overlay -x efivarfs -x ramfs 2>/dev/null | tail -n +2 |
+    while read -r src target size used rest; do
+        case "$src" in /dev/*) ;; *) continue ;; esac
+        case "$target" in /boot*|/efi*|/var/lib/docker*|/snap/*) continue ;; esac
+        # btrfs-подтома повторяют одно устройство — оставляем первый
+        case " $seen " in *" $src "*) continue ;; esac
+        seen="$seen $src"
+
+        label=$(lsblk -no LABEL "$src" 2>/dev/null | head -1)
+        [ -n "$label" ] || label=$(basename "$target")
+        [ "$target" = "/" ] && label="System"
+
+        rm=$(lsblk -no RM "$src" 2>/dev/null | head -1 | tr -d ' ')
+        hp=$(lsblk -no HOTPLUG "$src" 2>/dev/null | head -1 | tr -d ' ')
+        if [ "$rm" = "1" ] || [ "$hp" = "1" ]; then kind=removable; else kind=disk; fi
+
+        printf '%s|%s|%s|%s|%s|%s\n' "$kind" "$target" "$label" "$size" "$used" "$src"
+    done
+
+    # Телефоны и всё, что примонтировано через gvfs/mtp — блочного
+    # устройства у них нет, размер тоже обычно не отдаётся.
+    awk '$3 ~ /^(fuse\.(mtpfs|jmtpfs|gvfsd-fuse|simple-mtpfs)|mtpfs)$/ {print $2}' \
+        /proc/mounts 2>/dev/null |
+    while read -r mp; do
+        mp=$(printf '%b' "$mp")
+        [ -d "$mp" ] || continue
+        printf 'removable|%s|%s|0|0|mtp\n' "$mp" "$(basename "$mp")"
+    done
+    ;;
+
     emptytrash)
         # gio trash --empty ходит через gvfs, а его в системе может не быть
         # («Operation not supported»). Чистим корзину сами — она устроена
@@ -208,7 +247,7 @@ EOF
         ;;
 
     *)
-        echo "usage: files.sh list DIR | apps P | open P [D] | mkdir D N | rename P N | trash P | copy S D | move S D | copypath P | places | emptytrash | trashcount" >&2
+        echo "usage: files.sh list DIR | disks | apps P | open P [D] | mkdir D N | rename P N | trash P | copy S D | move S D | copypath P | places | emptytrash | trashcount" >&2
         exit 1
         ;;
 esac

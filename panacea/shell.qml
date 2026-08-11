@@ -55,6 +55,8 @@ PanelWindow {
             property string recMicDevice: ""     // "" = микрофон по умолчанию
             // менеджер паролей: предлагать сохранять пароли из буфера обмена
             property bool   vaultCapture: true
+            // проводник отдельным окном Hyprland, а не страницей пилюли
+            property bool   filesWindow: false
 
             // Включённые функции. При установке дотфайлов целиком доступно всё
             // (по умолчанию true); установщик острова выключает то, что человек
@@ -728,7 +730,7 @@ PanelWindow {
         property string uri: ""
 
         Drag.dragType: Drag.Automatic
-        Drag.supportedActions: Qt.CopyAction
+        Drag.supportedActions: Qt.CopyAction | Qt.MoveAction
         Drag.proposedAction: Qt.CopyAction
         Drag.mimeData: ({ "text/uri-list": fileDrag.uri,
                           "text/plain": fileDrag.uri.replace("file://", "") })
@@ -739,8 +741,59 @@ PanelWindow {
         onTriggered: fileDrag.Drag.active = true
     }
 
-    function startFileDrag(path) {
+    // ------------------------------------------------------ обзор столов
+    // Для превью нужны две вещи: геометрия окна (её знает Hyprland) и
+    // wayland-хэндл (по нему ScreencopyView берёт живой кадр). Оба лежат
+    // на HyprlandToplevel, поэтому собираем их в один список.
+    property bool overviewOpen: false
+    function openOverview() {
+        Hyprland.refreshWorkspaces();
+        Hyprland.refreshToplevels();
+        root.overviewOpen = true;
+    }
+    function closeOverview() { root.overviewOpen = false; }
+
+    // Переход на стол. С Lua-конфигом Hyprland разбирает строку запроса как
+    // Lua-код, и привычное "workspace 2" валится синтаксической ошибкой —
+    // нужен настоящий диспетчер. На обычном конфиге работает старая форма.
+    function gotoWorkspace(id) {
+        if (Hyprland.usingLua) Hyprland.dispatch("hl.dsp.focus({ workspace = " + id + " })");
+        else                   Hyprland.dispatch("workspace " + id);
+    }
+    function toggleOverview() {
+        if (root.overviewOpen) closeOverview(); else openOverview();
+    }
+
+    readonly property var overviewToplevels: {
+        var out = [];
+        if (!root.overviewOpen) return out;
+        var all = Hyprland.toplevels ? Hyprland.toplevels.values : [];
+        for (var i = 0; i < all.length; i++) {
+            var t = all[i];
+            if (!t) continue;
+            var o = t.lastIpcObject;
+            if (!o || !o.at || !o.size) continue;
+            if (o.hidden || o.workspace === undefined) continue;
+            out.push({
+                wayland: t.wayland,
+                geo: {
+                    x: o.at[0], y: o.at[1], w: o.size[0], h: o.size[1],
+                    ws: o.workspace.id, cls: String(o.initialClass || o.class || "")
+                }
+            });
+        }
+        return out;
+    }
+
+    // Кто-то из окон проводника изменил файлы — остальным пора перечитать
+    // свой список: они смотрят на ту же файловую систему.
+    signal filesChanged()
+
+    // fromWindow — тащат из отдельного окна проводника: пилюлю трогать не надо
+    // и ждать её уезда тоже, перетаскивание начинается сразу.
+    function startFileDrag(path, fromWindow) {
         fileDrag.uri = "file://" + path;
+        if (fromWindow) { fileDrag.Drag.active = true; return; }
         root.collapse();
         fileDragStart.restart();
     }
@@ -803,8 +856,44 @@ PanelWindow {
         }
     }
 
+    // ------------------------------------------------- проводник отдельно
+    // С включённой настройкой проводник перестаёт быть страницей пилюли и
+    // становится обычным окном: Hyprland сам его тайлит, оно остаётся на
+    // своём рабочем столе и переносится между ними как любое другое. Пилюля
+    // при этом не раскрывается и остаётся в обычном виде.
+    // Окон может быть сколько угодно: Super+E в оконном режиме каждый раз
+    // открывает ещё одно, как любой нормальный проводник. Закрывается каждое
+    // само по себе — по крестику или Esc внутри него.
+    property int filesWindowSeq: 0
+    ListModel { id: filesWindows }
+
+    function openFilesWindow() {
+        root.filesWindowSeq++;
+        filesWindows.append({ wid: root.filesWindowSeq });
+    }
+    function closeFilesWindow(wid) {
+        for (var i = 0; i < filesWindows.count; i++) {
+            if (filesWindows.get(i).wid !== wid) continue;
+            filesWindows.remove(i);
+            return;
+        }
+    }
+
+    // Открыть подстраницу и закрепить панель. Раньше страница батареи,
+    // сетей или устройств открывалась простым присваиванием page, панель
+    // оставалась незакреплённой и захлопывалась, стоило увести курсор —
+    // до списка было не дотянуться. Возврат — Esc или кнопка «назад».
+    function openSub(name) {
+        pageResetTimer.stop();
+        page = name;
+        expanded = true;
+        holdOpen = true;
+    }
+
     function togglePage(name) {
         if (!pageEnabled(name)) return;   // выключено установщиком — молчим
+        // проводник в оконном режиме пилюлю не трогает вовсе
+        if (name === "files" && cfg.filesWindow) { openFilesWindow(); return; }
         if (expanded && page === name) { collapse(); return; }
         pageResetTimer.stop();
         page = name;
