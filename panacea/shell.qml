@@ -42,6 +42,8 @@ PanelWindow {
             property real   mutedAlpha: 0.45
             property string colOn:    "#3b82f6"
             property int    pillH:  38
+            // где живёт остров: top | bottom | left | right
+            property string pillPos: "top"
             property int    panelW: 540
             property int    cornerR: 14
             property int    animMs: 230
@@ -432,10 +434,6 @@ PanelWindow {
         "Очистить": "Clear",
         "Пока ничего нет": "Nothing yet",
         "Режим «не беспокоить» включён": "Do not disturb is on",
-        "Показать все страницы": "Show every page",
-        "Остановить показ": "Stop the tour",
-        "Пролистает все страницы по очереди": "Cycles through every page in turn",
-        "Пауза показа": "Step delay",
         "с": "s",
         "Нажмите сочетание…": "Press a shortcut…",
         "Нажмите на сочетание, чтобы изменить. × убирает клавишу.":
@@ -489,7 +487,66 @@ PanelWindow {
         "Подключение…": "Connecting…",
         "Устройства не найдены": "No devices found",
         "мс": "ms",
-        "Сохранено": "Saved"
+        "Сохранено": "Saved",
+        "Обои": "Wallpapers",
+        // подписи макета проводника в настройках
+        "Картинки": "Pictures",
+        "объектов": "items",
+        "вчера": "yesterday",
+        "сегодня": "today",
+        "9 авг": "9 Aug",
+        "8 авг": "8 Aug",
+        "7 авг": "7 Aug",
+        "ГБ": "GB",
+        "МБ": "MB",
+        "КБ": "KB",
+        "По центру экрана": "Centred panel",
+        "раскрывается из острова": "unfolds from the island",
+        "Отдельным окном": "Separate window",
+        "тайлится в Hyprland": "tiled by Hyprland",
+        "Читаю…": "Reading…",
+        "Положение на экране": "Screen position",
+        "Раскрытие всегда идёт к центру экрана.": "It always opens towards the centre.",
+        "Обоев не найдено": "No wallpapers found",
+        "выбрать": "choose",
+        "поставить": "apply",
+        "закрыть": "close",
+        "Экраны": "Displays",
+        "Настроить": "Configure",
+        "Раскладка": "Arrangement",
+        "Расширить": "Extend",
+        "общий стол": "one desktop",
+        "Дублировать": "Duplicate",
+        "одна картинка": "same picture",
+        "Только один": "Single",
+        "остальные погасить": "others off",
+        "Показывать на": "Show on",
+        "Второй экран": "Second display",
+        "Справа": "Right",
+        "Слева": "Left",
+        "Сверху": "Above",
+        "Снизу": "Below",
+        "Разрешение": "Resolution",
+        "Частота": "Refresh rate",
+        "родное": "native",
+        "Масштаб": "Scale",
+        "Ориентация": "Orientation",
+        "Обычная": "Landscape",
+        "Повёрнут вправо": "Rotated right",
+        "Повёрнут влево": "Rotated left",
+        "Вверх ногами": "Upside down",
+        "Экран включён": "Display on",
+        "Переменная частота (VRR)": "Variable refresh rate",
+        "Определить экраны": "Detect displays",
+        "Экраны не найдены": "No displays found",
+        "Основной": "Primary",
+        "Дубль": "Mirror",
+        "Изменения применятся по кнопке «Применить».":
+            "Changes take effect on Apply.",
+        "Такой масштаб даёт нецелый размер стола — Hyprland его не примет.":
+            "This scale gives a fractional desktop size — Hyprland will reject it.",
+        "Дубли повторяют картинку основного экрана: у них своё разрешение, но общая раскладка.":
+            "Mirrors repeat the primary display: own resolution, shared layout."
     })
 
     readonly property bool isEn: cfg.lang === "en"
@@ -521,57 +578,8 @@ PanelWindow {
     // capture.sh off зовёт этот IPC, чтобы панель сняла режим захвата
     signal cancelCaptureRequested()
 
-    // ------------------------------------------------------------- обход
-    // Показ всех страниц по очереди с паузой — чтобы рассмотреть каждую.
-    // Какая вкладка настроек откроется: 0 — пилюля, 1 — клавиши.
+    // Какая вкладка настроек откроется: 0 — пилюля, 2 — экран, 3 — клавиши.
     property int settingsTab: 0
-
-    property bool tourRunning: false
-    property int  tourIndex: 0
-    readonly property var tourPages: ["main", "wifi", "bt", "clip", "power", "launcher"]
-    property int tourStepMs: 2200
-
-    function startTour() {
-        if (tourRunning) { stopTour(); return; }
-        tourRunning = true;
-        tourIndex = -1;
-        // Короткий разгон только до появления первой страницы.
-        // Показывается каждая страница ровно tourStepMs — время отсчитывается
-        // от момента её показа, поэтому паузы одинаковые.
-        tourTimer.interval = 250;
-        tourTimer.restart();
-    }
-    function stopTour() {
-        tourRunning = false;
-        tourTimer.stop();
-        togglePage("settings");
-    }
-
-    Timer {
-        id: tourTimer
-        repeat: false
-        onTriggered: {
-            if (!root.tourRunning) return;
-            root.tourIndex++;
-            if (root.tourIndex >= root.tourPages.length) {
-                // круг закончен — возвращаемся в настройки
-                root.tourRunning = false;
-                pageResetTimer.stop();
-                root.page = "settings";
-                root.expanded = true;
-                root.holdOpen = true;
-                return;
-            }
-            pageResetTimer.stop();
-            root.page = root.tourPages[root.tourIndex];
-            root.expanded = true;
-            root.holdOpen = true;
-            if (root.page === "wifi") { root.refreshWifiList(); root.scanWifi(); }
-            if (root.page === "bt")   root.scanBt();
-            tourTimer.interval = root.tourStepMs;
-            tourTimer.restart();
-        }
-    }
 
     // Пересобрать binds_data.lua и перечитать конфиг Hyprland
     Process { id: pGenBinds }
@@ -614,6 +622,27 @@ PanelWindow {
 
     // ---------------------------------------------------------------- метрики
     readonly property int pillH: cfg.pillH      // высота свёрнутой пилюли
+
+    // Где висит остров. Раскрытие всегда идёт к центру экрана: сверху —
+    // вниз, снизу — вверх, слева — вправо, справа — влево. Это выходит само
+    // собой, потому что капсула прижата к своей кромке и растёт от неё.
+    readonly property string pillPos: {
+        var p = String(cfg.pillPos || "top");
+        return (p === "bottom" || p === "left" || p === "right") ? p : "top";
+    }
+    readonly property bool pillAtTop:    pillPos === "top"
+    readonly property bool pillAtBottom: pillPos === "bottom"
+    readonly property bool pillAtLeft:   pillPos === "left"
+    readonly property bool pillAtRight:  pillPos === "right"
+    // у боковых положений капсула стоит по центру высоты, а не у кромки экрана
+    readonly property bool pillSide: pillAtLeft || pillAtRight
+
+    // Где именно сейчас стоит капсула. Нужно карусели обоев: она начинает
+    // разворот ровно из острова, поэтому ей нужны его координаты.
+    property real pillRectX: 0
+    property real pillRectY: 0
+    property real pillRectW: 0
+    property real pillRectH: 0
     readonly property int panelW: cfg.panelW    // ширина раскрытой панели
     readonly property int gap: 5                // зазор между пилюлей и окнами
     readonly property int cornerR: cfg.cornerR  // радиус примыкания к кромке
@@ -667,8 +696,9 @@ PanelWindow {
     }
     function finishWallpaperPick(path) {
         wallpaperPickMode = false;
+        collapse();
         wallpaperPick = path;
-        togglePage("theme");
+        openWalls();
     }
     function cancelWallpaperPick() { wallpaperPick = ""; }
 
@@ -767,6 +797,71 @@ PanelWindow {
         if (root.overviewOpen) closeOverview(); else openOverview();
     }
 
+    // ------------------------------------------------------------------ обои
+    // Карусель обоев — отдельный полноэкранный слой, как обзор столов:
+    // картинку надо видеть большой, а в пилюле для этого нет места.
+    property bool wallsOpen: false
+    function openWalls() {
+        if (!cfg.featThemes) return;
+        collapse();
+        root.wallsOpen = true;
+        // список обновится в фоне; на экране пока прежний, а не пустота
+        root.refreshWalls();
+    }
+    function closeWalls() { root.wallsOpen = false; }
+
+    // Список обоев держим здесь и читаем заранее: карусель должна открываться
+    // уже с картинками. Пока список жил внутри неё, первые полсекунды на
+    // экране висело «обоев не найдено».
+    property var wallList: []
+    property bool wallListReady: false
+    Process {
+        id: pWallList
+        command: ["sh", "-c", root.scriptDir + "/themes.sh list"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var rows = [];
+                var lines = text.split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var p = lines[i].trim().split("|");
+                    if (p.length < 5) continue;
+                    rows.push({
+                        wName:   p[0],
+                        wThumb:  p[1],
+                        wActive: p[2] === "yes",
+                        wOwn:    p[3] === "yes",
+                        wPath:   p[4]
+                    });
+                }
+                root.wallList = rows;
+                root.wallListReady = true;
+            }
+        }
+    }
+    // Миниатюра текущих обоев: макет рабочего стола в настройках показывает
+    // именно её, а не условный градиент — иначе по макету не поймёшь, как
+    // остров будет читаться на своём фоне.
+    readonly property string currentWallThumb: {
+        for (var i = 0; i < wallList.length; i++) {
+            if (wallList[i].wActive) return wallList[i].wThumb;
+        }
+        return "";
+    }
+
+    function refreshWalls() {
+        pWallList.running = false;
+        pWallList.running = true;
+    }
+    Timer {
+        // не на самом старте: при входе в систему и без нас есть чем заняться
+        interval: 4000
+        running: true
+        onTriggered: root.refreshWalls()
+    }
+    function toggleWalls() {
+        if (root.wallsOpen) closeWalls(); else openWalls();
+    }
+
     readonly property var overviewToplevels: {
         var out = [];
         if (!root.overviewOpen) return out;
@@ -847,7 +942,6 @@ PanelWindow {
             case "clip":      return cfg.featClipboard;
             case "notif":     return cfg.featNotifications;
             case "cal":       return cfg.featCalendar;
-            case "theme":     return cfg.featThemes;
             case "record":    return cfg.featRecord;
             case "files":     return cfg.featFiles;
             case "media":     return cfg.featMedia;
@@ -945,13 +1039,13 @@ PanelWindow {
     property bool   themeFading: false
 
     FileView {
-        id: curThemeFile
-        path: Quickshell.env("HOME") + "/.config/hypr/theme.conf"
+        id: curWallFile
+        path: Quickshell.env("HOME") + "/.config/hypr/wallpaper.conf"
         blockLoading: true
     }
 
     function startThemeFade() {
-        var m = /^\$wallpaper\s*=\s*(.+)$/m.exec(curThemeFile.text() || "");
+        var m = /^\$wallpaper\s*=\s*(.+)$/m.exec(curWallFile.text() || "");
         if (!m) return;
         root.themeFadeWall = "file://" + String(m[1]).trim();
         root.themeFading = true;
@@ -1155,6 +1249,71 @@ PanelWindow {
     readonly property var activeNotifications:
         notifServer ? notifServer.trackedNotifications : null
 
+    // Живые объекты уведомлений по id. Нужны, чтобы нажатие открывало сам
+    // повод: у мессенджеров есть действие «default», и именно оно
+    // разворачивает нужный чат — угадать его снаружи невозможно.
+    property var notifObjs: ({})
+
+    Process { id: pFocusApp }
+    // Переводим фокус на приложение: Hyprland сам перелистнёт на его стол,
+    // а если окна нет — скрипт запустит приложение.
+    function focusApp(hint) {
+        var h = String(hint || "").trim();
+        if (h.length === 0) return;
+        pFocusApp.running = false;
+        pFocusApp.command = ["sh", "-c",
+            root.scriptDir + "/focusapp.sh \"$1\"", "_", h];
+        pFocusApp.running = true;
+    }
+
+    // Раскрытие по наведению после клика по уведомлению только мешает: курсор
+    // остаётся над пилюлей, и она тут же разворачивается в «Быстрые
+    // настройки» — а там сверху часы с подписью «Календарь» и своей областью
+    // нажатия, поэтому следующий же щелчок уводил в календарь.
+    //
+    // Поэтому взводим наведение заново только когда курсор уйдёт с пилюли:
+    // по времени было ненадёжно, курсор ведь остаётся на месте.
+    property bool hoverExpandArmed: true
+
+    // Нажали на уведомление: сначала просим приложение показать повод
+    // (действие «default»), потом уходим к его окну и убираем карточку.
+    //
+    // Принимает либо сам объект уведомления (карточка знает его напрямую),
+    // либо id из истории. По id раньше промахивались: ключи в notifObjs
+    // приводились к числу неодинаково, и действие «default» не вызывалось —
+    // приложение не открывалось вовсе.
+    function activateNotification(what) {
+        var n = null;
+        var id = -1;
+        if (what !== null && typeof what === "object") {
+            n = what;
+            id = Number(what.id);
+        } else {
+            id = Number(what);
+            n = root.notifObjs[String(id)] || null;
+        }
+        var hint = "";
+        if (n) {
+            hint = String(n.desktopEntry || "") || String(n.appName || "");
+            var acts = n.actions || [];
+            var used = false;
+            for (var i = 0; i < acts.length; i++) {
+                if (String(acts[i].identifier) === "default") {
+                    acts[i].invoke(); used = true; break;
+                }
+            }
+            // одно действие без имени — тоже почти всегда «открыть»
+            if (!used && acts.length === 1) acts[0].invoke();
+        }
+        root.focusApp(hint);
+        root.dismissToast();
+        if (id >= 0) root.dropNotification(id);
+        // не раскрываемся под курсором после клика — до тех пор, пока курсор
+        // не уйдёт с пилюли
+        root.hoverExpandArmed = false;
+        root.collapse();
+    }
+
     readonly property bool toastActive: notifCurrent !== null && !expanded
     readonly property string notifSummary: notifCurrent ? String(notifCurrent.summary || "") : ""
     readonly property string notifBody:    notifCurrent ? String(notifCurrent.body || "") : ""
@@ -1192,7 +1351,13 @@ PanelWindow {
             // мессенджере. Раньше такая карточка всё равно висела в истории —
             // теперь она уходит вместе с поводом.
             var nid = Number(n.id);
+            var objs = root.notifObjs;
+            objs[String(nid)] = n;
+            root.notifObjs = objs;
             n.closed.connect(function (reason) {
+                var o = root.notifObjs;
+                delete o[String(nid)];
+                root.notifObjs = o;
                 if (reason !== NotificationCloseReason.CloseRequested) return;
                 root.dropNotification(nid);
             });
@@ -2040,16 +2205,15 @@ PanelWindow {
             root.scanBt();
         }
         function settings(): void { root.settingsTab = 0; root.togglePage("settings"); }
-        function shortcuts(): void { root.settingsTab = 2;
+        function shortcuts(): void { root.settingsTab = 3;
             if (root.page !== "settings") root.togglePage("settings"); }
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }
         function cancelCapture(): void { root.cancelCaptureRequested(); }
-        function tour(): void { root.startTour(); }
         function notifications(): void { root.togglePage("notif"); }
         function audio(): void { root.togglePage("audio"); }
         function calendar(): void { root.togglePage("cal"); }
-        function theme(): void { root.togglePage("theme"); }
+        function theme(): void { root.toggleWalls(); }
         function record(): void { root.togglePage("record"); }
         function files(): void { root.togglePage("files"); }
         function passwords(): void { root.togglePage("vault"); }
@@ -2066,7 +2230,13 @@ PanelWindow {
     }
 
     // ----------------------------------------------------------------- окно
-    anchors { top: true; left: true; right: true }
+    // Прижимаемся тремя кромками: свободной остаётся та, в сторону которой
+    // раскрывается панель. Иначе слой занял бы весь экран и exclusiveZone
+    // (место под остров) считался бы не от той кромки.
+    anchors.top:    !root.pillAtBottom
+    anchors.bottom: !root.pillAtTop
+    anchors.left:   !root.pillAtRight
+    anchors.right:  !root.pillAtLeft
     // Высота окна ПОСТОЯННА и равна экрану.
     //
     // Раньше она переключалась 560 <-> 1080 при закреплении панели, и слой
@@ -2077,6 +2247,9 @@ PanelWindow {
     // Постоянная высота ничего не ломает: пока панель не закреплена, ввод
     // ограничен маской по капсуле, и клики проходят сквозь окно как раньше.
     implicitHeight: root.screen ? root.screen.height : 1080
+    // для боковых положений свободна вертикальная кромка, и размер по ширине
+    // окно тоже должно задать само
+    implicitWidth: root.screen ? root.screen.width : 1920
     color: "transparent"
     // зазор между пилюлей и окнами
     exclusiveZone: (root.fullscreenActive && !root.expanded) ? 0 : pillH + gap
@@ -2128,6 +2301,9 @@ PanelWindow {
         z: -5
         source: root.themeFadeWall
         fillMode: Image.PreserveAspectCrop
+        // у обоев бывает 75 мегапикселей: без ограничения Qt отказывается их
+        // декодировать (лимит 256 МБ на картинку) и кроссфейд не появлялся
+        sourceSize.width: root.screen ? root.screen.width : 1920
         asynchronous: false
         cache: false
         visible: opacity > 0.01
@@ -2141,21 +2317,54 @@ PanelWindow {
     Rectangle {
         id: capsule
 
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
-        // у верха — 0, в режиме настроек — по центру экрана
-        anchors.topMargin: root.settingsMode
-                           ? Math.max(24, (root.height - targetH) / 2)
-                           : 0
+        // Прижата к своей кромке и растёт от неё — поэтому «раскрытие к
+        // центру» получается само, без отдельной анимации направления.
+        anchors.top:    root.pillAtTop    ? parent.top    : undefined
+        anchors.bottom: root.pillAtBottom ? parent.bottom : undefined
+        anchors.left:   root.pillAtLeft   ? parent.left   : undefined
+        anchors.right:  root.pillAtRight  ? parent.right  : undefined
+        anchors.horizontalCenter: root.pillSide ? undefined : parent.horizontalCenter
+        anchors.verticalCenter:   root.pillSide ? parent.verticalCenter : undefined
+
+        // у кромки — 0, в режиме настроек — по центру экрана
+        readonly property real edgeMargin: root.settingsMode && !root.pillSide
+                                           ? Math.max(24, (root.height - targetH) / 2)
+                                           : 0
+        // у боковых положений от кромки отрывает уже горизонтальный отступ
+        readonly property real sideMargin: root.settingsMode && root.pillSide
+                                           ? Math.max(24, (root.width - width) / 2)
+                                           : 0
+        anchors.topMargin:    root.pillAtTop    ? edgeMargin : 0
+        anchors.bottomMargin: root.pillAtBottom ? edgeMargin : 0
+        anchors.leftMargin:   root.pillAtLeft   ? sideMargin : 0
+        anchors.rightMargin:  root.pillAtRight  ? sideMargin : 0
+        Behavior on anchors.leftMargin {
+            NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic }
+        }
+        Behavior on anchors.rightMargin {
+            NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic }
+        }
         Behavior on anchors.topMargin {
             NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic }
         }
+        Behavior on anchors.bottomMargin {
+            NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic }
+        }
+
+        // Свёрнутый остров измеряется вдоль своей кромки и поперёк неё: у
+        // боковых положений он стоит вертикально, поэтому длина уходит в
+        // высоту, а толщина — в ширину.
+        readonly property real idleLen: root.toastActive ? 440
+                : root.osdActive ? osdCapsule.implicitWidth + 32
+                : root.pillSide  ? vertCapsule.implicitHeight + 30
+                                 : idleCapsule.implicitWidth + 32
+        readonly property real idleThick: root.toastActive
+                ? toastCapsule.implicitHeight + 24 : root.pillH
 
         width: root.settingsMode ? root.settingsW
              : root.expanded     ? root.panelW
-             : root.toastActive  ? 440
-             : root.osdActive    ? osdCapsule.implicitWidth + 32
-             : idleCapsule.implicitWidth + 32
+             : root.pillSide     ? idleThick
+                                 : idleLen
         // целевая высота — к ней анимируется height и по ней же сразу
         // рассчитывается центрирование, чтобы движение было одноэтапным
         // Высота содержимого держится отдельно: при смене страницы новый вид
@@ -2189,16 +2398,36 @@ PanelWindow {
 
         readonly property real targetH: root.expanded
                 ? contentH
-                : root.toastActive ? toastCapsule.implicitHeight + 24
-                : root.pillH
+                : root.pillSide ? idleLen
+                                : idleThick
         height: targetH
 
+        onXChanged:      root.pillRectX = capsule.x
+        onYChanged:      root.pillRectY = capsule.y
+        onWidthChanged:  root.pillRectW = capsule.width
+        onHeightChanged: root.pillRectH = capsule.height
+        Component.onCompleted: {
+            root.pillRectX = capsule.x;      root.pillRectY = capsule.y;
+            root.pillRectW = capsule.width;  root.pillRectH = capsule.height;
+        }
+
+        // Пока карусель обоев открыта, остров спрятан: она выросла из него,
+        // и два острова на экране разом смотрелись бы как две панели.
+        opacity: root.wallsOpen ? 0 : 1
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
         color: root.colBg
-        // прижата к верхней кромке: сверху углов нет, снизу — полное скругление
-        topLeftRadius:  root.settingsMode ? 26 : 0
-        topRightRadius: root.settingsMode ? 26 : 0
-        bottomLeftRadius: root.expanded ? 26 : root.pillH / 2
-        bottomRightRadius: root.expanded ? 26 : root.pillH / 2
+        // Углы у прижатой кромки срезаны, у смотрящей в экран — скруглены:
+        // так остров выглядит выросшим из края, а не приклеенным к нему.
+        // В режиме настроек капсула отрывается от кромки, и круглыми
+        // становятся все четыре.
+        readonly property real edgeR: root.settingsMode ? 26 : 0
+        readonly property real freeR: root.expanded ? 26 : root.pillH / 2
+        topLeftRadius:     root.pillAtTop || root.pillAtLeft  ? edgeR : freeR
+        topRightRadius:    root.pillAtTop || root.pillAtRight ? edgeR : freeR
+        bottomLeftRadius:  root.pillAtBottom || root.pillAtLeft  ? edgeR : freeR
+        bottomRightRadius: root.pillAtBottom || root.pillAtRight ? edgeR : freeR
         Behavior on topLeftRadius  { NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic } }
         Behavior on topRightRadius { NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic } }
 
@@ -2228,13 +2457,19 @@ PanelWindow {
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onHoveredChanged: {
                 if (hovered) { collapseTimer.stop(); expandTimer.restart(); }
-                else { expandTimer.stop(); collapseTimer.restart(); }
+                else {
+                    expandTimer.stop();
+                    collapseTimer.restart();
+                    // курсор ушёл — наведение снова может раскрывать панель
+                    root.hoverExpandArmed = true;
+                }
             }
         }
         Timer {
             id: expandTimer; interval: 0
             onTriggered: {
                 if (!capsuleHover.hovered || root.launcherOpen) return;
+                if (!root.hoverExpandArmed) return;
                 // пока висит уведомление, наведение не раскрывает панель:
                 // иначе до крестика не добраться
                 if (root.toastActive) return;
@@ -2261,16 +2496,29 @@ PanelWindow {
 
         // Клик по карточке открывает историю. Отдельным слоем под ней:
         // внутри RowLayout якоря ломают раскладку.
+        // Нажатие открывает сам повод: чат, письмо, загрузку. Раньше карточка
+        // уводила в список уведомлений — оттуда всё равно приходилось искать
+        // приложение руками.
+        //
+        // z поверх всего содержимого капсулы: пока висит карточка, ни одна
+        // область под ней не должна перехватывать щелчок.
         MouseArea {
             anchors.fill: parent
+            z: 100
             enabled: root.toastActive
             visible: enabled
-            onClicked: { root.dismissToast(); root.togglePage("notif"); }
+            preventStealing: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (root.notifCurrent) root.activateNotification(root.notifCurrent)
         }
 
         // ------------------------------------------ свёрнутое: уведомление
         RowLayout {
             id: toastCapsule
+            // Выше области нажатия карточки: сама она щелчки не перехватывает
+            // (это просто текст и иконки), зато крестик внутри остаётся
+            // доступным — иначе его накрыло бы прозрачной областью.
+            z: 110
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
@@ -2446,7 +2694,9 @@ PanelWindow {
             height: root.pillH
             spacing: 14
             visible: !root.expanded && !root.osdActive && !root.toastActive
-            opacity: visible ? 1 : 0
+            // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
+            // равен нулю, и остров считал бы свою длину по пустоте.
+            opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
             // ------------------------------------------------ играет медиа
@@ -2604,6 +2854,205 @@ PanelWindow {
             }
         }
 
+            // Текст столбиком: каждая буква на своей строке. Повёрнутый на
+            // 90° текст пришлось бы читать с наклонённой головой, а так
+            // вертикальный остров остаётся читаемым.
+            component VertText: Column {
+                id: vt
+                property string value: ""
+                property color textColor: root.colFg
+                property real size: root.fontSize
+                property bool bold: false
+                property int maxChars: 16
+
+                spacing: -2
+                Repeater {
+                    model: String(vt.value).slice(0, vt.maxChars).split("")
+                    Text {
+                        required property string modelData
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: modelData === " " ? "·" : modelData
+                        color: vt.textColor
+                        font {
+                            family: root.fontFam
+                            pixelSize: vt.size
+                            bold: vt.bold
+                        }
+                    }
+                }
+            }
+
+            // ------------------------------------- вертикальный остров
+            // У боковых кромок содержимое стоит столбиком и НЕ повёрнуто:
+            // повёрнутый текст читается только с наклонённой головой. Поэтому
+            // здесь свой набор — короткие значения, которые влезают в толщину
+            // острова: часы двумя строками, стол, раскладка, заряд.
+            ColumnLayout {
+                id: vertCapsule
+                anchors.centerIn: parent
+                width: root.pillH
+                spacing: 7
+                visible: !root.expanded
+                opacity: root.pillSide ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+                // Играет музыка: обложка и эквалайзер. Названию в толщину
+                // острова не поместиться, а повёрнутый текст не читается —
+                // поэтому оно показывается подписью при наведении.
+                Item {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 22
+                    Layout.preferredHeight: mediaCol.implicitHeight
+                    visible: root.mediaActive
+
+                ColumnLayout {
+                    id: mediaCol
+                    anchors.fill: parent
+                    spacing: 5
+
+                    Rectangle {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: 22
+                        Layout.preferredHeight: 22
+                        radius: 7
+                        color: Qt.rgba(1, 1, 1, 0.08)
+                        clip: true
+
+                        Image {
+                            id: vertArt
+                            anchors.fill: parent
+                            source: root.mediaArt
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: true
+                            sourceSize.width: 64
+                            visible: status === Image.Ready
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            visible: vertArt.status !== Image.Ready
+                            text: "󰝚"
+                            color: root.colMuted
+                            font { family: root.fontFam; pixelSize: 11 }
+                        }
+                    }
+
+                    // название трека столбиком: коротко, но читаемо
+                    VertText {
+                        Layout.alignment: Qt.AlignHCenter
+                        value: root.player ? String(root.player.trackTitle || "") : ""
+                        textColor: root.colFg
+                        size: root.fontSize - 3
+                        bold: true
+                        maxChars: 10
+                    }
+
+                    // Тот же эквалайзер, что и в горизонтальном виде, только
+                    // повёрнутый: полосы абстрактные, читать их не нужно.
+                    Item {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 28
+                        WaveBars {
+                            anchors.centerIn: parent
+                            width: 28
+                            height: 14
+                            rotation: -90
+                            barColor: root.colFg
+                            active: root.player ? root.player.isPlaying : false
+                        }
+                    }
+
+                }
+
+                    // Клик открывает плеер, наведение показывает название:
+                    // подпись рисует корень, поэтому текст остаётся прямым.
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onEntered: {
+                            var t = root.player ? String(root.player.trackTitle || "") : "";
+                            if (t.length === 0) return;
+                            var p = mapToItem(null, width / 2, height / 2);
+                            root.showTip(t, p.x, p.y);
+                        }
+                        onExited: root.hideTip(root.player
+                                               ? String(root.player.trackTitle || "") : "")
+                        onClicked: root.togglePage("media")
+                    }
+                }
+
+                // идёт запись экрана
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 8
+                    Layout.preferredHeight: 8
+                    radius: 4
+                    visible: root.recActive
+                    color: root.recPaused ? "#fbbf24" : "#ef4444"
+                }
+
+                // Черта отделяет музыку от постоянной части — как в
+                // горизонтальном виде она стоит между cava и днём недели.
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 14
+                    Layout.preferredHeight: 1
+                    visible: root.mediaActive
+                    color: Qt.rgba(1, 1, 1, 0.18)
+                }
+
+                // день недели столбиком
+                VertText {
+                    Layout.alignment: Qt.AlignHCenter
+                    value: root.dayText
+                    textColor: root.colMuted
+                    size: root.fontSize - 2
+                    bold: true
+                }
+
+                // часы: часы и минуты отдельными строками
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: root.timeText.split(":")[0] || ""
+                    color: root.colFg
+                    font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
+                }
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: (root.timeText.split(":")[1] || "").replace(/[^0-9]/g, "")
+                    color: root.colFg
+                    font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: String(root.wsId)
+                    color: root.colFg
+                    font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                }
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: root.kbLayout
+                    color: root.kbLayout === "RU" ? "#7FB3FF" : root.colMuted
+                    font { family: root.fontFam; pixelSize: root.fontSize - 4; bold: true }
+                }
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: root.batteryIcon
+                    color: root.batteryCharging || root.acOnline ? root.colOk
+                         : root.batteryPct <= 15 ? root.colCrit : root.colMuted
+                    font { family: root.fontFam; pixelSize: root.fontSize - 1 }
+                }
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: root.batteryPct
+                    color: root.colMuted
+                    font { family: root.fontFam; pixelSize: root.fontSize - 4 }
+                }
+            }
+
         // --------------------------------------------------- раскрытая панель
         Loader {
             id: contentLoader
@@ -2642,7 +3091,6 @@ PanelWindow {
                            : root.page === "notif"    ? notifComp
                            : root.page === "audio"    ? audioComp
                            : root.page === "cal"      ? calComp
-                           : root.page === "theme"    ? themeComp
                            : root.page === "record"   ? recordComp
                            : root.page === "files"    ? filesComp
                            : root.page === "media"    ? mediaComp
@@ -2660,7 +3108,6 @@ PanelWindow {
         Component { id: notifComp;    NotificationsView { sys: root } }
         Component { id: audioComp;    AudioView { sys: root } }
         Component { id: calComp;      CalendarView { sys: root } }
-        Component { id: themeComp;    ThemeView { sys: root } }
         Component { id: recordComp;   RecordView { sys: root } }
         Component { id: filesComp;    FilesView { sys: root } }
         Component { id: mediaComp;    MediaView { sys: root } }
@@ -2710,24 +3157,46 @@ PanelWindow {
 
     // ------------------------------------ плавное примыкание к кромке экрана
     // Два вогнутых уголка по бокам: переход от кромки к пилюле без ступеньки.
+    // Вогнутые уголки примыкания: цепляются к той же кромке, что и остров, и
+    // стоят с двух его сторон. Форма выбирается по кромке: у вертикального
+    // острова та же четверть круга, только развёрнутая — заливка должна
+    // прижиматься к краю экрана и к торцу капсулы.
     NotchCorner {
-        side: "left"
+        id: notchBefore
+        // «до» острова: слева от него, а у боковых кромок — над ним
+        side: root.pillSide ? (root.pillAtLeft ? "right" : "left") : "left"
         fill: root.colBg
         r: root.cornerR
-        anchors.top: parent.top
-        anchors.right: capsule.left
-        // Gli angoli restano anche da espansa: sono ancorati ai lati della
-        // capsula, quindi scorrono insieme a lei mentre si allarga.
-        opacity: root.settingsMode ? 0 : 1
+        transform: Scale {
+            origin.y: root.cornerR / 2
+            yScale: root.pillSide ? -1 : (root.pillAtBottom ? -1 : 1)
+        }
+        x: root.pillAtLeft  ? 0
+         : root.pillAtRight ? parent.width - width
+                            : capsule.x - width
+        y: root.pillSide ? capsule.y - height
+         : root.pillAtBottom ? parent.height - height : 0
+        // Уголки уходят вместе с островом: в настройках он отрывается от
+        // кромки, а на карусели обоев прячется целиком.
+        opacity: root.settingsMode || root.wallsOpen ? 0 : 1
         Behavior on opacity { NumberAnimation { duration: root.animFast } }
     }
     NotchCorner {
-        side: "right"
+        id: notchAfter
+        // «после» острова: справа от него, а у боковых кромок — под ним
+        side: root.pillSide ? (root.pillAtLeft ? "right" : "left") : "right"
         fill: root.colBg
         r: root.cornerR
-        anchors.top: parent.top
-        anchors.left: capsule.right
-        opacity: root.settingsMode ? 0 : 1
+        transform: Scale {
+            origin.y: root.cornerR / 2
+            yScale: root.pillSide ? 1 : (root.pillAtBottom ? -1 : 1)
+        }
+        x: root.pillAtLeft  ? 0
+         : root.pillAtRight ? parent.width - width
+                            : capsule.x + capsule.width
+        y: root.pillSide ? capsule.y + capsule.height
+         : root.pillAtBottom ? parent.height - height : 0
+        opacity: root.settingsMode || root.wallsOpen ? 0 : 1
         Behavior on opacity { NumberAnimation { duration: root.animFast } }
     }
 }
@@ -2754,6 +3223,42 @@ LazyLoader {
         }
 
         OverviewView {
+            anchors.fill: parent
+            sys: root
+        }
+    }
+}
+
+// Обои — тоже свой полноэкранный слой: карусель раскрывается по центру
+// экрана, а клавиатура нужна ей целиком (стрелки, Enter, Esc).
+LazyLoader {
+    // Собираем слой заранее — как только прочитан список обоев. Иначе первое
+    // открытие уходило на создание трёх сотен карточек, и полсекунды экран
+    // был пустым.
+    activeAsync: root.wallsOpen || root.wallListReady
+
+    PanelWindow {
+        anchors { top: true; bottom: true; left: true; right: true }
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: root.wallsOpen ? WlrKeyboardFocus.Exclusive
+                                                    : WlrKeyboardFocus.None
+        // окно живёт всё время, но показывается только на открытии
+        visible: root.wallsOpen || wallsFade.opacity > 0.01
+
+        Rectangle {
+            id: wallsFade
+            anchors.fill: parent
+            color: Qt.rgba(0, 0, 0, 0.62)
+            opacity: root.wallsOpen ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animMs } }
+        }
+
+        // Раскрывается из острова: точка роста — та кромка, где он висит,
+        // поэтому карусель выглядит развернувшейся пилюлей, а не отдельным
+        // окном, приехавшим со стороны.
+        WallpapersView {
             anchors.fill: parent
             sys: root
         }

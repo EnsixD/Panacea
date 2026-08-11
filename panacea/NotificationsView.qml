@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 
-// История уведомлений и режим «не беспокоить».
+// Все уведомления, что приходили, одним списком, и режим «не беспокоить».
 Item {
     id: view
     property var sys
@@ -92,153 +92,14 @@ Item {
             }
         }
 
-        // ------------------------------------------------------ активные
-        Text {
-            Layout.fillWidth: true
-            Layout.topMargin: 2
-            text: view.sys.tr("Активные")
-            color: view.sys.colMuted
-            font {
-                family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4
-                bold: true; capitalization: Font.AllUppercase; letterSpacing: 1
-            }
-        }
-
-        ListView {
-            id: activeList
-            Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, 200)
-            clip: true
-            spacing: 6
-            model: view.sys.activeNotifications
-            visible: count > 0
-            boundsBehavior: Flickable.StopAtBounds
-
-            delegate: Rectangle {
-                id: aRow
-                required property var modelData
-                width: activeList.width
-                height: aInner.implicitHeight + 20
-                radius: 12
-                color: aMa.containsMouse ? Qt.rgba(1, 1, 1, 0.11) : Qt.rgba(1, 1, 1, 0.07)
-                border.color: view.sys.colOn
-                border.width: 1
-                Behavior on color { ColorAnimation { duration: 140 } }
-
-                RowLayout {
-                    id: aInner
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
-                    spacing: 11
-
-                    Rectangle {
-                        Layout.preferredWidth: 30
-                        Layout.preferredHeight: 30
-                        Layout.alignment: Qt.AlignTop
-                        radius: 9
-                        color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
-                        Image {
-                            anchors.fill: parent
-                            anchors.margins: 5
-                            source: String(aRow.modelData.image || "")
-                            visible: source != ""
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
-                        }
-                        Text {
-                            anchors.centerIn: parent
-                            visible: String(aRow.modelData.image || "") === ""
-                            text: String.fromCodePoint(0xF009A)
-                            color: view.sys.colOn
-                            font { family: view.sys.fontFam; pixelSize: view.sys.iconSize - 4 }
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-                            Text {
-                                Layout.fillWidth: true
-                                text: String(aRow.modelData.summary || "")
-                                color: view.sys.colFg
-                                elide: Text.ElideRight
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2; bold: true }
-                            }
-                            Text {
-                                text: String(aRow.modelData.appName || "")
-                                color: Qt.rgba(1, 1, 1, 0.30)
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5 }
-                            }
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            visible: text.length > 0
-                            text: String(aRow.modelData.body || "")
-                            color: view.sys.colMuted
-                            wrapMode: Text.WordWrap
-                            maximumLineCount: 2
-                            elide: Text.ElideRight
-                            textFormat: Text.PlainText
-                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
-                        }
-                    }
-
-                    Text {
-                        Layout.alignment: Qt.AlignTop
-                        text: "×"
-                        color: aDel.containsMouse ? view.sys.colCrit : view.sys.colMuted
-                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize }
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        MouseArea {
-                            id: aDel
-                            anchors.fill: parent
-                            anchors.margins: -6
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: aRow.modelData.dismiss()
-                        }
-                    }
-                }
-
-                MouseArea {
-                    id: aMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    acceptedButtons: Qt.NoButton
-                }
-            }
-        }
-
-        Text {
-            Layout.fillWidth: true
-            visible: view.sys.activeNotifications.length === 0
-            text: view.sys.tr("Нет активных")
-            color: Qt.rgba(1, 1, 1, 0.28)
-            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
-        }
-
-        // ------------------------------------------------------- история
-        Text {
-            Layout.fillWidth: true
-            Layout.topMargin: 4
-            text: view.sys.tr("История")
-            color: view.sys.colMuted
-            font {
-                family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4
-                bold: true; capitalization: Font.AllUppercase; letterSpacing: 1
-            }
-        }
-
+        // Один список на всё. Раньше страница делилась на «Активные» и
+        // «Историю»: одно и то же уведомление показывалось дважды, а разница
+        // между разделами человеку ничего не давала — карточка остаётся
+        // видимой, пока её не убрали, и это всё, что нужно знать.
         ListView {
             id: list
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, 260)
+            Layout.preferredHeight: Math.min(contentHeight, 420)
             clip: true
             spacing: 6
             model: view.sys.notifications
@@ -355,7 +216,11 @@ Item {
                     id: rowMa
                     anchors.fill: parent
                     hoverEnabled: true
-                    acceptedButtons: Qt.NoButton
+                    cursorShape: Qt.PointingHandCursor
+                    // Клик открывает повод уведомления: приложение само
+                    // разворачивает нужный чат, а Hyprland перелистывает на
+                    // тот стол, где это приложение живёт.
+                    onClicked: view.sys.activateNotification(row.nId)
                 }
             }
         }
