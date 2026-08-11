@@ -36,15 +36,17 @@ one geometry, one palette and one animation timeline.
 | Networks / Bluetooth | `Super + Shift + W` / `+ B` | Scan, connect, pair |
 | Notifications | `Super + Shift + N` | Live toasts, history, do‑not‑disturb |
 | Themes | `Super + Shift + T` | 15 schemes, each with a wallpaper |
+| Workspaces | `Super + Tab` | Live previews of every workspace, switch from the grid |
 | Launcher | `Super + A` | App search + calculator, recents first |
 | Clipboard | `Super + V` | `cliphist` history with search |
-| Files | `Super + E` | Bookmarks, trash, context menu, drag‑out |
+| Files | `Super + E` | Bookmarks, disks, sorting, trash, context menu, drag between windows |
 | Media | opens a file | Images, GIFs, video — trim and crop |
 | Recorder | `Super + P` | FPS, folder, system audio, microphone |
 | Passwords | `Super + Shift + P` | Encrypted vault, browser import, save prompts |
 | Battery | from quick settings | Power profiles, charge state, capacity and wear |
 | Power | `Ctrl + Alt + Del` | Sleep, lock, log out, restart, shut down |
 | Settings | `Super + I` | Everything above, live preview, rebindable keys |
+| Shortcuts | `Super + /` | Every binding in one place, rebindable |
 
 Hovering the pill opens it too — the player if something is playing, quick
 settings otherwise. Every page closes with the same key, `Escape`, or a click

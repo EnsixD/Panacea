@@ -74,6 +74,8 @@ DEPS=(
     "python3|python|helper scripts"
     "rfkill|util-linux|Bluetooth soft-unblock"
     "openssl|openssl|encrypting the password vault"
+    "xdg-open|xdg-utils|opening files and links from the pill"
+    "gio|glib2|trash and launching desktop entries"
     "upower|upower|battery state and the battery page"
     "lsblk|util-linux|disks and removable media in the file manager"
     "cava|cava|the audio spectrum in the pill"
@@ -88,6 +90,9 @@ EXTRA_PKGS=(power-profiles-daemon bluez bluez-utils iwd cava pipewire-audio
             # автоматически при подключении — без него раздел «Съёмные»
             # появится только после ручного монтирования
             udisks2 udiskie
+            # телефоны по MTP: без gvfs они не монтируются и раздел
+            # «Съёмные» их не увидит
+            gvfs gvfs-mtp
             # необязательные: без них импорт паролей из браузеров просто
             # пропускает соответствующее семейство, всё остальное работает
             python-secretstorage python-cryptography)
@@ -266,4 +271,5 @@ else
 fi
 
 printf '\n%s✓ Done.%s Log out and back in for a clean start.\n' "$OK" "$N"
-printf '%sSUPER+A launcher · SUPER+Z quick settings · SUPER+I settings · or hover the pill.%s\n' "$DIM" "$N"
+printf '%sSUPER+A launcher · SUPER+Z quick settings · SUPER+Tab workspaces · SUPER+E files%s\n' "$DIM" "$N"
+printf '%sSUPER+I settings · SUPER+/ shortcuts · or hover the pill.%s\n' "$DIM" "$N"
