@@ -11,7 +11,10 @@ Item {
     id: view
     property var sys
 
-    implicitHeight: col.implicitHeight
+    // Окно не должно скакать при переключении разделов, поэтому высоту
+    // держим по самому длинному — «Клавиши». Остальные просто не добирают
+    // до неё, и низ остаётся пустым.
+    implicitHeight: Math.max(col.implicitHeight, keysTab.implicitHeight + 52)
 
     property int tab: 0                 // 0 — пилюля, 1 — клавиши
     // обе вкладки раскладываются в две колонки, поэтому окно всегда широкое:
@@ -53,8 +56,26 @@ Item {
 
     function bindCombo(id) {
         bindRev;                     // зависимость для пересчёта
-        if (bindDraft[id] !== undefined) return String(bindDraft[id]);
-        return String(view.sys.cfg["bind_" + id] || "");
+        var raw = bindDraft[id] !== undefined
+                  ? String(bindDraft[id]) : String(view.sys.cfg["bind_" + id] || "");
+        return view.prettyCombo(raw);
+    }
+    // Hyprland знает клавиши по именам (slash, comma, period…), а человеку
+    // привычнее сам знак. Показываем знак, в настройках лежит имя.
+    readonly property var keySigns: ({
+        slash: "/", backslash: "\\", comma: ",", period: ".",
+        semicolon: ";", apostrophe: "'", grave: "`", minus: "-", equal: "=",
+        bracketleft: "[", bracketright: "]", space: "Space", delete: "Del"
+    })
+    function prettyCombo(raw) {
+        var parts = String(raw).split("+");
+        for (var i = 0; i < parts.length; i++) {
+            var k = parts[i].trim();
+            var sign = view.keySigns[k.toLowerCase()];
+            if (sign !== undefined) parts[i] = sign;
+            else parts[i] = k;
+        }
+        return parts.join(" + ");
     }
     function bindChanged(id) {
         bindRev;
@@ -111,9 +132,67 @@ Item {
 
     Component.onCompleted: { loadDraft(); view.sys.wideSettings = true; forceActiveFocus(); }
     Component.onDestruction: {
+        view.sys.tipText = "";
         // не оставляем систему без горячих клавиш и не запоминаем широкий режим
         if (capturingKey.length) grabKeys(false);
         view.sys.wideSettings = false;
+    }
+
+    // ----------------------------------------------------------- о системе
+    // Одним вызовом sh: десять отдельных процессов ради восьми строчек — это
+    // десять fork'ов на каждое открытие настроек.
+    property string osName: ""
+    property string kernel: ""
+    property string wm: ""
+    property string shellVer: ""
+    property string cpu: ""
+    property string ram: ""
+    property string uptime: ""
+    property string screenInfo: view.sys.screen
+        ? view.sys.screen.width + "×" + view.sys.screen.height
+          + " · " + Math.round(view.sys.screen.refreshRate) + " Hz"
+        : ""
+
+    Process {
+        id: pInfo
+        command: ["sh", "-c",
+            ". /etc/os-release 2>/dev/null; echo \"${PRETTY_NAME:-Linux}\"; " +
+            "uname -r; " +
+            "(hyprctl version 2>/dev/null | head -1 | awk '{print $1, $2}') || echo Hyprland; " +
+            "(qs --version 2>/dev/null | head -1) || echo quickshell; " +
+            "grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//' " +
+            "  || grep -m1 'Model' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//'; " +
+            "awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} " +
+            "  END{printf \"%.1f / %.1f GiB\", (t-a)/1048576, t/1048576}' /proc/meminfo; " +
+            "awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); " +
+            "  if (d>0) printf \"%dd %dh %dm\", d, h, m; " +
+            "  else if (h>0) printf \"%dh %dm\", h, m; else printf \"%dm\", m}' /proc/uptime"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var l = text.split("\n");
+                view.osName   = (l[0] || "").trim();
+                view.kernel   = (l[1] || "").trim();
+                view.wm       = (l[2] || "").trim();
+                view.shellVer = (l[3] || "").trim();
+                view.cpu      = (l[4] || "").trim();
+                view.ram      = (l[5] || "").trim();
+                view.uptime   = (l[6] || "").trim();
+            }
+        }
+    }
+    // аптайм и занятая память живут своей жизнью — обновляем, пока открыто
+    Timer {
+        interval: 20000
+        running: view.tab === 3
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: { pInfo.running = false; pInfo.running = true; }
+    }
+
+    Process { id: pLink }
+    function openLink(url) {
+        pLink.command = ["sh", "-c", "xdg-open \"$1\" >/dev/null 2>&1 &", "_", url];
+        pLink.running = true;
     }
 
     // ------------------------------------------------------ захват сочетания
@@ -505,83 +584,182 @@ Item {
         }
     }
 
-    // ------------------------------------------------------------ содержимое
-    ColumnLayout {
-        id: col
-        width: parent.width
-        spacing: 12
+    // Строка-переключатель: подпись слева, тумблер справа. Действует сразу —
+    // такие настройки не про оформление, ждать «Применить» им незачем.
+    component Toggle: RowLayout {
+        property string label: ""
+        property bool on: false
+        signal toggled()
 
-        // ------------------------------------------------------- заголовок
-        RowLayout {
+        Layout.fillWidth: true
+        spacing: 14
+
+        Text {
             Layout.fillWidth: true
-            spacing: 10
-
-            Text {
-                text: "Panacea"
-                color: view.sys.colFg
-                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 5; bold: true }
+            text: parent.label
+            color: view.sys.colFg
+            wrapMode: Text.WordWrap
+            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+        }
+        Rectangle {
+            Layout.preferredWidth: 46
+            Layout.preferredHeight: 26
+            radius: 13
+            color: parent.on
+                   ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.55)
+                   : Qt.rgba(1, 1, 1, 0.10)
+            Behavior on color { ColorAnimation { duration: 160 } }
+            Rectangle {
+                width: 20; height: 20; radius: 10
+                color: "white"
+                anchors.verticalCenter: parent.verticalCenter
+                x: parent.parent.on ? parent.width - width - 3 : 3
+                Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
             }
-            Text {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignBaseline
-                text: view.sys.tr("одна пилюля на всё")
-                color: Qt.rgba(1, 1, 1, 0.28)
-                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3; italic: true }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: parent.parent.toggled()
             }
         }
+    }
 
-        // -------------------------------------------------------- вкладки
-        RowLayout {
+    // Строка «ключ — значение» для раздела «О системе»
+    component AboutRow: RowLayout {
+        property string label: ""
+        property string value: ""
+        Layout.fillWidth: true
+        spacing: 12
+        visible: value.length > 0
+
+        Text {
+            Layout.preferredWidth: 120
+            text: parent.label
+            color: view.sys.colMuted
+            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+        }
+        Text {
             Layout.fillWidth: true
-            spacing: 8
+            text: parent.value
+            color: view.sys.colFg
+            elide: Text.ElideRight
+            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+        }
+    }
+
+    // ------------------------------------------------------------ содержимое
+    // Слева — разделы, справа — сам раздел. Вкладок стало четыре, полосой
+    // сверху они уже не помещались, а список слева читается сразу целиком.
+    RowLayout {
+        id: col
+        width: parent.width
+        // высоту задаём явно: иначе строка сжимается по содержимому и
+        // разделительная черта не доходит до нижнего края окна
+        height: view.implicitHeight
+        spacing: 18
+
+        // Полоса ровно по иконкам. Подпись при наведении рисует корень
+        // (sys.showTip): собственный тултип обрезался краем капсулы, а
+        // выехавший вправо тонул под колонкой с содержимым.
+        ColumnLayout {
+            // все три размера жёстко: иначе на широкой вкладке «Клавиши»
+            // раскладке не хватало места и она ужимала полосу до минимума,
+            // а на узких — отпускала обратно
+            Layout.preferredWidth: 40
+            Layout.minimumWidth: 40
+            Layout.maximumWidth: 40
+            Layout.alignment: Qt.AlignTop
+            spacing: 4
 
             Repeater {
-                model: [view.sys.tr("Пилюля"), view.sys.tr("Клавиши")]
+                model: [
+                    { t: view.sys.tr("Пилюля"),   g: 0xF12E1 },
+                    { t: view.sys.tr("Система"),  g: 0xF0493 },
+                    { t: view.sys.tr("Клавиши"),  g: 0xF030C },
+                    { t: view.sys.tr("О системе"), g: 0xF02FD }
+                ]
                 Rectangle {
-                    id: tabBtn
+                    id: navBtn
                     required property int index
-                    required property string modelData
-                    readonly property bool active: view.tab === tabBtn.index
+                    required property var modelData
+                    readonly property bool active: view.tab === navBtn.index
 
-                    Layout.preferredWidth: 130
-                    Layout.preferredHeight: 34
-                    radius: 11
-                    color: tabBtn.active
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    radius: 12
+                    color: navBtn.active
                            ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.20)
-                           : (tabMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05))
-                    border.color: tabBtn.active
+                           : (navMa.containsMouse ? Qt.rgba(1, 1, 1, 0.09) : "transparent")
+                    border.color: navBtn.active
                                   ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.45)
-                                  : view.sys.colLine
+                                  : "transparent"
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 160 } }
                     Behavior on border.color { ColorAnimation { duration: 160 } }
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: tabBtn.modelData
-                        color: tabBtn.active ? view.sys.colFg : view.sys.colMuted
-                        font {
-                            family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1
-                            bold: tabBtn.active
-                        }
+                    Glyph {
+                        anchors.fill: parent
+                        glyph: String.fromCodePoint(navBtn.modelData.g)
+                        color: navBtn.active ? view.sys.colFg
+                             : navMa.containsMouse ? view.sys.colFg : view.sys.colMuted
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize
                     }
+
                     MouseArea {
-                        id: tabMa
+                        id: navMa
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: view.tab = tabBtn.index
+                        onClicked: view.tab = navBtn.index
+                        onEntered: {
+                            // точка в координатах окна: тултип раскроется от неё влево
+                            var p = navBtn.mapToItem(null, 0, navBtn.height / 2);
+                            view.sys.showTip(navBtn.modelData.t, p.x, p.y);
+                        }
+                        onExited: view.sys.hideTip(navBtn.modelData.t)
                     }
                 }
             }
 
-            Item { Layout.fillWidth: true }
+            Item { Layout.fillHeight: true }
+        }
 
+        // фон у полосы и у содержимого один, без черты граница не читалась
+        Rectangle {
+            Layout.preferredWidth: 1
+            Layout.fillHeight: true
+            // заметнее colLine и на всю высоту окна: фон у полосы и у
+            // содержимого одинаковый, слабая черта на нём терялась
+            color: Qt.rgba(1, 1, 1, 0.18)
+        }
+
+        // ------------------------------------------------- сам раздел
+        ColumnLayout {
+            id: pages
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            spacing: 12
+
+            // «Применить» и «Сбросить» стоят над разделом справа: в узкой
+            // полосе слева им уже негде было поместиться.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "Panacea · " + [view.sys.tr("Пилюля"), view.sys.tr("Система"),
+                                          view.sys.tr("Клавиши"), view.sys.tr("О системе")][view.tab]
+                    color: Qt.rgba(1, 1, 1, 0.30)
+                    elide: Text.ElideRight
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                }
             // «Применить» подсвечивается, только когда есть что применять
             Rectangle {
                 id: applyBtn
                 Layout.preferredWidth: 112
-                Layout.preferredHeight: 34
+                Layout.preferredHeight: 32
                 radius: 11
                 opacity: view.dirty ? 1 : 0.4
                 color: view.dirty
@@ -611,7 +789,7 @@ Item {
 
             Rectangle {
                 Layout.preferredWidth: 96
-                Layout.preferredHeight: 34
+                Layout.preferredHeight: 32
                 radius: 11
                 color: resetMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -629,7 +807,7 @@ Item {
                     onClicked: view.resetDraft()
                 }
             }
-        }
+            }
 
         // ===================================================== ВКЛАДКА «ПИЛЮЛЯ»
         ColumnLayout {
@@ -714,160 +892,27 @@ Item {
                     Layout.alignment: Qt.AlignTop
                     spacing: 12
 
-            Section { text: view.sys.tr("Язык") }
+            Section { text: view.sys.tr("Размеры") }
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-                Text {
-                    Layout.preferredWidth: 150
-                    text: view.sys.tr("Язык")
-                    color: view.sys.colFg
-                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                }
-                Repeater {
-                    model: [{ code: "en", name: "English" },
-                            { code: "ru", name: view.sys.tr("Русский") }]
-                    Rectangle {
-                        id: langBtn
-                        required property var modelData
-                        readonly property bool picked: draft.lang === langBtn.modelData.code
-
-                        Layout.preferredWidth: 110
-                        Layout.preferredHeight: 32
-                        radius: 10
-                        color: langBtn.picked
-                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
-                               : (langMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05))
-                        border.color: langBtn.picked
-                                      ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.40)
-                                      : view.sys.colLine
-                        border.width: 1
-                        Behavior on color { ColorAnimation { duration: 160 } }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: langBtn.modelData.name
-                            color: langBtn.picked ? view.sys.colFg : view.sys.colMuted
-                            font {
-                                family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3
-                                bold: langBtn.picked
-                            }
-                        }
-                        MouseArea {
-                            id: langMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { draft.lang = langBtn.modelData.code; view.touch(); }
-                        }
-                    }
-                }
-                Item { Layout.fillWidth: true }
+            SliderRow {
+                label: view.sys.tr("Высота пилюли"); from: 28; to: 60; suffix: "px"
+                value: draft.pillH
+                onMoved: v => { draft.pillH = v; view.touch(); }
             }
-
-            Section { text: view.sys.tr("Формат часов") }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-                Text {
-                    Layout.preferredWidth: 150
-                    text: view.sys.tr("Формат часов")
-                    color: view.sys.colFg
-                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                }
-                Repeater {
-                    model: [
-                        { on: false, name: view.sys.tr("24 часа"),  sample: "14:05" },
-                        { on: true,  name: view.sys.tr("12 часов"), sample: "2:05 PM" }
-                    ]
-                    Rectangle {
-                        id: clkBtn
-                        required property var modelData
-                        readonly property bool picked: draft.clock12 === clkBtn.modelData.on
-
-                        Layout.preferredWidth: 132
-                        Layout.preferredHeight: 42
-                        radius: 10
-                        color: clkBtn.picked
-                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
-                               : (clkMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05))
-                        border.color: clkBtn.picked
-                                      ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.40)
-                                      : view.sys.colLine
-                        border.width: 1
-                        Behavior on color { ColorAnimation { duration: 160 } }
-
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing: 1
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: clkBtn.modelData.name
-                                color: clkBtn.picked ? view.sys.colFg : view.sys.colMuted
-                                font {
-                                    family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3
-                                    bold: clkBtn.picked
-                                }
-                            }
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: clkBtn.modelData.sample
-                                color: Qt.rgba(1, 1, 1, 0.35)
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5 }
-                            }
-                        }
-                        MouseArea {
-                            id: clkMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { draft.clock12 = clkBtn.modelData.on; view.touch(); }
-                        }
-                    }
-                }
-                Item { Layout.fillWidth: true }
+            SliderRow {
+                label: view.sys.tr("Ширина панели"); from: 380; to: 900; suffix: "px"
+                value: draft.panelW
+                onMoved: v => { draft.panelW = v; view.touch(); }
             }
-
-            Section { text: view.sys.tr("Пароли") }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-                Text {
-                    Layout.fillWidth: true
-                    text: view.sys.tr("Предлагать сохранять пароли")
-                    color: view.sys.colFg
-                    wrapMode: Text.WordWrap
-                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                }
-                Item { Layout.preferredWidth: 12 }
-                Rectangle {
-                    Layout.preferredWidth: 46
-                    Layout.preferredHeight: 26
-                    radius: 13
-                    color: view.sys.cfg.vaultCapture
-                           ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.55)
-                           : Qt.rgba(1, 1, 1, 0.10)
-                    Behavior on color { ColorAnimation { duration: 160 } }
-                    Rectangle {
-                        width: 20; height: 20; radius: 10
-                        color: "white"
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: view.sys.cfg.vaultCapture ? parent.width - width - 3 : 3
-                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        // тумблер действует сразу: он не про оформление
-                        onClicked: {
-                            view.sys.cfg.vaultCapture = !view.sys.cfg.vaultCapture;
-                            view.sys.saveCfg();
-                        }
-                    }
-                }
+            SliderRow {
+                label: view.sys.tr("Радиус углов"); from: 0; to: 30; suffix: "px"
+                value: draft.cornerR
+                onMoved: v => { draft.cornerR = v; view.touch(); }
+            }
+            SliderRow {
+                label: view.sys.tr("Скорость"); from: 80; to: 500; suffix: view.sys.tr("мс")
+                value: draft.animMs
+                onMoved: v => { draft.animMs = v; view.touch(); }
             }
 
                 }
@@ -1009,37 +1054,209 @@ Item {
                 onMoved: v => { draft.mutedAlpha = v / 100; view.touch(); }
             }
 
-            Section { text: view.sys.tr("Размеры") }
-
-            SliderRow {
-                label: view.sys.tr("Высота пилюли"); from: 28; to: 60; suffix: "px"
-                value: draft.pillH
-                onMoved: v => { draft.pillH = v; view.touch(); }
-            }
-            SliderRow {
-                label: view.sys.tr("Ширина панели"); from: 380; to: 900; suffix: "px"
-                value: draft.panelW
-                onMoved: v => { draft.panelW = v; view.touch(); }
-            }
-            SliderRow {
-                label: view.sys.tr("Радиус углов"); from: 0; to: 30; suffix: "px"
-                value: draft.cornerR
-                onMoved: v => { draft.cornerR = v; view.touch(); }
-            }
-            SliderRow {
-                label: view.sys.tr("Скорость"); from: 80; to: 500; suffix: view.sys.tr("мс")
-                value: draft.animMs
-                onMoved: v => { draft.animMs = v; view.touch(); }
-            }
                 }
             }
         }
 
-        // ==================================================== ВКЛАДКА «КЛАВИШИ»
+        // ==================================================== ВКЛАДКА «СИСТЕМА»
+        // Всё, что не про внешний вид пилюли: язык, формат часов и поведение
+        // хранилища паролей. В одну колонку — раздел короткий.
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 9
+            spacing: 12
             visible: view.tab === 1
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.maximumWidth: 520
+                Layout.alignment: Qt.AlignTop
+                spacing: 12
+
+            Section { text: view.sys.tr("Язык") }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+                Text {
+                    Layout.preferredWidth: 150
+                    text: view.sys.tr("Язык")
+                    color: view.sys.colFg
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+                }
+                Repeater {
+                    model: [{ code: "en", name: "English" },
+                            { code: "ru", name: view.sys.tr("Русский") }]
+                    Rectangle {
+                        id: langBtn
+                        required property var modelData
+                        readonly property bool picked: draft.lang === langBtn.modelData.code
+
+                        Layout.preferredWidth: 110
+                        Layout.preferredHeight: 32
+                        radius: 10
+                        color: langBtn.picked
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
+                               : (langMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05))
+                        border.color: langBtn.picked
+                                      ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.40)
+                                      : view.sys.colLine
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 160 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: langBtn.modelData.name
+                            color: langBtn.picked ? view.sys.colFg : view.sys.colMuted
+                            font {
+                                family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3
+                                bold: langBtn.picked
+                            }
+                        }
+                        MouseArea {
+                            id: langMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { draft.lang = langBtn.modelData.code; view.touch(); }
+                        }
+                    }
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            Section { text: view.sys.tr("Формат часов") }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+                Text {
+                    Layout.preferredWidth: 150
+                    text: view.sys.tr("Формат часов")
+                    color: view.sys.colFg
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+                }
+                Repeater {
+                    model: [
+                        { on: false, name: view.sys.tr("24 часа"),  sample: "14:05" },
+                        { on: true,  name: view.sys.tr("12 часов"), sample: "2:05 PM" }
+                    ]
+                    Rectangle {
+                        id: clkBtn
+                        required property var modelData
+                        readonly property bool picked: draft.clock12 === clkBtn.modelData.on
+
+                        Layout.preferredWidth: 132
+                        Layout.preferredHeight: 42
+                        radius: 10
+                        color: clkBtn.picked
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
+                               : (clkMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05))
+                        border.color: clkBtn.picked
+                                      ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.40)
+                                      : view.sys.colLine
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 160 } }
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 1
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: clkBtn.modelData.name
+                                color: clkBtn.picked ? view.sys.colFg : view.sys.colMuted
+                                font {
+                                    family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3
+                                    bold: clkBtn.picked
+                                }
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: clkBtn.modelData.sample
+                                color: Qt.rgba(1, 1, 1, 0.35)
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5 }
+                            }
+                        }
+                        MouseArea {
+                            id: clkMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { draft.clock12 = clkBtn.modelData.on; view.touch(); }
+                        }
+                    }
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            Section { text: view.sys.tr("Проводник") }
+
+            Toggle {
+                label: view.sys.tr("Проводник отдельным окном")
+                on: view.sys.cfg.filesWindow
+                onToggled: {
+                    view.sys.cfg.filesWindow = !view.sys.cfg.filesWindow;
+                    view.sys.saveCfg();
+                }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: view.sys.tr("Тайлится в Hyprland, живёт на своём рабочем столе и не трогает пилюлю.")
+                color: Qt.rgba(1, 1, 1, 0.32)
+                wrapMode: Text.WordWrap
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+            }
+
+            Section { text: view.sys.tr("Пароли") }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+                Text {
+                    Layout.fillWidth: true
+                    text: view.sys.tr("Предлагать сохранять пароли")
+                    color: view.sys.colFg
+                    wrapMode: Text.WordWrap
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+                }
+                Item { Layout.preferredWidth: 12 }
+                Rectangle {
+                    Layout.preferredWidth: 46
+                    Layout.preferredHeight: 26
+                    radius: 13
+                    color: view.sys.cfg.vaultCapture
+                           ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.55)
+                           : Qt.rgba(1, 1, 1, 0.10)
+                    Behavior on color { ColorAnimation { duration: 160 } }
+                    Rectangle {
+                        width: 20; height: 20; radius: 10
+                        color: "white"
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: view.sys.cfg.vaultCapture ? parent.width - width - 3 : 3
+                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        // тумблер действует сразу: он не про оформление
+                        onClicked: {
+                            view.sys.cfg.vaultCapture = !view.sys.cfg.vaultCapture;
+                            view.sys.saveCfg();
+                        }
+                    }
+                }
+            }
+
+            }
+
+            Item { Layout.fillHeight: true }
+        }
+
+        // ==================================================== ВКЛАДКА «КЛАВИШИ»
+        ColumnLayout {
+            id: keysTab
+            Layout.fillWidth: true
+            spacing: 9
+            visible: view.tab === 2
 
             Text {
                 Layout.fillWidth: true
@@ -1062,9 +1279,10 @@ Item {
 
                     Section { text: view.sys.tr("Пилюля") }
                     BindRow { bindId: "pillLauncher"; label: view.sys.tr("Лаунчер приложений") }
+                    BindRow { bindId: "overview";     label: view.sys.tr("Обзор столов") }
                     BindRow { bindId: "pillControls"; label: view.sys.tr("Wi-Fi, Bluetooth, питание") }
-                    BindRow { bindId: "pillPlayer";   label: view.sys.tr("Плеер") }
                     BindRow { bindId: "pillSettings"; label: view.sys.tr("Эти настройки") }
+                    BindRow { bindId: "pillShortcuts"; label: view.sys.tr("Быстрые клавиши") }
                     BindRow { bindId: "pillWifi";     label: view.sys.tr("Список сетей") }
                     BindRow { bindId: "pillBt";       label: view.sys.tr("Устройства Bluetooth") }
                     BindRow { bindId: "pillClip";     label: view.sys.tr("Буфер обмена") }
@@ -1120,6 +1338,105 @@ Item {
                     InfoRow { keys: view.sys.tr("Крышка ноутбука");     label: view.sys.tr("Блокировка экрана") }
                 }
             }
+        }
+        // ================================================== ВКЛАДКА «О СИСТЕМЕ»
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 12
+            visible: view.tab === 3
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+
+                Rectangle {
+                    Layout.preferredWidth: 56
+                    Layout.preferredHeight: 56
+                    radius: 18
+                    color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
+                    border.color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.45)
+                    border.width: 1
+                    Text {
+                        anchors.centerIn: parent
+                        text: "E"
+                        color: view.sys.colOn
+                        font { family: view.sys.fontFam; pixelSize: 26; bold: true }
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    Text {
+                        text: "EnsiZeroGravity"
+                        color: view.sys.colFg
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 4; bold: true }
+                    }
+                    Text {
+                        text: view.sys.tr("автор Panacea")
+                        color: view.sys.colMuted
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                    }
+                }
+            }
+
+            // ссылка открывается в браузере по умолчанию
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 44
+                radius: 13
+                color: ghMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.05)
+                border.color: view.sys.colLine
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 14
+                    anchors.rightMargin: 14
+                    spacing: 11
+
+                    Glyph {
+                        Layout.preferredWidth: 22
+                        Layout.preferredHeight: 22
+                        glyph: String.fromCodePoint(0xF02A4)
+                        color: ghMa.containsMouse ? view.sys.colFg : view.sys.colMuted
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "github.com/EnsixD"
+                        color: view.sys.colFg
+                        elide: Text.ElideRight
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
+                    }
+                    Text {
+                        text: String.fromCodePoint(0xF03CC)
+                        color: view.sys.colMuted
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                    }
+                }
+                MouseArea {
+                    id: ghMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.openLink("https://github.com/EnsixD")
+                }
+            }
+
+            Section { text: view.sys.tr("Система") }
+
+            AboutRow { label: view.sys.tr("Система");    value: view.osName }
+            AboutRow { label: view.sys.tr("Ядро");       value: view.kernel }
+            AboutRow { label: view.sys.tr("Композитор"); value: view.wm }
+            AboutRow { label: view.sys.tr("Оболочка");   value: view.shellVer }
+            AboutRow { label: view.sys.tr("Процессор");  value: view.cpu }
+            AboutRow { label: view.sys.tr("Память");     value: view.ram }
+            AboutRow { label: view.sys.tr("Экран");      value: view.screenInfo }
+            AboutRow { label: view.sys.tr("Аптайм");     value: view.uptime }
+        }
         }
     }
 }

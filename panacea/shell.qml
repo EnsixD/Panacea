@@ -85,8 +85,9 @@ PanelWindow {
             // сочетания; пересобираются в lua/binds_data.lua
             property string bind_pillLauncher: "SUPER + A"
             property string bind_pillControls: "SUPER + Z"
-            property string bind_pillPlayer: "SUPER + M"
             property string bind_pillSettings: "SUPER + I"
+            property string bind_pillShortcuts: "SUPER + slash"
+            property string bind_overview: "SUPER + Tab"
             property string bind_pillWifi: "SUPER + SHIFT + W"
             property string bind_pillBt: "SUPER + SHIFT + B"
             property string bind_pillClip: "SUPER + V"
@@ -119,8 +120,9 @@ PanelWindow {
     readonly property var defaultBinds: ({
         pillLauncher: "SUPER + A",
         pillControls: "SUPER + Z",
-        pillPlayer:   "SUPER + M",
         pillSettings: "SUPER + I",
+        pillShortcuts: "SUPER + slash",
+        overview:     "SUPER + Tab",
         pillWifi:     "SUPER + SHIFT + W",
         pillBt:       "SUPER + SHIFT + B",
         pillClip:     "SUPER + V",
@@ -173,6 +175,7 @@ PanelWindow {
     readonly property var dictEn: ({
         "одна пилюля на всё": "one pill for everything",
         "Настройки пилюли": "Pill settings",
+        "Настройки": "Settings",
         "Сбросить": "Reset",
         "Язык": "Language",
         "Шрифт": "Font",
@@ -2037,7 +2040,7 @@ PanelWindow {
             root.scanBt();
         }
         function settings(): void { root.settingsTab = 0; root.togglePage("settings"); }
-        function shortcuts(): void { root.settingsTab = 1;
+        function shortcuts(): void { root.settingsTab = 2;
             if (root.page !== "settings") root.togglePage("settings"); }
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }

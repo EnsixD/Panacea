@@ -32,17 +32,17 @@ one geometry, one palette and one animation timeline.
 
 | Page | Opens with | What it does |
 |---|---|---|
-| Quick settings | `Super + Z` | Wi‑Fi, Bluetooth, sound, power profile, recorder, passwords, tray |
+| Quick settings | `Super + Z` | Wi‑Fi, Bluetooth, sound, now playing with transport and live equaliser, recorder, battery, passwords, tray |
 | Networks / Bluetooth | `Super + Shift + W` / `+ B` | Scan, connect, pair |
 | Notifications | `Super + Shift + N` | Live toasts, history, do‑not‑disturb |
 | Themes | `Super + Shift + T` | 15 schemes, each with a wallpaper |
-| Player | `Super + M` | Now playing, transport, live equaliser |
 | Launcher | `Super + A` | App search + calculator, recents first |
 | Clipboard | `Super + V` | `cliphist` history with search |
 | Files | `Super + E` | Bookmarks, trash, context menu, drag‑out |
 | Media | opens a file | Images, GIFs, video — trim and crop |
 | Recorder | `Super + P` | FPS, folder, system audio, microphone |
 | Passwords | `Super + Shift + P` | Encrypted vault, browser import, save prompts |
+| Battery | from quick settings | Power profiles, charge state, capacity and wear |
 | Power | `Ctrl + Alt + Del` | Sleep, lock, log out, restart, shut down |
 | Settings | `Super + I` | Everything above, live preview, rebindable keys |
 
