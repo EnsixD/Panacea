@@ -14,9 +14,12 @@ Item {
     // Окно не должно скакать при переключении разделов, поэтому высоту
     // держим по самому длинному — «Клавиши». Остальные просто не добирают
     // до неё, и низ остаётся пустым.
-    implicitHeight: Math.max(col.implicitHeight, keysTab.implicitHeight + 52)
+    implicitHeight: Math.max(col.implicitHeight,
+                             keysTab.implicitHeight + 52,
+                             monTab.implicitHeight + 52)
 
-    property int tab: 0                 // 0 — пилюля, 1 — клавиши
+    // 0 — пилюля, 1 — система, 2 — экран, 3 — клавиши, 4 — о системе
+    property int tab: 0
     // обе вкладки раскладываются в две колонки, поэтому окно всегда широкое:
     // «Пилюля» вертикально уже не помещалась и уезжала за нижнюю кромку
     onTabChanged: view.sys.wideSettings = true
@@ -38,11 +41,13 @@ Item {
         property int    animMs: 230
         property string lang: "en"
         property bool   clock12: false
+        property string pillPos: "top"
     }
 
     readonly property var appearanceKeys: [
         "fontFam", "fontSize", "iconSize", "colFg", "mutedAlpha",
-        "colOn", "pillH", "panelW", "cornerR", "animMs", "lang", "clock12"
+        "colOn", "pillH", "panelW", "cornerR", "animMs", "lang", "clock12",
+        "pillPos"
     ]
 
     property bool dirty: false
@@ -89,12 +94,268 @@ Item {
     function clearBind(id) { setBind(id, ""); }
     function discardBinds() { bindDraft = ({}); bindRev++; }
 
+    // ---------------------------------------------------------- экраны
+    // Железо читаем у Hyprland, правки копятся в monDraft и уезжают в
+    // monitors.conf по «Применить» — как оформление и клавиши. Сразу не
+    // применяем нарочно: неверный режим или масштаб гасит экран, и
+    // отменять было бы уже нечем.
+    property var mons: []            // [{name, desc, res[], rrByRes, …}]
+    property int monSel: 0           // какой экран настраиваем
+    property var monDraft: ({})      // name -> {res, rr, scale, transform, vrr, on}
+    property int monRev: 0           // счётчик, чтобы черновик перечитался
+    property bool monDirty: false
+
+    // Раскладка нескольких экранов. mirror — дублировать, only — показывать
+    // на одном, extend — общий рабочий стол.
+    property string monLayout: "extend"
+    property string monOnly: ""      // имя единственного включённого
+    property string monDir: "right"  // куда пристраивать соседей
+
+    readonly property var monCur:
+        mons.length ? mons[Math.max(0, Math.min(monSel, mons.length - 1))] : null
+
+    readonly property var monScales: [1.0, 1.25, 1.5, 1.75, 2.0]
+    // transform у Hyprland: 0 — как есть, 1 — 90° по часовой, 2 — 180°, 3 — 270°
+    readonly property var monTransforms: [
+        { v: 0, t: "Обычная" }, { v: 1, t: "Повёрнут вправо" },
+        { v: 3, t: "Повёрнут влево" }, { v: 2, t: "Вверх ногами" }
+    ]
+
+    // Привычные имена режимов: «FHD» говорит больше, чем 1920x1080, а сами
+    // пиксели всё равно стоят рядом.
+    readonly property var monResNames: ({
+        "3840x2160": "4K",   "3440x1440": "UWQHD", "2560x1600": "WQXGA",
+        "2560x1440": "QHD",  "2560x1080": "UWFHD", "1920x1200": "WUXGA",
+        "1920x1080": "FHD",  "1680x1050": "WSXGA+", "1600x900": "HD+",
+        "1440x900":  "WXGA+", "1366x768": "WXGA",  "1280x1024": "SXGA",
+        "1280x800":  "WXGA",  "1280x720": "HD",    "1024x768": "XGA",
+        "800x600":   "SVGA",  "640x480":  "VGA"
+    })
+    function monResName(res) {
+        var n = monResNames[res];
+        if (n !== undefined) return n;
+        // неизвестный режим показываем высотой: 1440p понятнее пустого места
+        var p = String(res).split("x");
+        return p.length === 2 ? p[1] + "p" : String(res);
+    }
+
+    function monTouch() { monDirty = true; dirty = true; }
+
+    Process {
+        id: pMons
+        command: ["bash", view.sys.scriptDir + "/monitors.sh", "list"]
+        stdout: StdioCollector { onStreamFinished: view.readMons(text) }
+    }
+    function reloadMons() { pMons.running = false; pMons.running = true; }
+
+    // Список режимов приходит строками «1920x1080@60.00Hz» — разбираем их
+    // в разрешения и частоты к каждому, чтобы кнопки не показывали
+    // невозможных сочетаний.
+    function readMons(text) {
+        var arr = [];
+        try { arr = JSON.parse(text); } catch (e) { arr = []; }
+        var out = [];
+        for (var i = 0; i < arr.length; i++) {
+            var m = arr[i];
+            var modes = m.availableModes || [];
+            var res = [], rrByRes = ({});
+            for (var j = 0; j < modes.length; j++) {
+                var mm = String(modes[j]).match(/^(\d+)x(\d+)@([\d.]+)/);
+                if (!mm) continue;
+                var r = mm[1] + "x" + mm[2];
+                if (res.indexOf(r) < 0) { res.push(r); rrByRes[r] = []; }
+                var hz = Math.round(parseFloat(mm[3]) * 100) / 100;
+                if (rrByRes[r].indexOf(hz) < 0) rrByRes[r].push(hz);
+            }
+            res.sort(function (a, b) {
+                var pa = a.split("x"), pb = b.split("x");
+                return (pb[0] * pb[1]) - (pa[0] * pa[1]);
+            });
+            for (var k in rrByRes) rrByRes[k].sort(function (a, b) { return b - a; });
+
+            // выключенный монитор отдаёт нули — берём его первый режим
+            var curRes = (m.width && m.height) ? (m.width + "x" + m.height)
+                                               : (res.length ? res[0] : "");
+            if (res.indexOf(curRes) < 0 && res.length) curRes = res[0];
+            var rrs = rrByRes[curRes] || [];
+            var curRr = m.refreshRate ? Math.round(m.refreshRate * 100) / 100
+                                      : (rrs.length ? rrs[0] : 60);
+            if (rrs.length && rrs.indexOf(curRr) < 0) curRr = rrs[0];
+
+            out.push({
+                name: String(m.name || ""),
+                desc: String(m.description || m.make || ""),
+                res: res, rrByRes: rrByRes,
+                curRes: curRes, curRr: curRr,
+                scale: m.scale || 1, transform: m.transform || 0,
+                vrr: m.vrr === true, disabled: m.disabled === true,
+                mirror: String(m.mirrorOf || "none"),
+                x: m.x || 0, y: m.y || 0
+            });
+        }
+        view.mons = out;
+        view.initMonDraft();
+    }
+
+    // Черновик «как сейчас»: раскладку и сторону выводим из живых координат,
+    // иначе вкладка при открытии показывала бы не то, что на экранах.
+    function initMonDraft() {
+        var d = ({});
+        for (var i = 0; i < mons.length; i++) {
+            var m = mons[i];
+            d[m.name] = { res: m.curRes, rr: m.curRr, scale: m.scale,
+                          transform: m.transform, vrr: m.vrr, on: !m.disabled };
+        }
+        monDraft = d;
+
+        var live = mons.filter(function (m) { return !m.disabled; });
+        var mirrored = mons.filter(function (m) { return m.mirror !== "none"; });
+        if (mons.length > 1 && live.length === 1) {
+            monLayout = "only";
+            monOnly = live[0].name;
+        } else if (mirrored.length) {
+            monLayout = "mirror";
+        } else {
+            monLayout = "extend";
+            if (mons.length > 1) {
+                var a = mons[0], b = mons[1];
+                monDir = b.x > a.x ? "right" : b.x < a.x ? "left"
+                       : b.y < a.y ? "up" : "down";
+            }
+        }
+        if (monOnly.length === 0 && mons.length) monOnly = mons[0].name;
+        if (monSel >= mons.length) monSel = 0;
+        monRev++;
+        monDirty = false;
+    }
+
+    function monGet(name, key) {
+        monRev;
+        var d = monDraft[name];
+        return d ? d[key] : undefined;
+    }
+    function monSet(name, key, val) {
+        var d = monDraft[name];
+        if (d === undefined || d[key] === val) return;
+        d[key] = val;
+        // сменилось разрешение — прежней частоты у него может и не быть
+        if (key === "res") {
+            var m = null;
+            for (var i = 0; i < mons.length; i++) if (mons[i].name === name) m = mons[i];
+            var rrs = (m && m.rrByRes[val]) || [];
+            if (rrs.length && rrs.indexOf(d.rr) < 0) d.rr = rrs[0];
+        }
+        monRev++;
+        monTouch();
+    }
+
+    // Размер рабочего стола: пиксели, поделённые на масштаб, а поворот на
+    // 90° меняет стороны местами.
+    function monLogical(name) {
+        monRev;
+        var d = monDraft[name];
+        if (d === undefined) return { w: 0, h: 0 };
+        var p = String(d.res).split("x");
+        var w = Math.round((parseInt(p[0]) || 0) / d.scale);
+        var h = Math.round((parseInt(p[1]) || 0) / d.scale);
+        if (d.transform === 1 || d.transform === 3) { var t = w; w = h; h = t; }
+        return { w: w, h: h };
+    }
+
+    // Hyprland отказывается от масштаба, при котором рабочий стол выходит
+    // нецелым по пикселям, — предупреждаем до «Применить».
+    function monScaleOk(name) {
+        monRev;
+        var d = monDraft[name];
+        if (d === undefined) return true;
+        var p = String(d.res).split("x");
+        var w = parseInt(p[0]) || 0, h = parseInt(p[1]) || 0;
+        var lw = w / d.scale, lh = h / d.scale;
+        return Math.abs(lw - Math.round(lw)) < 0.001
+            && Math.abs(lh - Math.round(lh)) < 0.001;
+    }
+
+    // Куда встанут экраны при текущем черновике. Одна функция и на карту
+    // сверху, и на строки monitor=… — иначе предпросмотр и результат
+    // разъезжались бы.
+    function monPlaces() {
+        monRev;
+        var out = [];
+        if (mons.length === 0) return out;
+        var primary = mons[0].name;
+        var fwd = 0, back = 0;      // сколько уже занято по направлению
+        for (var i = 0; i < mons.length; i++) {
+            var m = mons[i];
+            var d = monDraft[m.name];
+            if (d === undefined) continue;
+            var on = (monLayout === "only") ? (m.name === monOnly) : d.on;
+            var L = view.monLogical(m.name);
+            var mirror = (monLayout === "mirror" && m.name !== primary && on);
+            var x = 0, y = 0;
+            if (on && !mirror && m.name !== primary) {
+                if      (monDir === "right") x = fwd;
+                else if (monDir === "left")  { back += L.w; x = -back; }
+                else if (monDir === "down")  y = fwd;
+                else                         { back += L.h; y = -back; }
+            }
+            if (on && !mirror) {
+                if      (monDir === "right") fwd += L.w;
+                else if (monDir === "down")  fwd += L.h;
+            }
+            out.push({ name: m.name, desc: m.desc, x: x, y: y, w: L.w, h: L.h,
+                       on: on, mirror: mirror, primary: m.name === primary });
+        }
+        return out;
+    }
+    function monPlaceOf(name) {
+        var pl = view.monPlaces();
+        for (var i = 0; i < pl.length; i++) if (pl[i].name === name) return pl[i];
+        return { x: 0, y: 0, w: 0, h: 0, on: false, mirror: false, primary: false };
+    }
+
+    function monLines() {
+        var pl = view.monPlaces();
+        var lines = [];
+        for (var i = 0; i < pl.length; i++) {
+            var p = pl[i];
+            var d = monDraft[p.name];
+            if (d === undefined) continue;
+            if (!p.on) { lines.push("monitor=" + p.name + ",disable"); continue; }
+            var s = "monitor=" + p.name + "," + d.res + "@" + d.rr + ","
+                  + (p.mirror ? "auto" : (p.x + "x" + p.y)) + ","
+                  + Number(d.scale).toFixed(2);
+            if (d.transform) s += ",transform," + d.transform;
+            if (d.vrr)       s += ",vrr,1";
+            if (p.mirror)    s += ",mirror," + mons[0].name;
+            lines.push(s);
+        }
+        return lines.join("\n");
+    }
+
+    Process { id: pMonApply }
+    function monApply() {
+        pMonApply.running = false;
+        pMonApply.command = ["bash", view.sys.scriptDir + "/monitors.sh",
+                             "apply", view.monLines()];
+        pMonApply.running = true;
+        monDirty = false;
+        monSettle.restart();
+    }
+    // Hyprland переключает режим не мгновенно: перечитываем чуть позже,
+    // чтобы карта показала то, что вышло на самом деле.
+    Timer {
+        id: monSettle
+        interval: 1500
+        onTriggered: view.reloadMons()
+    }
+
     function loadDraft() {
         for (var i = 0; i < appearanceKeys.length; i++) {
             var k = appearanceKeys[i];
             draft[k] = view.sys.cfg[k];
         }
         discardBinds();
+        reloadMons();
         dirty = false;
     }
     function applyDraft() {
@@ -111,6 +372,8 @@ Item {
         // applyBinds сам сохраняет настройки и пересобирает binds_data.lua
         if (touched) view.sys.applyBinds();
         else         view.sys.saveCfg();
+        // экраны живут не в settings.json, а в monitors.conf — своей записью
+        if (monDirty) view.monApply();
         dirty = false;
     }
     function resetDraft() {
@@ -118,7 +381,7 @@ Item {
         draft.fontSize = 15; draft.iconSize = 17;
         draft.colFg = "#ffffff"; draft.mutedAlpha = 0.45; draft.colOn = "#3b82f6";
         draft.pillH = 38; draft.panelW = 540; draft.cornerR = 14; draft.animMs = 230;
-        draft.lang = "en"; draft.clock12 = false;
+        draft.lang = "en"; draft.clock12 = false; draft.pillPos = "top";
         // клавиши тоже возвращаем к заводским, а не просто отменяем правки
         var o = {};
         var def = view.sys.defaultBinds;
@@ -127,6 +390,9 @@ Item {
         }
         bindDraft = o;
         bindRev++;
+        // экранам «заводское» — то, что сейчас на железе: гасить их сбросом
+        // оформления было бы неожиданно
+        initMonDraft();
         dirty = true;
     }
 
@@ -183,7 +449,7 @@ Item {
     // аптайм и занятая память живут своей жизнью — обновляем, пока открыто
     Timer {
         interval: 20000
-        running: view.tab === 3
+        running: view.tab === 4
         repeat: true
         triggeredOnStart: true
         onTriggered: { pInfo.running = false; pInfo.running = true; }
@@ -624,6 +890,179 @@ Item {
         }
     }
 
+    // Кнопка-выбор одного из нескольких. Ширина по тексту: у режимов экрана
+    // подписи разной длины, фиксированная колонка выглядела бы рвано.
+    component Chip: Rectangle {
+        id: chip
+        property string label: ""
+        property string sub: ""
+        property bool picked: false
+        signal chosen()
+
+        implicitWidth: Math.max(72, Math.max(chipTop.implicitWidth,
+                                             chipSub.implicitWidth) + 26)
+        implicitHeight: chip.sub.length ? 44 : 32
+        radius: 10
+        color: chip.picked
+               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
+               : (chipMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05))
+        border.color: chip.picked
+                      ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.40)
+                      : view.sys.colLine
+        border.width: 1
+        scale: chipMa.pressed ? 0.96 : 1.0
+        Behavior on color { ColorAnimation { duration: 160 } }
+        Behavior on border.color { ColorAnimation { duration: 160 } }
+        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 1
+            Text {
+                id: chipTop
+                Layout.alignment: Qt.AlignHCenter
+                text: chip.label
+                color: chip.picked ? view.sys.colFg : view.sys.colMuted
+                font {
+                    family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3
+                    bold: chip.picked
+                }
+                Behavior on color { ColorAnimation { duration: 160 } }
+            }
+            Text {
+                id: chipSub
+                Layout.alignment: Qt.AlignHCenter
+                visible: chip.sub.length > 0
+                text: chip.sub
+                color: Qt.rgba(1, 1, 1, 0.35)
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5 }
+            }
+        }
+        MouseArea {
+            id: chipMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: chip.chosen()
+        }
+    }
+
+    // Группа настроек в карточке: ряды сливались в одну простыню, и вкладка
+    // читалась как список полей, а не как несколько понятных блоков.
+    component CardBox: Rectangle {
+        radius: 18
+        color: Qt.rgba(1, 1, 1, 0.035)
+        border.color: Qt.rgba(1, 1, 1, 0.07)
+        border.width: 1
+        Layout.fillWidth: true
+    }
+
+    // Мини-экран с островом у одной из кромок — выбирается кликом.
+    component PosTile: Rectangle {
+        id: tile
+        property string pos: "top"
+        property string label: ""
+        readonly property bool picked: draft.pillPos === tile.pos
+        readonly property bool side: tile.pos === "left" || tile.pos === "right"
+
+        Layout.preferredWidth: 108
+        Layout.preferredHeight: 82
+        radius: 14
+        color: tile.picked
+               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.14)
+               : (tileMa.containsMouse ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.04))
+        border.color: tile.picked
+                      ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.09)
+        border.width: tile.picked ? 2 : 1
+        scale: tileMa.pressed ? 0.96 : 1.0
+        Behavior on color { ColorAnimation { duration: 160 } }
+        Behavior on border.color { ColorAnimation { duration: 160 } }
+        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+
+        // рамка «экрана»
+        Rectangle {
+            id: screenBox
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: -6
+            width: 72; height: 42
+            radius: 6
+            color: Qt.rgba(0, 0, 0, 0.35)
+            border.color: Qt.rgba(1, 1, 1, 0.14)
+            border.width: 1
+
+            // сам остров у выбранной кромки
+            Rectangle {
+                width: tile.side ? 5 : 30
+                height: tile.side ? 22 : 5
+                radius: 3
+                color: tile.picked ? view.sys.colOn : view.sys.colMuted
+                x: tile.pos === "left"  ? 4
+                 : tile.pos === "right" ? screenBox.width - width - 4
+                                        : (screenBox.width - width) / 2
+                y: tile.pos === "top"   ? 4
+                 : tile.pos === "bottom" ? screenBox.height - height - 4
+                                         : (screenBox.height - height) / 2
+                Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                Behavior on color { ColorAnimation { duration: 160 } }
+            }
+
+            // стрелка раскрытия — всегда к центру экрана
+            Rectangle {
+                width: tile.side ? 16 : 3
+                height: tile.side ? 3 : 12
+                radius: 2
+                opacity: tile.picked ? 0.75 : 0.3
+                color: tile.picked ? view.sys.colOn : view.sys.colMuted
+                anchors.centerIn: parent
+                anchors.horizontalCenterOffset: tile.pos === "left" ? -12
+                                              : tile.pos === "right" ? 12 : 0
+                anchors.verticalCenterOffset: tile.pos === "top" ? -10
+                                            : tile.pos === "bottom" ? 10 : 0
+                Behavior on opacity { NumberAnimation { duration: 160 } }
+            }
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 6
+            text: tile.label
+            color: tile.picked ? view.sys.colFg : view.sys.colMuted
+            font {
+                family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4
+                bold: tile.picked
+            }
+            Behavior on color { ColorAnimation { duration: 160 } }
+        }
+
+        MouseArea {
+            id: tileMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            // Как и остальное оформление — через «Применить»: остров
+            // переезжает по всему экрану, и делать это на каждый клик мимо
+            // было бы слишком резко. Пока правка видна в макете сверху.
+            onClicked: {
+                if (draft.pillPos === tile.pos) return;
+                draft.pillPos = tile.pos;
+                view.touch();
+            }
+        }
+    }
+
+    // Подпись слева от ряда кнопок. Сам ряд — Flow: кнопок бывает много
+    // (режимы экрана), и они переносятся на следующую строку, а не ужимаются.
+    component ChipLabel: Text {
+        Layout.preferredWidth: 120
+        Layout.alignment: Qt.AlignTop
+        topPadding: 7
+        color: view.sys.colFg
+        wrapMode: Text.WordWrap
+        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+    }
+
     // Строка «ключ — значение» для раздела «О системе»
     component AboutRow: RowLayout {
         property string label: ""
@@ -675,6 +1114,7 @@ Item {
                 model: [
                     { t: view.sys.tr("Пилюля"),   g: 0xF12E1 },
                     { t: view.sys.tr("Система"),  g: 0xF0493 },
+                    { t: view.sys.tr("Экран"),    g: 0xF0379 },
                     { t: view.sys.tr("Клавиши"),  g: 0xF030C },
                     { t: view.sys.tr("О системе"), g: 0xF02FD }
                 ]
@@ -750,7 +1190,8 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: "Panacea · " + [view.sys.tr("Пилюля"), view.sys.tr("Система"),
-                                          view.sys.tr("Клавиши"), view.sys.tr("О системе")][view.tab]
+                                          view.sys.tr("Экран"), view.sys.tr("Клавиши"),
+                                          view.sys.tr("О системе")][view.tab]
                     color: Qt.rgba(1, 1, 1, 0.30)
                     elide: Text.ElideRight
                     font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
@@ -758,6 +1199,9 @@ Item {
             // «Применить» подсвечивается, только когда есть что применять
             Rectangle {
                 id: applyBtn
+                // на вкладке «Экран» применяет своя кнопка рядом с настройками:
+                // две одинаковые кнопки в одном окне только путали
+                visible: view.tab !== 2
                 Layout.preferredWidth: 112
                 Layout.preferredHeight: 32
                 radius: 11
@@ -788,6 +1232,7 @@ Item {
             }
 
             Rectangle {
+                visible: view.tab !== 2
                 Layout.preferredWidth: 96
                 Layout.preferredHeight: 32
                 radius: 11
@@ -810,15 +1255,19 @@ Item {
             }
 
         // ===================================================== ВКЛАДКА «ПИЛЮЛЯ»
+        // Осталось главное: где висит остров и какими он будет цветами.
+        // Ползунки размеров, шрифтов и скорости убраны — их крутили один раз
+        // и забывали, а вкладка из-за них читалась как таблица настроек.
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 14
             visible: view.tab === 0
 
-            Section { text: view.sys.tr("Предпросмотр") }
-
+            // Макет рабочего стола: сразу видно, у какой кромки будет остров,
+            // как он повернётся и куда раскроется панель.
             PillPreview {
                 Layout.fillWidth: true
+                Layout.preferredHeight: 640
                 sys: view.sys
                 d: draft
             }
@@ -832,231 +1281,101 @@ Item {
                 Behavior on color { ColorAnimation { duration: 200 } }
             }
 
-            // ---------------------------------------------------- обход страниц
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 14
 
-                Rectangle {
-                    Layout.preferredWidth: 210
-                    Layout.preferredHeight: 34
-                    radius: 11
-                    color: view.sys.tourRunning
-                           ? Qt.rgba(view.sys.colCrit.r, view.sys.colCrit.g, view.sys.colCrit.b, 0.22)
-                           : (tourMa.containsMouse ? Qt.rgba(1, 1, 1, 0.13) : Qt.rgba(1, 1, 1, 0.06))
-                    border.color: view.sys.tourRunning ? view.sys.colCrit : view.sys.colLine
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: 160 } }
-                    Behavior on border.color { ColorAnimation { duration: 160 } }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: view.sys.tourRunning
-                              ? view.sys.tr("Остановить показ")
-                              : view.sys.tr("Показать все страницы")
-                        color: view.sys.colFg
-                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3; bold: true }
-                    }
-                    MouseArea {
-                        id: tourMa
+                CardBox {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: posCol.implicitHeight + 34
+                    ColumnLayout {
+                        id: posCol
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: view.sys.startTour()
+                        anchors.margins: 17
+                        spacing: 12
+
+                        Section { Layout.topMargin: 0; text: view.sys.tr("Положение на экране") }
+
+                        // Именно RowLayout: Flow внутри колоночной раскладки не
+                        // сообщает свою высоту, и плитки складывались в
+                        // полоску нулевой высоты — их попросту не было видно.
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 9
+                            PosTile { pos: "top";    label: view.sys.tr("Сверху") }
+                            PosTile { pos: "bottom"; label: view.sys.tr("Снизу") }
+                            PosTile { pos: "left";   label: view.sys.tr("Слева") }
+                            PosTile { pos: "right";  label: view.sys.tr("Справа") }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: view.sys.tr("Раскрытие всегда идёт к центру экрана.")
+                            color: Qt.rgba(1, 1, 1, 0.32)
+                            wrapMode: Text.WordWrap
+                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                        }
                     }
                 }
 
-                Text {
-                    Layout.fillWidth: true
-                    text: view.sys.tr("Пролистает все страницы по очереди")
-                    color: Qt.rgba(1, 1, 1, 0.32)
-                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
-                }
-            }
-
-            SliderRow {
-                label: view.sys.tr("Пауза показа"); from: 1; to: 8; suffix: view.sys.tr("с")
-                value: Math.round(view.sys.tourStepMs / 1000)
-                onMoved: v => view.sys.tourStepMs = v * 1000
-            }
-
-            // Дальше — в две колонки: одним столбцом «Пилюля» не помещалась
-            // по высоте и уезжала за нижнюю кромку экрана.
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 26
-
-                ColumnLayout {
-                    Layout.fillWidth: true
+                CardBox {
                     Layout.preferredWidth: 1
-                    Layout.alignment: Qt.AlignTop
-                    spacing: 12
+                    Layout.preferredHeight: colorsCol.implicitHeight + 34
+                    ColumnLayout {
+                        id: colorsCol
+                        anchors.fill: parent
+                        anchors.margins: 17
+                        spacing: 12
 
-            Section { text: view.sys.tr("Размеры") }
+                        Section { Layout.topMargin: 0; text: view.sys.tr("Цвета") }
 
-            SliderRow {
-                label: view.sys.tr("Высота пилюли"); from: 28; to: 60; suffix: "px"
-                value: draft.pillH
-                onMoved: v => { draft.pillH = v; view.touch(); }
-            }
-            SliderRow {
-                label: view.sys.tr("Ширина панели"); from: 380; to: 900; suffix: "px"
-                value: draft.panelW
-                onMoved: v => { draft.panelW = v; view.touch(); }
-            }
-            SliderRow {
-                label: view.sys.tr("Радиус углов"); from: 0; to: 30; suffix: "px"
-                value: draft.cornerR
-                onMoved: v => { draft.cornerR = v; view.touch(); }
-            }
-            SliderRow {
-                label: view.sys.tr("Скорость"); from: 80; to: 500; suffix: view.sys.tr("мс")
-                value: draft.animMs
-                onMoved: v => { draft.animMs = v; view.touch(); }
-            }
-
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    Layout.alignment: Qt.AlignTop
-                    spacing: 12
-
-            Section { text: view.sys.tr("Шрифт") }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-                Text {
-                    Layout.preferredWidth: 150
-                    text: view.sys.tr("Семейство")
-                    color: view.sys.colFg
-                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                }
-                ComboBox {
-                    id: fontBox
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 38
-                    model: view.sys.fontList
-                    currentIndex: Math.max(0, view.sys.fontList.indexOf(draft.fontFam))
-                    onActivated: { draft.fontFam = view.sys.fontList[currentIndex]; view.touch(); }
-
-                    background: Rectangle {
-                        radius: 10
-                        color: Qt.rgba(1, 1, 1, 0.06)
-                        border.color: view.sys.colLine
-                        border.width: 1
-                    }
-                    contentItem: Text {
-                        leftPadding: 12; rightPadding: 26
-                        text: fontBox.displayText
-                        color: view.sys.colFg
-                        font { family: draft.fontFam; pixelSize: view.sys.fontSize - 2 }
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
-                    }
-                    delegate: ItemDelegate {
-                        id: fontItem
-                        required property string modelData
-                        width: fontBox.width
-                        height: 30
-                        contentItem: Text {
-                            text: fontItem.modelData
-                            color: view.sys.colFg
-                            font { family: fontItem.modelData; pixelSize: view.sys.fontSize - 3 }
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 14
+                            Text {
+                                Layout.preferredWidth: 90
+                                text: view.sys.tr("Текст")
+                                color: view.sys.colFg
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+                            }
+                            Repeater {
+                                model: ["#ffffff", "#e5e7eb", "#fbbf24", "#86efac", "#93c5fd", "#f9a8d4"]
+                                Swatch {
+                                    required property string modelData
+                                    hex: modelData
+                                    picked: draft.colFg === modelData
+                                    onChosen: { draft.colFg = modelData; view.touch(); }
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
                         }
-                        background: Rectangle {
-                            color: fontItem.highlighted ? Qt.rgba(1, 1, 1, 0.12) : "#111111"
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 14
+                            Text {
+                                Layout.preferredWidth: 90
+                                text: view.sys.tr("Акцент")
+                                color: view.sys.colFg
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+                            }
+                            Repeater {
+                                model: ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4"]
+                                Swatch {
+                                    required property string modelData
+                                    hex: modelData
+                                    picked: draft.colOn === modelData
+                                    onChosen: { draft.colOn = modelData; view.touch(); }
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
                         }
                     }
-                    popup: Popup {
-                        y: fontBox.height + 2
-                        width: fontBox.width
-                        implicitHeight: Math.min(contentItem.implicitHeight + 8, 260)
-                        padding: 4
-                        background: Rectangle {
-                            radius: 10
-                            color: "#111111"
-                            border.color: view.sys.colLine
-                            border.width: 1
-                        }
-                        contentItem: ListView {
-                            clip: true
-                            implicitHeight: contentHeight
-                            model: fontBox.popup.visible ? fontBox.delegateModel : null
-                            ScrollIndicator.vertical: ScrollIndicator {}
-                        }
-                    }
-                }
-            }
-
-            SliderRow {
-                label: view.sys.tr("Размер текста"); from: 10; to: 24
-                value: draft.fontSize
-                onMoved: v => { draft.fontSize = v; view.touch(); }
-            }
-            SliderRow {
-                label: view.sys.tr("Размер иконок"); from: 10; to: 28
-                value: draft.iconSize
-                onMoved: v => { draft.iconSize = v; view.touch(); }
-            }
-
-            Section { text: view.sys.tr("Цвета") }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-                Text {
-                    Layout.preferredWidth: 150
-                    text: view.sys.tr("Текст")
-                    color: view.sys.colFg
-                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                }
-                Repeater {
-                    model: ["#ffffff", "#e5e7eb", "#fbbf24", "#86efac", "#93c5fd", "#f9a8d4"]
-                    Swatch {
-                        required property string modelData
-                        hex: modelData
-                        picked: draft.colFg === modelData
-                        onChosen: { draft.colFg = modelData; view.touch(); }
-                    }
-                }
-                Item { Layout.fillWidth: true }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-                Text {
-                    Layout.preferredWidth: 150
-                    text: view.sys.tr("Акцент")
-                    color: view.sys.colFg
-                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                }
-                Repeater {
-                    model: ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4"]
-                    Swatch {
-                        required property string modelData
-                        hex: modelData
-                        picked: draft.colOn === modelData
-                        onChosen: { draft.colOn = modelData; view.touch(); }
-                    }
-                }
-                Item { Layout.fillWidth: true }
-            }
-
-            SliderRow {
-                label: view.sys.tr("Блёклость"); from: 20; to: 80; suffix: "%"
-                value: Math.round(draft.mutedAlpha * 100)
-                onMoved: v => { draft.mutedAlpha = v / 100; view.touch(); }
-            }
-
                 }
             }
         }
+
 
         // ==================================================== ВКЛАДКА «СИСТЕМА»
         // Всё, что не про внешний вид пилюли: язык, формат часов и поведение
@@ -1067,8 +1386,9 @@ Item {
             visible: view.tab === 1
 
             ColumnLayout {
+                // без ограничения по ширине: макеты проводника занимают всю
+                // ширину окна, а языку и часам лишнее место не мешает
                 Layout.fillWidth: true
-                Layout.maximumWidth: 520
                 Layout.alignment: Qt.AlignTop
                 spacing: 12
 
@@ -1190,58 +1510,274 @@ Item {
 
             Section { text: view.sys.tr("Проводник") }
 
-            Toggle {
-                label: view.sys.tr("Проводник отдельным окном")
-                on: view.sys.cfg.filesWindow
-                onToggled: {
-                    view.sys.cfg.filesWindow = !view.sys.cfg.filesWindow;
+            // Слайдер вместо двух карточек: макет один, зато во всю ширину
+            // окна — на нём видно и раскладку проводника, и то, как он стоит
+            // на столе. Стрелка всегда показывает в сторону другого варианта.
+            Item {
+                id: fmSlider
+                Layout.fillWidth: true
+                Layout.topMargin: 2
+                Layout.preferredHeight: Math.round(width * 0.62)
+
+                readonly property int mode: view.sys.cfg.filesWindow ? 1 : 0
+                property real slide: fmSlider.mode
+                Behavior on slide {
+                    NumberAnimation { duration: 420; easing.type: Easing.OutQuint }
+                }
+                onModeChanged: fmSlider.slide = fmSlider.mode
+
+                function setMode(m) {
+                    if (view.sys.cfg.filesWindow === (m === 1)) return;
+                    view.sys.cfg.filesWindow = (m === 1);
                     view.sys.saveCfg();
                 }
-            }
-            Text {
-                Layout.fillWidth: true
-                text: view.sys.tr("Тайлится в Hyprland, живёт на своём рабочем столе и не трогает пилюлю.")
-                color: Qt.rgba(1, 1, 1, 0.32)
-                wrapMode: Text.WordWrap
-                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
-            }
 
-            Section { text: view.sys.tr("Пароли") }
+                Item {
+                    id: fmReel
+                    anchors.fill: parent
+                    clip: true
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-                Text {
-                    Layout.fillWidth: true
-                    text: view.sys.tr("Предлагать сохранять пароли")
-                    color: view.sys.colFg
-                    wrapMode: Text.WordWrap
-                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                }
-                Item { Layout.preferredWidth: 12 }
-                Rectangle {
-                    Layout.preferredWidth: 46
-                    Layout.preferredHeight: 26
-                    radius: 13
-                    color: view.sys.cfg.vaultCapture
-                           ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.55)
-                           : Qt.rgba(1, 1, 1, 0.10)
-                    Behavior on color { ColorAnimation { duration: 160 } }
-                    Rectangle {
-                        width: 20; height: 20; radius: 10
-                        color: "white"
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: view.sys.cfg.vaultCapture ? parent.width - width - 3 : 3
-                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        // тумблер действует сразу: он не про оформление
-                        onClicked: {
-                            view.sys.cfg.vaultCapture = !view.sys.cfg.vaultCapture;
-                            view.sys.saveCfg();
+                    Repeater {
+                        model: [
+                            { win: false, t: view.sys.tr("По центру экрана"),
+                              s: view.sys.tr("раскрывается из острова") },
+                            { win: true,  t: view.sys.tr("Отдельным окном"),
+                              s: view.sys.tr("тайлится в Hyprland") }
+                        ]
+
+                        // ------------------------------------- один макет
+                        Item {
+                            id: fmPane
+                            required property int index
+                            required property var modelData
+                            readonly property bool picked: fmSlider.mode === fmPane.index
+
+                            width: fmReel.width
+                            height: fmReel.height
+                            x: (fmPane.index - fmSlider.slide) * fmReel.width
+                            opacity: 1 - Math.min(1, Math.abs(fmPane.index - fmSlider.slide))
+
+                            // экран целиком: остров у своей кромки + проводник
+                            Rectangle {
+                                id: fmScreen
+                                anchors.fill: parent
+                                anchors.bottomMargin: 44
+                                radius: 14
+                                color: "#0b0f12"
+                                border.color: fmPane.picked ? view.sys.colOn
+                                                            : Qt.rgba(1, 1, 1, 0.10)
+                                border.width: fmPane.picked ? 2 : 1
+                                Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                                Item {
+                                    id: fmShot
+                                    anchors.fill: parent
+                                    anchors.margins: 2
+                                    visible: false
+                                    layer.enabled: true
+
+                                    Image {
+                                        anchors.fill: parent
+                                        source: view.sys.currentWallThumb.length
+                                                ? "file://" + view.sys.currentWallThumb : ""
+                                        fillMode: Image.PreserveAspectCrop
+                                        sourceSize.width: Math.max(1100, Math.round(fmShot.width * 1.4))
+                                        asynchronous: true
+                                        cache: true
+                                    }
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        color: "#000000"
+                                        opacity: 0.35
+                                    }
+
+                                    // Остров — тот же компонент, что и в макете
+                                    // стола: те же сегменты и уголки, на любой
+                                    // кромке.
+                                    PillMock {
+                                        anchors.fill: parent
+                                        sys: view.sys
+                                        pos: draft.pillPos
+                                        fgCol: draft.colFg
+                                        onCol: draft.colOn
+                                        k: fmShot.height / (view.sys.screen
+                                                            ? view.sys.screen.height : 1080)
+                                    }
+
+                                    // ------------- вариант 1: панель по центру
+                                    Item {
+                                        visible: !fmPane.modelData.win
+                                        anchors.centerIn: parent
+                                        width: parent.width * 0.74
+                                        height: parent.height * 0.76
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: 14
+                                            color: Qt.rgba(0.04, 0.04, 0.05, 0.97)
+                                            border.color: Qt.rgba(1, 1, 1, 0.14)
+                                            border.width: 1
+                                        }
+                                        FilesMock {
+                                            width: 1180
+                                            height: 740
+                                            sys: view.sys
+                                            accent: draft.colOn
+                                            fg: draft.colFg
+                                            transformOrigin: Item.TopLeft
+                                            scale: parent.width / width
+                                        }
+                                    }
+
+                                    // ------------- вариант 2: два окна рядом
+                                    Row {
+                                        visible: fmPane.modelData.win
+                                        anchors.fill: parent
+                                        anchors.margins: Math.max(6, fmShot.height * 0.03)
+                                        anchors.topMargin: draft.pillPos === "top"
+                                                ? fmShot.height * 0.09 : Math.max(6, fmShot.height * 0.03)
+                                        anchors.bottomMargin: draft.pillPos === "bottom"
+                                                ? fmShot.height * 0.09 : Math.max(6, fmShot.height * 0.03)
+                                        anchors.leftMargin: draft.pillPos === "left"
+                                                ? fmShot.width * 0.05 : Math.max(6, fmShot.height * 0.03)
+                                        anchors.rightMargin: draft.pillPos === "right"
+                                                ? fmShot.width * 0.05 : Math.max(6, fmShot.height * 0.03)
+                                        spacing: 8
+
+                                        Repeater {
+                                            model: 2
+                                            Item {
+                                                required property int index
+                                                width: (parent.width - 8) / 2
+                                                height: parent.height
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    radius: 12
+                                                    color: Qt.rgba(0.04, 0.04, 0.05, 0.95)
+                                                    border.width: 1
+                                                    border.color: index === 0
+                                                                  ? Qt.rgba(view.sys.colOn.r,
+                                                                            view.sys.colOn.g,
+                                                                            view.sys.colOn.b, 0.7)
+                                                                  : Qt.rgba(1, 1, 1, 0.14)
+                                                }
+                                                FilesMock {
+                                                    width: 1180
+                                                    height: 900
+                                                    sys: view.sys
+                                                    accent: draft.colOn
+                                                    fg: draft.colFg
+                                                    dirName: view.sys.tr(index === 0 ? "Домашняя"
+                                                                                     : "Загрузки")
+                                                    dirPath: index === 0 ? "/home/ensi"
+                                                                         : "/home/ensi/Downloads"
+                                                    transformOrigin: Item.TopLeft
+                                                    scale: parent.width / width
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Item {
+                                    id: fmMask
+                                    anchors.fill: parent
+                                    anchors.margins: 2
+                                    visible: false
+                                    layer.enabled: true
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 12
+                                        color: "#ffffff"
+                                    }
+                                }
+
+                                MaskedShot {
+                                    anchors.fill: parent
+                                    anchors.margins: 2
+                                    src: fmShot
+                                    mask: fmMask
+                                }
+                            }
+
+                            // подпись под макетом
+                            RowLayout {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.bottomMargin: 8
+                                spacing: 9
+
+                                Text {
+                                    text: fmPane.modelData.t
+                                    color: view.sys.colFg
+                                    font {
+                                        family: view.sys.fontFam
+                                        pixelSize: view.sys.fontSize; bold: true
+                                    }
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "· " + fmPane.modelData.s
+                                    color: Qt.rgba(1, 1, 1, 0.32)
+                                    elide: Text.ElideRight
+                                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                                }
+                                Rectangle {
+                                    Layout.preferredWidth: 22
+                                    Layout.preferredHeight: 22
+                                    radius: 11
+                                    visible: fmPane.picked
+                                    color: view.sys.colOn
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: String.fromCodePoint(0xF012C)
+                                        color: "#ffffff"
+                                        font { family: view.sys.fontFam; pixelSize: 12 }
+                                    }
+                                }
+                            }
                         }
+                    }
+                }
+
+                // Стрелка показывает в сторону другого варианта: выбран первый
+                // — она справа, выбран второй — слева.
+                Rectangle {
+                    id: fmArrow
+                    width: 46
+                    height: 46
+                    radius: 23
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenterOffset: -20
+                    x: fmSlider.mode === 0 ? fmSlider.width - width - 16 : 16
+                    Behavior on x {
+                        NumberAnimation { duration: 420; easing.type: Easing.OutQuint }
+                    }
+                    color: arrowMa.containsMouse
+                           ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4)
+                           : Qt.rgba(0, 0, 0, 0.55)
+                    border.color: Qt.rgba(1, 1, 1, 0.22)
+                    border.width: 1
+                    scale: arrowMa.pressed ? 0.94 : 1.0
+                    Behavior on color { ColorAnimation { duration: 160 } }
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: fmSlider.mode === 0 ? String.fromCodePoint(0xF0142)
+                                                  : String.fromCodePoint(0xF0141)
+                        color: view.sys.colFg
+                        font { family: view.sys.fontFam; pixelSize: 20 }
+                    }
+
+                    MouseArea {
+                        id: arrowMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: fmSlider.setMode(fmSlider.mode === 0 ? 1 : 0)
                     }
                 }
             }
@@ -1251,12 +1787,777 @@ Item {
             Item { Layout.fillHeight: true }
         }
 
+        // ====================================================== ВКЛАДКА «ЭКРАН»
+        // Режим, масштаб, поворот и взаимное расположение экранов. Карта
+        // сверху показывает будущую раскладку до нажатия «Применить»:
+        // проверить настройку на самом экране — значит рискнуть им.
+        ColumnLayout {
+            id: monTab
+            Layout.fillWidth: true
+            spacing: 12
+            visible: view.tab === 2
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+
+                Text {
+                    Layout.fillWidth: true
+                    text: view.mons.length
+                          ? view.sys.tr("Изменения применятся по кнопке «Применить».")
+                          : view.sys.tr("Экраны не найдены")
+                    color: Qt.rgba(1, 1, 1, 0.32)
+                    elide: Text.ElideRight
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 30
+                    radius: 10
+                    color: rescanMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14)
+                                                  : Qt.rgba(1, 1, 1, 0.06)
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: view.sys.tr("Определить экраны")
+                        color: view.sys.colMuted
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                    }
+                    MouseArea {
+                        id: rescanMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.reloadMons()
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 26
+
+                // ----------------------------------------------- слева: экран
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 14
+
+                    // Картинка выбранного экрана. Пропорции живые: повёрнутый
+                    // монитор и на картинке стоит вертикально, так что режим
+                    // и поворот видно до нажатия «Применить».
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 6
+                        spacing: 0
+                        visible: view.monCur !== null
+
+                        Rectangle {
+                            id: monShot
+                            readonly property real ratio: {
+                                if (!view.monCur) return 16 / 9;
+                                var L = view.monLogical(view.monCur.name);
+                                return L.h > 0 ? L.w / L.h : 16 / 9;
+                            }
+                            // Layout.* не принимает Behavior, поэтому размер
+                            // считаем в своих свойствах и анимируем их
+                            property real shotW: Math.min(320, 210 * ratio)
+                            property real shotH: Math.min(210, 320 / ratio)
+                            Behavior on shotW { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+                            Behavior on shotH { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: Math.round(shotW)
+                            Layout.preferredHeight: Math.round(shotH)
+                            radius: 12
+                            color: Qt.rgba(1, 1, 1, 0.04)
+                            border.color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                                  view.sys.colOn.b, 0.55)
+                            border.width: 1
+
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                width: parent.width - 24
+                                spacing: 4
+
+                                Glyph {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.preferredWidth: 30
+                                    Layout.preferredHeight: 30
+                                    glyph: String.fromCodePoint(0xF0379)
+                                    color: view.sys.colOn
+                                    fontFam: view.sys.fontFam
+                                    size: view.sys.iconSize + 12
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: view.monCur ? view.monCur.name : ""
+                                    color: view.sys.colFg
+                                    font {
+                                        family: view.sys.fontFam
+                                        pixelSize: view.sys.fontSize; bold: true
+                                    }
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: view.monCur
+                                          ? view.monGet(view.monCur.name, "res") + " @ "
+                                            + view.monGet(view.monCur.name, "rr") + "Hz"
+                                          : ""
+                                    color: view.sys.colMuted
+                                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                                }
+                            }
+                        }
+
+                        // ножка и подставка — чтобы картинка читалась монитором,
+                        // а не просто прямоугольником
+                        Rectangle {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: 16
+                            Layout.preferredHeight: 18
+                            color: Qt.rgba(1, 1, 1, 0.10)
+                        }
+                        Rectangle {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: 116
+                            Layout.preferredHeight: 7
+                            radius: 4
+                            color: Qt.rgba(1, 1, 1, 0.10)
+                        }
+                    }
+
+                    Section {
+                        text: view.sys.tr("Экраны")
+                        visible: view.mons.length > 1
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+                        visible: view.mons.length > 1
+                        ChipLabel { text: view.sys.tr("Настроить") }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: view.mons
+                                Chip {
+                                    required property int index
+                                    required property var modelData
+                                    label: modelData.name
+                                    sub: modelData.desc
+                                    picked: view.monSel === index
+                                    onChosen: view.monSel = index
+                                }
+                            }
+                        }
+                    }
+
+                    Section {
+                        text: view.sys.tr("Раскладка")
+                        visible: view.mons.length > 1
+                    }
+
+                    // Карта будущей раскладки: проверять её на самих экранах —
+                    // значит рискнуть остаться без картинки.
+                    Rectangle {
+                        id: monMap
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 150
+                        visible: view.mons.length > 1
+                        radius: 14
+                        color: Qt.rgba(1, 1, 1, 0.04)
+                        border.color: view.sys.colLine
+                        border.width: 1
+
+                        // Общий охват включённых экранов в точках рабочего стола.
+                        readonly property var bounds: {
+                            var p = view.monPlaces().filter(function (q) { return q.on; });
+                            if (!p.length) return { x0: 0, y0: 0, w: 1, h: 1 };
+                            var x0 = p[0].x, y0 = p[0].y;
+                            var x1 = p[0].x + p[0].w, y1 = p[0].y + p[0].h;
+                            for (var i = 1; i < p.length; i++) {
+                                x0 = Math.min(x0, p[i].x);
+                                y0 = Math.min(y0, p[i].y);
+                                x1 = Math.max(x1, p[i].x + p[i].w);
+                                y1 = Math.max(y1, p[i].y + p[i].h);
+                            }
+                            return { x0: x0, y0: y0,
+                                     w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+                        }
+                        // не readonly: к таким свойствам нельзя прицепить Behavior,
+                        // а без него карта дёргалась бы при смене раскладки
+                        property real k:
+                            Math.min((width - 40) / bounds.w, (height - 40) / bounds.h)
+                        property real offX: (width  - bounds.w * k) / 2
+                        property real offY: (height - bounds.h * k) / 2
+
+                        Behavior on k    { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+                        Behavior on offX { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+                        Behavior on offY { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+
+                        // Модель — само железо, а не раскладка: список не
+                        // пересобирается при каждой правке, и прямоугольники
+                        // переезжают плавно, а не появляются заново.
+                        Repeater {
+                            model: view.mons
+                            Rectangle {
+                                id: monRect
+                                required property int index
+                                required property var modelData
+                                readonly property var place: view.monPlaceOf(monRect.modelData.name)
+                                readonly property bool active: view.monSel === monRect.index
+
+                                x: monMap.offX + (place.x - monMap.bounds.x0) * monMap.k
+                                y: monMap.offY + (place.y - monMap.bounds.y0) * monMap.k
+                                width:  Math.max(2, place.w * monMap.k)
+                                height: Math.max(2, place.h * monMap.k)
+                                radius: 8
+                                opacity: place.on ? 1 : 0
+                                visible: opacity > 0.01
+                                // дубли лежат друг на друге — активный сверху
+                                z: monRect.active ? 2 : 1
+
+                                color: monRect.active
+                                       ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                                 view.sys.colOn.b, 0.22)
+                                       : Qt.rgba(1, 1, 1, 0.07)
+                                border.color: monRect.active
+                                              ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.22)
+                                border.width: monRect.active ? 2 : 1
+
+                                Behavior on x       { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+                                Behavior on y       { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+                                Behavior on width   { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+                                Behavior on height  { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+                                Behavior on opacity { NumberAnimation { duration: view.sys.animMs } }
+                                Behavior on color        { ColorAnimation { duration: 160 } }
+                                Behavior on border.color { ColorAnimation { duration: 160 } }
+
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 12
+                                    spacing: 1
+                                    Text {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: monRect.modelData.name
+                                        color: view.sys.colFg
+                                        elide: Text.ElideRight
+                                        font {
+                                            family: view.sys.fontFam
+                                            pixelSize: view.sys.fontSize - 3; bold: true
+                                        }
+                                    }
+                                    Text {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        visible: monRect.height > 46
+                                        text: monRect.place.mirror ? view.sys.tr("Дубль")
+                                            : monRect.place.primary ? view.sys.tr("Основной") : ""
+                                        color: Qt.rgba(1, 1, 1, 0.32)
+                                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 6 }
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: view.monSel = monRect.index
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+                        visible: view.mons.length > 1
+                        ChipLabel { text: view.sys.tr("Режим") }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: [
+                                    { m: "extend", t: view.sys.tr("Расширить"),
+                                      s: view.sys.tr("общий стол") },
+                                    { m: "mirror", t: view.sys.tr("Дублировать"),
+                                      s: view.sys.tr("одна картинка") },
+                                    { m: "only",   t: view.sys.tr("Только один"),
+                                      s: view.sys.tr("остальные погасить") }
+                                ]
+                                Chip {
+                                    required property var modelData
+                                    label: modelData.t
+                                    sub: modelData.s
+                                    picked: view.monLayout === modelData.m
+                                    onChosen: {
+                                        if (view.monLayout === modelData.m) return;
+                                        view.monLayout = modelData.m;
+                                        view.monRev++;
+                                        view.monTouch();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+                        visible: view.mons.length > 1 && view.monLayout === "only"
+                        ChipLabel { text: view.sys.tr("Показывать на") }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: view.mons
+                                Chip {
+                                    required property var modelData
+                                    label: modelData.name
+                                    picked: view.monOnly === modelData.name
+                                    onChosen: {
+                                        if (view.monOnly === modelData.name) return;
+                                        view.monOnly = modelData.name;
+                                        view.monRev++;
+                                        view.monTouch();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+                        visible: view.mons.length > 1 && view.monLayout === "extend"
+                        ChipLabel { text: view.sys.tr("Второй экран") }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: [
+                                    { d: "right", t: view.sys.tr("Справа") },
+                                    { d: "left",  t: view.sys.tr("Слева") },
+                                    { d: "up",    t: view.sys.tr("Сверху") },
+                                    { d: "down",  t: view.sys.tr("Снизу") }
+                                ]
+                                Chip {
+                                    required property var modelData
+                                    label: modelData.t
+                                    picked: view.monDir === modelData.d
+                                    onChosen: {
+                                        if (view.monDir === modelData.d) return;
+                                        view.monDir = modelData.d;
+                                        view.monRev++;
+                                        view.monTouch();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        visible: view.mons.length > 1 && view.monLayout === "mirror"
+                        text: view.sys.tr("Дубли повторяют картинку основного экрана: "
+                                          + "у них своё разрешение, но общая раскладка.")
+                        color: Qt.rgba(1, 1, 1, 0.32)
+                        wrapMode: Text.WordWrap
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                    }
+                }
+
+                // ------------------------------------ справа: режим и масштаб
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 12
+                    visible: view.monCur !== null
+
+                    // Разрешения плиткой по два: у режимов привычные имена
+                    // (FHD, QHD), а пиксели — рядом мелким.
+                    Grid {
+                        id: resGrid
+                        Layout.fillWidth: true
+                        columns: 2
+                        spacing: 10
+
+                        Repeater {
+                            model: view.monCur ? view.monCur.res : []
+                            Rectangle {
+                                id: resCell
+                                required property int index
+                                required property string modelData
+                                readonly property bool picked:
+                                    view.monCur !== null
+                                    && view.monGet(view.monCur.name, "res") === resCell.modelData
+
+                                width: Math.floor((resGrid.width - resGrid.spacing) / 2)
+                                height: 46
+                                radius: 12
+                                color: resCell.picked
+                                       ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                                 view.sys.colOn.b, 0.16)
+                                       : (resMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10)
+                                                              : Qt.rgba(1, 1, 1, 0.05))
+                                border.color: resCell.picked
+                                              ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.08)
+                                border.width: resCell.picked ? 2 : 1
+                                scale: resMa.pressed ? 0.97 : 1.0
+                                Behavior on color { ColorAnimation { duration: 160 } }
+                                Behavior on border.color { ColorAnimation { duration: 160 } }
+                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 14
+                                    anchors.rightMargin: 12
+                                    spacing: 8
+
+                                    Text {
+                                        text: view.monResName(resCell.modelData)
+                                        color: resCell.picked ? view.sys.colFg : view.sys.colMuted
+                                        font {
+                                            family: view.sys.fontFam
+                                            pixelSize: view.sys.fontSize - 1; bold: true
+                                        }
+                                        Behavior on color { ColorAnimation { duration: 160 } }
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Text {
+                                        text: resCell.modelData
+                                        color: Qt.rgba(1, 1, 1, 0.35)
+                                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: resMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: view.monSet(view.monCur.name, "res", resCell.modelData)
+                                }
+                            }
+                        }
+                    }
+
+                    // ------------------------------------------------ частота
+                    // Циферблат: стрелка ходит по доступным частотам, а не по
+                    // произвольным герцам — монитор всё равно примет только их.
+                    Item {
+                        id: rateDial
+                        readonly property var rates: view.monCur
+                            ? (view.monCur.rrByRes[view.monGet(view.monCur.name, "res")] || [])
+                            : []
+                        // мелкие частоты слева, крупные справа — как на шкале ниже
+                        readonly property var asc: rateDial.rates.slice().reverse()
+                        readonly property int idx: view.monCur
+                            ? Math.max(0, rateDial.asc.indexOf(view.monGet(view.monCur.name, "rr")))
+                            : 0
+                        property real ang: rateDial.asc.length > 1
+                            ? -120 + 240 * rateDial.idx / (rateDial.asc.length - 1) : 0
+                        Behavior on ang { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutBack } }
+
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.topMargin: 4
+                        implicitWidth: 124
+                        implicitHeight: 124
+                        visible: rateDial.rates.length > 0
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: width / 2
+                            color: "transparent"
+                            border.color: Qt.rgba(1, 1, 1, 0.12)
+                            border.width: 1
+                        }
+
+                        // четыре засечки по сторонам
+                        Repeater {
+                            model: 4
+                            Rectangle {
+                                required property int index
+                                width: 2
+                                height: 8
+                                radius: 1
+                                color: Qt.rgba(1, 1, 1, 0.22)
+                                x: rateDial.width / 2 - 1
+                                y: 5
+                                transformOrigin: Item.Center
+                                transform: Rotation {
+                                    origin.x: 1
+                                    origin.y: rateDial.height / 2 - 5
+                                    angle: index * 90
+                                }
+                            }
+                        }
+
+                        // стрелка
+                        Rectangle {
+                            width: 2
+                            height: rateDial.height / 2 - 16
+                            radius: 1
+                            color: view.sys.colOn
+                            x: rateDial.width / 2 - 1
+                            y: 16
+                            transformOrigin: Item.Bottom
+                            rotation: rateDial.ang
+                        }
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 14; height: 14; radius: 7
+                            color: Qt.rgba(0, 0, 0, 0.5)
+                            border.color: view.sys.colOn
+                            border.width: 2
+                        }
+                    }
+
+                    // Шкала частот: ручка встаёт только на доступные значения,
+                    // подписи под ней тоже кликаются.
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        visible: rateDial.rates.length > 0
+
+                        Item {
+                            id: rateBar
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 26
+
+                            readonly property int last: Math.max(1, rateDial.asc.length - 1)
+                            readonly property real usable: width - rateKnob.width
+                            property real pos: rateDial.asc.length > 1
+                                               ? rateDial.idx / rateBar.last : 1
+                            Behavior on pos { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutCubic } }
+
+                            function setFromX(x) {
+                                if (!view.monCur || rateDial.asc.length === 0) return;
+                                var r = Math.max(0, Math.min(1,
+                                        (x - rateKnob.width / 2) / Math.max(1, usable)));
+                                var i = Math.round(r * rateBar.last);
+                                view.monSet(view.monCur.name, "rr", rateDial.asc[i]);
+                            }
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: rateKnob.width / 2
+                                width: rateBar.usable
+                                height: 6
+                                radius: 3
+                                color: Qt.rgba(1, 1, 1, 0.12)
+
+                                Rectangle {
+                                    width: parent.width * rateBar.pos
+                                    height: parent.height
+                                    radius: 3
+                                    color: view.sys.colOn
+                                }
+                            }
+
+                            Rectangle {
+                                id: rateKnob
+                                width: 20; height: 20; radius: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: rateBar.pos * rateBar.usable
+                                color: "#ffffff"
+                                scale: rateMa.pressed ? 1.22 : (rateMa.containsMouse ? 1.1 : 1.0)
+                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+                            }
+
+                            MouseArea {
+                                id: rateMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                preventStealing: true
+                                cursorShape: Qt.PointingHandCursor
+                                onPressed: mouse => rateBar.setFromX(mouse.x)
+                                onPositionChanged: mouse => { if (pressed) rateBar.setFromX(mouse.x); }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+                            Repeater {
+                                model: rateDial.asc
+                                Text {
+                                    id: rateLbl
+                                    required property var modelData
+                                    readonly property bool picked:
+                                        view.monCur !== null
+                                        && view.monGet(view.monCur.name, "rr") === rateLbl.modelData
+
+                                    Layout.fillWidth: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: modelData
+                                    color: rateLbl.picked ? view.sys.colOn : view.sys.colMuted
+                                    font {
+                                        family: view.sys.fontFam
+                                        pixelSize: view.sys.fontSize - 4
+                                        bold: rateLbl.picked
+                                    }
+                                    Behavior on color { ColorAnimation { duration: 160 } }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        anchors.margins: -4
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: view.monSet(view.monCur.name, "rr", rateLbl.modelData)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 4
+                        spacing: 14
+                        ChipLabel { text: view.sys.tr("Масштаб") }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: view.monScales
+                                Chip {
+                                    required property var modelData
+                                    label: Math.round(modelData * 100) + "%"
+                                    picked: view.monCur !== null
+                                            && view.monGet(view.monCur.name, "scale") === modelData
+                                    onChosen: view.monSet(view.monCur.name, "scale", modelData)
+                                }
+                            }
+                        }
+                    }
+
+                    // размер рабочего стола после масштаба и поворота
+                    Text {
+                        Layout.fillWidth: true
+                        text: {
+                            if (!view.monCur) return "";
+                            var L = view.monLogical(view.monCur.name);
+                            return view.sys.tr("Рабочий стол") + ": " + L.w + "×" + L.h;
+                        }
+                        color: Qt.rgba(1, 1, 1, 0.32)
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        visible: view.monCur !== null && !view.monScaleOk(view.monCur.name)
+                        text: view.sys.tr("Такой масштаб даёт нецелый размер стола — "
+                                          + "Hyprland его не примет.")
+                        color: view.sys.colCrit
+                        wrapMode: Text.WordWrap
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+                        ChipLabel { text: view.sys.tr("Ориентация") }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: view.monTransforms
+                                Chip {
+                                    required property var modelData
+                                    label: view.sys.tr(modelData.t)
+                                    picked: view.monCur !== null
+                                            && view.monGet(view.monCur.name, "transform") === modelData.v
+                                    onChosen: view.monSet(view.monCur.name, "transform", modelData.v)
+                                }
+                            }
+                        }
+                    }
+
+                    Toggle {
+                        label: view.sys.tr("Экран включён")
+                        // единственный экран выключать нельзя, а в режиме
+                        // «только один» этим занимается сам режим
+                        visible: view.mons.length > 1 && view.monLayout !== "only"
+                        on: view.monCur ? view.monGet(view.monCur.name, "on") === true : false
+                        onToggled: view.monSet(view.monCur.name, "on",
+                                               !(view.monGet(view.monCur.name, "on") === true))
+                    }
+
+                    Toggle {
+                        label: view.sys.tr("Переменная частота (VRR)")
+                        on: view.monCur ? view.monGet(view.monCur.name, "vrr") === true : false
+                        onToggled: view.monSet(view.monCur.name, "vrr",
+                                               !(view.monGet(view.monCur.name, "vrr") === true))
+                    }
+
+                    // Своя кнопка: настройки экрана рискованные, и применять их
+                    // хочется отсюда же, не уводя взгляд к шапке окна.
+                    Rectangle {
+                        id: monApplyBtn
+                        Layout.alignment: Qt.AlignRight
+                        Layout.topMargin: 6
+                        Layout.preferredWidth: 150
+                        Layout.preferredHeight: 42
+                        radius: 14
+                        opacity: view.monDirty ? 1 : 0.45
+                        color: view.monDirty
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b,
+                                         monApplyMa.containsMouse ? 0.36 : 0.24)
+                               : Qt.rgba(1, 1, 1, 0.05)
+                        border.color: view.monDirty ? view.sys.colOn : view.sys.colLine
+                        border.width: 1
+                        scale: monApplyMa.pressed ? 0.97 : 1.0
+                        Behavior on color { ColorAnimation { duration: 160 } }
+                        Behavior on opacity { NumberAnimation { duration: 160 } }
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 9
+                            Glyph {
+                                Layout.preferredWidth: 18
+                                Layout.preferredHeight: 18
+                                glyph: String.fromCodePoint(0xF0379)
+                                color: view.sys.colFg
+                                fontFam: view.sys.fontFam
+                                size: view.sys.iconSize - 2
+                            }
+                            Text {
+                                text: view.sys.tr("Применить")
+                                color: view.sys.colFg
+                                font {
+                                    family: view.sys.fontFam
+                                    pixelSize: view.sys.fontSize - 1; bold: true
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: monApplyMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            enabled: view.monDirty
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: view.monApply()
+                        }
+                    }
+                }
+            }
+
+            Item { Layout.fillHeight: true }
+        }
+
+
         // ==================================================== ВКЛАДКА «КЛАВИШИ»
         ColumnLayout {
             id: keysTab
             Layout.fillWidth: true
             spacing: 9
-            visible: view.tab === 2
+            visible: view.tab === 3
 
             Text {
                 Layout.fillWidth: true
@@ -1343,7 +2644,7 @@ Item {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 12
-            visible: view.tab === 3
+            visible: view.tab === 4
 
             RowLayout {
                 Layout.fillWidth: true

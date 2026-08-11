@@ -34,5 +34,6 @@
     "lang": "en",
     "mutedAlpha": 0.45,
     "panelW": 540,
-    "pillH": 38
+    "pillH": 38,
+    "pillPos": "top"
 }
