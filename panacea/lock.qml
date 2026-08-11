@@ -42,6 +42,27 @@ ShellRoot {
     property string wallpaper: ""
     property color accent: "#c65a47"
 
+    // ------------------------------------------------------------------ язык
+    // Экран блокировки — отдельный процесс и до настроек пилюли не дотягивается,
+    // поэтому читает тот же settings.json сам. Без этого он оставался
+    // русскоязычным даже при английском интерфейсе.
+    property bool isEn: true
+    function tr(k) { return root.isEn && root.dictEn[k] !== undefined ? root.dictEn[k] : k; }
+    readonly property var dictEn: ({
+        "Слишком много попыток": "Too many attempts",
+        "Неверный пароль": "Wrong password",
+        "Ошибка проверки": "Verification error",
+        "PAM недоступен": "PAM unavailable",
+        "Нажмите Enter": "Press Enter",
+        "Пароль": "Password"
+    })
+
+    FileView {
+        id: settingsFile
+        path: Quickshell.env("HOME") + "/.config/panacea/settings.json"
+        blockLoading: true
+    }
+
     FileView {
         id: themeFile
         path: Quickshell.env("HOME") + "/.config/hypr/theme.conf"
@@ -51,6 +72,11 @@ ShellRoot {
     }
 
     Component.onCompleted: {
+        try {
+            var cfg = JSON.parse(settingsFile.text() || "{}");
+            if (cfg && typeof cfg.lang === "string") root.isEn = cfg.lang !== "ru";
+        } catch (e) { /* настроек нет — остаёмся на английском */ }
+
         // scripts/lock.sh отдаёт уже ужатую под экран копию обоев
         var cached = Quickshell.env("PANACEA_LOCK_BG") || "";
         if (cached.length) { root.wallpaper = cached; }
@@ -98,14 +124,14 @@ ShellRoot {
             } else {
                 root.attempts++;
                 root.errorText = result === PamResult.MaxTries
-                                 ? "Слишком много попыток"
-                                 : "Неверный пароль";
+                                 ? root.tr("Слишком много попыток")
+                                 : root.tr("Неверный пароль");
                 root.password = "";
             }
         }
         onError: {
             root.checking = false;
-            root.errorText = "Ошибка проверки";
+            root.errorText = root.tr("Ошибка проверки");
             root.password = "";
         }
     }
@@ -120,7 +146,7 @@ ShellRoot {
         root.checking = true;
         if (!pam.start()) {
             root.checking = false;
-            root.errorText = "PAM недоступен";
+            root.errorText = root.tr("PAM недоступен");
         }
     }
 
@@ -238,7 +264,7 @@ ShellRoot {
                     // подсказка мигает, пока не начали вводить
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: "Нажмите Enter"
+                        text: root.tr("Нажмите Enter")
                         color: Qt.rgba(1, 1, 1, 0.40)
                         opacity: root.authMode ? 0 : 1
                         visible: opacity > 0.01
@@ -355,7 +381,7 @@ ShellRoot {
                                 // пустое поле — подсказка вместо точек
                                 Text {
                                     visible: root.password.length === 0
-                                    text: root.errorText.length ? root.errorText : "Пароль"
+                                    text: root.errorText.length ? root.errorText : root.tr("Пароль")
                                     color: root.errorText.length
                                            ? "#ef4444" : Qt.rgba(1, 1, 1, 0.35)
                                     font { family: root.fontFam; pixelSize: 14 }

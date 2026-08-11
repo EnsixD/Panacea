@@ -5,7 +5,11 @@ import Quickshell.Io
 
 // Буфер обмена (Super+V) — история cliphist прямо в пилюле.
 // Поиск сверху, стрелки двигают выбор, Enter копирует, Escape закрывает.
-Item {
+//
+// Корень именно FocusScope, а не Item: панель отдаёт фокус загруженному виду
+// целиком, и только FocusScope передаёт его дальше — полю поиска. С обычным
+// Item фокус оставался на корне, и печатать сразу было нельзя.
+FocusScope {
     id: view
     property var sys
 
@@ -99,6 +103,8 @@ Item {
 
                     TextField {
                         id: input
+                        // область фокуса переадресует его сюда
+                        focus: true
                         Layout.fillWidth: true
                         placeholderText: view.sys.tr("Поиск в буфере")
                         color: view.sys.colFg
