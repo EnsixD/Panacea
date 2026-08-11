@@ -2023,9 +2023,9 @@ PanelWindow {
     IpcHandler {
         target: "pill"
         function launcher(): void { root.toggleLauncher(); }
+        function overview(): void { root.toggleOverview(); }
         // Всегда плитки Wi-Fi/Bluetooth, даже когда играет музыка
         function controls(): void { root.togglePage("main"); }
-        function player(): void   { root.togglePage("player"); }
         function wifi(): void {
             if (root.expanded && root.page === "wifi") { root.collapse(); return; }
             root.togglePage("wifi");
