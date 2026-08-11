@@ -11,7 +11,9 @@
 
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/panacea/thumbs"
 WALLS="$HOME/.config/hypr/wallpaper"
-WIDTH=480
+# 480 хватало списку под пилюлей, но в карусели превью растянуто почти на
+# половину экрана — и выглядело мылом. 1100 закрывает карточку с запасом.
+WIDTH=1100
 
 mkdir -p "$CACHE"
 
@@ -63,9 +65,21 @@ case "$1" in
     lockbg)
         make_lockbg "$2"
         ;;
+    path)
+        # Путь к готовой миниатюре — БЕЗ создания. Список обоев вызывает это
+        # на каждую картинку, и один ffmpeg на файл превращал открытие
+        # карусели в минуты ожидания: обоев теперь сотни, а не полтора десятка.
+        src="$2"
+        [ -f "$src" ] || exit 1
+        name=$(basename "$src"); name="${name%.*}.jpg"
+        dst="$CACHE/$name"
+        [ -f "$dst" ] && [ ! "$src" -nt "$dst" ] && printf '%s\n' "$dst"
+        ;;
     all)
-        for f in "$WALLS"/*.jpg "$WALLS"/*.png; do
-            [ -f "$f" ] || continue
+        # Каталог обоев теперь с подкаталогами (custom, shell) — обходим их тоже
+        find "$WALLS" -maxdepth 2 -type f \
+             \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+        | while read -r f; do
             make_thumb "$f" >/dev/null
         done
         ;;

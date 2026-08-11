@@ -64,10 +64,17 @@ ShellRoot {
     }
 
     FileView {
-        id: themeFile
-        path: Quickshell.env("HOME") + "/.config/hypr/theme.conf"
+        id: wallFile
+        path: Quickshell.env("HOME") + "/.config/hypr/wallpaper.conf"
         // читаем синхронно: обои нужны в первом же кадре, иначе на долю
         // секунды мелькает чёрный экран
+        blockLoading: true
+    }
+
+    // цвета живут отдельно от обоев и меняются только правкой палитры
+    FileView {
+        id: paletteFile
+        path: Quickshell.env("HOME") + "/.config/hypr/palette.conf"
         blockLoading: true
     }
 
@@ -81,9 +88,8 @@ ShellRoot {
         var cached = Quickshell.env("PANACEA_LOCK_BG") || "";
         if (cached.length) { root.wallpaper = cached; }
 
-        var txt = themeFile.text();
-        var w = /^\$wallpaper\s*=\s*(.+)$/m.exec(txt);
-        var a = /^\$accent_color\s*=\s*(.+)$/m.exec(txt);
+        var w = /^\$wallpaper\s*=\s*(.+)$/m.exec(wallFile.text() || "");
+        var a = /^\$accent_color\s*=\s*(.+)$/m.exec(paletteFile.text() || "");
         if (w && !cached.length) {
             var p = w[1].trim();
             if (p.indexOf("~") === 0) p = Quickshell.env("HOME") + p.slice(1);

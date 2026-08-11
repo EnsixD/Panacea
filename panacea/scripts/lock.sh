@@ -10,7 +10,7 @@ QML="$DIR/../lock.qml"
 # уже заблокировано — второй экземпляр не нужен
 pgrep -f "quickshell --path .*lock\.qml" >/dev/null && exit 0
 
-wallpaper=$(grep -m1 '^\$wallpaper' "$HOME/.config/hypr/theme.conf" 2>/dev/null \
+wallpaper=$(grep -m1 '^\$wallpaper' "$HOME/.config/hypr/wallpaper.conf" 2>/dev/null \
             | cut -d= -f2- | sed 's/^ *//; s/ *$//')
 wallpaper="${wallpaper/#\~/$HOME}"
 

@@ -1,73 +1,84 @@
 #!/bin/bash
-# Список тем Hyprland для страницы выбора.
+# Обои для страницы выбора.
 #
-#   list     -> строки  имя|путь_к_обоям|активна(yes|no)
-#   set NAME -> применить тему
+#   list            -> строки  имя|миниатюра|активны(yes|no)|своя(yes|no)|полный_путь
+#   set NAME        -> применить
+#   add <путь>      -> скопировать файл в свои обои и применить
+#   del NAME        -> удалить свои обои
+#
+# Тем как наборов цветов больше нет: палитра одна (hypr/palette.conf), и
+# «тема» — это просто картинка. Поэтому список берётся прямо из каталога
+# обоев, а не из themes/*.conf.
 
-THEMES="$HOME/.config/hypr/themes"
-CURRENT="$HOME/.config/hypr/theme.conf"
+WALL_DIR="$HOME/.config/hypr/wallpaper"
+CUSTOM="$WALL_DIR/custom"
+STATE="$HOME/.config/hypr/wallpaper.conf"
 SWITCH="$HOME/.config/hypr/scripts/switch_theme.sh"
+THUMBS="$(dirname "$0")/thumbs.sh"
+THUMB_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/panacea/thumbs"
 
-wallpaper_of() {
-    grep -m1 '^\$wallpaper' "$1" 2>/dev/null \
+current() {
+    grep -m1 '^\$wallpaper' "$STATE" 2>/dev/null \
         | cut -d= -f2- | sed 's/^ *//; s/ *$//'
 }
 
 case "$1" in
-    list)
-        cur_wall=$(wallpaper_of "$CURRENT")
-        for f in "$THEMES"/*.conf; do
-            [ -f "$f" ] || continue
-            name=$(basename "$f" .conf)
-            wall=$(wallpaper_of "$f")
-            if [ "$wall" = "$cur_wall" ]; then act=yes; else act=no; fi
-            # отдаём миниатюру: исходники весят мегабайты и грузятся заметно
-            thumb=$("$(dirname "$0")/thumbs.sh" thumb "$wall" 2>/dev/null)
-            [ -n "$thumb" ] || thumb="$wall"
-            case "$wall" in *"/wallpaper/custom/"*) custom=yes ;; *) custom=no ;; esac
-            printf '%s|%s|%s|%s\n' "$name" "$thumb" "$act" "$custom"
-        done
-        ;;
-    set)
-        [ -z "$2" ] && exit 1
-        exec "$SWITCH" "$2"
-        ;;
-    add)
-        # add "Красивое имя" /path/to/wall.jpg
-        # Своя тема = копия текущей, где подменены только обои. Так меняется
-        # именно фон, а палитра остаётся той, что нравится сейчас. Файл .conf
-        # ложится в themes/ и потому переживает перезапуск сам собой.
-        name="$2"; src="$3"
-        [ -n "$name" ] && [ -f "$src" ] || { echo "error" >&2; exit 1; }
-        slug=$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' \
-               | tr -cd '[:alnum:]_-')
-        [ -z "$slug" ] && slug="wall_$(date +%s)"
+list)
+    cur=$(current)
+    # Всё в одном цикле на встроенных командах: обоев сотни, и подпроцессы
+    # (basename, thumbs.sh) на каждую превращали список в пять секунд —
+    # карусель успевала открыться пустой.
+    find "$WALL_DIR" -maxdepth 2 -type f \
+         \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+         | sort | while read -r w; do
+        base=${w##*/}
+        name=${base%.*}
+        [ "$w" = "$cur" ] && act=yes || act=no
+        case "$w" in "$CUSTOM"/*) own=yes ;; *) own=no ;; esac
+        # Готовая миниатюра, если она есть и не устарела: исходники весят
+        # мегабайты. Создавать их здесь нельзя — этим занимается «warm»,
+        # а до тех пор показываем исходник, Qt ужмёт его по sourceSize.
+        thumb="$THUMB_DIR/$name.jpg"
+        [ -f "$thumb" ] && [ ! "$w" -nt "$thumb" ] || thumb="$w"
+        printf '%s|%s|%s|%s|%s\n' "$name" "$thumb" "$act" "$own" "$w"
+    done
+    ;;
 
-        wdir="$HOME/.config/hypr/wallpaper/custom"
-        mkdir -p "$wdir"
-        ext="${src##*.}"
-        dest="$wdir/$slug.$ext"
-        cp -f "$src" "$dest" || exit 1
+warm)
+    # Догоняем миниатюры для новых обоев. Зовётся из карусели после открытия,
+    # поэтому первое открытие быстрое, а второе — уже с миниатюрами.
+    exec "$THUMBS" all
+    ;;
 
-        out="$THEMES/$slug.conf"
-        if grep -q '^\$wallpaper' "$CURRENT"; then
-            sed "s|^\$wallpaper[[:space:]]*=.*|\$wallpaper = $dest|" "$CURRENT" > "$out"
-        else
-            cp "$CURRENT" "$out"
-            printf '\n$wallpaper = %s\n' "$dest" >> "$out"
-        fi
-        # сразу применяем добавленные обои
-        "$SWITCH" "$slug" >/dev/null 2>&1
-        echo "$slug"
-        ;;
-    del)
-        # удалить свою тему обоев (и её файл)
-        [ -z "$2" ] && exit 1
-        rm -f "$THEMES/$2.conf"
-        rm -f "$HOME/.config/hypr/wallpaper/custom/$2".* 2>/dev/null
-        ;;
-    *)
-        echo "usage: themes.sh list | set <name> | add <name> <file> | del <name>" >&2
-        exit 1
-        ;;
+set)
+    [ -z "$2" ] && exit 1
+    exec "$SWITCH" "$2"
+    ;;
+
+add)
+    src="$2"
+    [ -f "$src" ] || { echo "error" >&2; exit 1; }
+    mkdir -p "$CUSTOM"
+    base=$(basename "$src")
+    slug=$(printf '%s' "${base%.*}" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' \
+           | tr -cd '[:alnum:]_-')
+    [ -z "$slug" ] && slug="wall_$(date +%s)"
+    ext="${base##*.}"
+    dest="$CUSTOM/$slug.$ext"
+    # имя занято — не затираем чужую картинку молча
+    [ -e "$dest" ] && dest="$CUSTOM/${slug}_$(date +%s).$ext"
+    cp -f "$src" "$dest" || exit 1
+    "$SWITCH" "$dest" >/dev/null 2>&1
+    basename "$dest" | sed 's/\.[^.]*$//'
+    ;;
+
+del)
+    [ -z "$2" ] && exit 1
+    rm -f "$CUSTOM/$2".* 2>/dev/null
+    ;;
+
+*)
+    echo "usage: themes.sh list | set <name> | add <file> | del <name>" >&2
+    exit 1
+    ;;
 esac
