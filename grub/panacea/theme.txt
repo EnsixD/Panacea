@@ -6,12 +6,16 @@ desktop-color: "#050506"
 
 title-text: ""
 
+# Коробка консоли (клавиша C) и служебных сообщений загрузчика. Стоит внизу и
+# невысокая: в ней же GRUB печатает «Loading Linux…» перед передачей
+# управления ядру, и раньше это выглядело как чёрное окно посреди экрана —
+# коробка занимала центр и была почти непрозрачной.
 terminal-font: "Panacea Regular 18"
 terminal-box: "menu_*.png"
 terminal-left: "12%"
-terminal-top: "16%"
+terminal-top: "72%"
 terminal-width: "76%"
-terminal-height: "62%"
+terminal-height: "24%"
 
 message-font: "Panacea Regular 18"
 message-color: "#f2f2f2"
@@ -50,12 +54,13 @@ message-bg-color: "#050506"
     selected_item_font = "Panacea Regular 18"
     selected_item_color = "#ffffff"
 
-    # Высокая строка + большой зазор: капсула-подсветка целиком помещается
-    # внутри своей строки и между пунктами остаётся воздух, поэтому фон
-    # выделения никогда не налезает на соседний пункт.
-    item_height = 44
-    item_spacing = 16
-    item_padding = 18
+    # GRUB рисует подсветку ВОКРУГ строки: к её высоте добавляются отступы
+    # рамки, равные угловой картинке (12 px сверху и снизу). Поэтому зазор
+    # между пунктами держим больше суммы этих отступов — 28 против 24, — и
+    # капсула гарантированно остаётся в своей строке.
+    item_height = 40
+    item_spacing = 28
+    item_padding = 16
     item_icon_space = 0
     icon_width = 0
     icon_height = 0
@@ -70,7 +75,7 @@ message-bg-color: "#050506"
     id = "__timeout__"
     left = 50%-180
     width = 360
-    top = 82%
+    top = 88%
     height = 4
 
     show_text = false
