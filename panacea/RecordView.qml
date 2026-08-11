@@ -14,7 +14,10 @@ Item {
         forceActiveFocus();
         if (view.sys.cfg.recMic) view.sys.refreshMics();
     }
-    Keys.onEscapePressed: view.sys.collapse()
+    // Esc возвращает к плиткам, а не закрывает пилюлю целиком: страницу
+    // открыли из quick settings, туда же логично и вернуться.
+    function goBack() { view.sys.page = "main"; return true; }
+    Keys.onEscapePressed: view.goBack()
 
     readonly property var fpsOptions: [30, 60, 120]
     readonly property var dirOptions: ["~/Videos", "~/Pictures", "~/Desktop", "~/"]

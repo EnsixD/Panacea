@@ -18,14 +18,28 @@ Item {
 
     focus: true
     Component.onCompleted: forceActiveFocus()
-    Keys.onEscapePressed: {
-        // с подстраниц Esc возвращает назад, с главной — закрывает панель
-        if (view.sys.page === "wifi" || view.sys.page === "bt") view.sys.page = "main";
-        else if (view.sys.page === "traymenu") {
+
+    // Возврат на плитки. Вынесено в функцию, потому что Escape не всегда
+    // доходит сюда: фокус может сидеть в поле пароля Wi-Fi или в списке, и
+    // тогда событие всплывает мимо — до Loader'а в shell.qml. Он зовёт
+    // goBack() сам, и подстраница закрывается вместо всей панели.
+    function goBack() {
+        if (view.sys.page === "wifi" || view.sys.page === "bt"
+            || view.sys.page === "battery") {
+            view.sys.page = "main";
+            return true;
+        }
+        if (view.sys.page === "traymenu") {
             view.sys.page = "main";
             view.sys.trayMenuItem = null;
+            return true;
         }
-        else view.sys.collapse();
+        return false;
+    }
+
+    Keys.onEscapePressed: {
+        // с подстраниц Esc возвращает назад, с главной — закрывает панель
+        if (!view.goBack()) view.sys.collapse();
     }
 
     // ------------------------------------------------------- общие компоненты
@@ -171,6 +185,434 @@ Item {
         }
     }
 
+    // Кнопка-иконка нижнего ряда: замок, уведомления, настройки.
+    // Тултип — та же чёрная капсула, что всплывает над значками трея.
+    component IconBtn: Rectangle {
+        property string glyph: ""
+        property string tip: ""
+        property color glyphColor: view.sys.colMuted
+        property color activeColor: view.sys.colFg
+        property bool active: false
+        property int badge: 0
+        signal act()
+
+        implicitWidth: 44
+        implicitHeight: 44
+        radius: 13
+        z: ibMa.containsMouse ? 10 : 0
+        color: ibMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.05)
+        border.color: active ? Qt.rgba(0.13, 0.77, 0.37, 0.5) : view.sys.colLine
+        border.width: 1
+        Behavior on color { ColorAnimation { duration: 160 } }
+        Behavior on border.color { ColorAnimation { duration: 160 } }
+
+        scale: ibMa.pressed ? 0.9 : (ibMa.containsMouse ? 1.06 : 1.0)
+        Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
+
+        Glyph {
+            anchors.fill: parent
+            glyph: parent.glyph
+            color: parent.active ? parent.activeColor
+                 : ibMa.containsMouse ? view.sys.colFg : parent.glyphColor
+            fontFam: view.sys.fontFam
+            size: view.sys.iconSize - 2
+        }
+
+        // счётчик непрочитанных — только у колокольчика
+        Rectangle {
+            width: 15; height: 15; radius: 8
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 2
+            visible: parent.badge > 0
+            color: view.sys.colOn
+            Text {
+                anchors.centerIn: parent
+                text: parent.parent.badge > 9 ? "9+" : parent.parent.badge
+                color: "#ffffff"
+                font { family: view.sys.fontFam; pixelSize: 9; bold: true }
+            }
+        }
+
+        MouseArea {
+            id: ibMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: parent.act()
+        }
+
+        Rectangle {
+            id: ibTip
+            visible: opacity > 0.01
+            opacity: (ibMa.containsMouse && parent.tip.length) ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 140 } }
+
+            width: ibTipText.implicitWidth + 20
+            height: 26
+            radius: 13
+            x: (parent.width - width) / 2
+            y: -height - 8
+            color: Qt.rgba(0.04, 0.04, 0.05, 0.96)
+            border.color: view.sys.colLine
+            border.width: 1
+
+            scale: ibMa.containsMouse ? 1 : 0.92
+            transformOrigin: Item.Bottom
+            Behavior on scale {
+                NumberAnimation { duration: 160; easing.type: Easing.OutBack }
+            }
+
+            Text {
+                id: ibTipText
+                anchors.centerIn: parent
+                text: ibTip.parent.tip
+                color: view.sys.colFg
+                font { family: view.sys.fontFam; pixelSize: 11 }
+            }
+        }
+    }
+
+    // Волна «идёт зарядка»: две несинхронные синусоиды, налитые до уровня
+    // заряда и медленно ползущие вбок. Скругление рисуем прямо в канве и
+    // используем как маску — обычный clip у Item только прямоугольный.
+    component ChargeWave: Canvas {
+        property color tint: view.sys.colOk
+        property real level: 0.5        // доля высоты, до которой налито
+        property real radius: 14
+        property bool running: false
+        property real phase: 0
+
+        opacity: running ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 300 } }
+
+        onPhaseChanged: requestPaint()
+        onLevelChanged: requestPaint()
+
+        Timer {
+            interval: 45
+            running: parent.running && parent.visible
+            repeat: true
+            onTriggered: parent.phase += 0.16
+        }
+
+        onPaint: {
+            var ctx = getContext("2d");
+            ctx.reset();
+            if (width <= 0 || height <= 0) return;
+
+            // маска — скруглённый прямоугольник плитки
+            var r = Math.min(radius, Math.min(width, height) / 2);
+            ctx.beginPath();
+            ctx.moveTo(r, 0);
+            ctx.arcTo(width, 0, width, height, r);
+            ctx.arcTo(width, height, 0, height, r);
+            ctx.arcTo(0, height, 0, 0, r);
+            ctx.arcTo(0, 0, width, 0, r);
+            ctx.closePath();
+            ctx.clip();
+
+            // Уровень держим в стороне от краёв: у самого верха волна
+            // срезается маской и выглядит как ровная полоса.
+            var base = height * (1 - Math.max(0.12, Math.min(0.92, level)));
+            var amp = 3.2;
+
+            for (var w = 0; w < 2; w++) {
+                var off = w === 0 ? 0 : Math.PI * 0.7;
+                var k = w === 0 ? 0.055 : 0.041;
+                ctx.beginPath();
+                ctx.moveTo(0, height);
+                for (var x = 0; x <= width; x += 3) {
+                    var y = base + amp * Math.sin(k * x + phase + off)
+                                 + amp * 0.5 * Math.sin(k * 1.9 * x - phase * 0.7);
+                    if (x === 0) ctx.lineTo(0, y); else ctx.lineTo(x, y);
+                }
+                ctx.lineTo(width, height);
+                ctx.closePath();
+                ctx.fillStyle = Qt.rgba(tint.r, tint.g, tint.b, w === 0 ? 0.16 : 0.11);
+                ctx.fill();
+            }
+        }
+    }
+
+    // Компактная плитка для верхней строки: Wi-Fi и Bluetooth стоят рядом,
+    // а не двумя полосами друг под другом. Иконка меньше, подпись в две
+    // строки, шеврон убран — на треть ширины он только съедал место.
+    component MiniTile: Rectangle {
+        property string icon: ""
+        property string label: ""
+        property string sub: ""
+        property bool on: false
+        property color accent: view.sys.colOn
+        // плитка батареи наливается волной, пока идёт зарядка
+        property bool wave: false
+        property real waveLevel: 0.5
+        signal iconClicked()
+        signal bodyClicked()
+
+        // implicitWidth обязателен: содержимое прижато якорями, поэтому своей
+        // ширины у плитки нет, и RowLayout отдавал всю строку соседу — три
+        // карточки схлопывались друг на друга в точке 0,0.
+        implicitWidth: 140
+        implicitHeight: 56
+        radius: 14
+        color: on ? Qt.rgba(accent.r, accent.g, accent.b, 0.16) : Qt.rgba(1, 1, 1, 0.05)
+        border.color: on ? Qt.rgba(accent.r, accent.g, accent.b, 0.35) : view.sys.colLine
+        border.width: 1
+        Behavior on color { ColorAnimation { duration: 180 } }
+        Behavior on border.color { ColorAnimation { duration: 180 } }
+
+        // под содержимым: волна не должна перекрывать подписи
+        ChargeWave {
+            anchors.fill: parent
+            radius: parent.radius
+            tint: parent.accent
+            level: parent.waveLevel
+            running: parent.wave
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 9
+            anchors.rightMargin: 10
+            spacing: 8
+
+            Rectangle {
+                id: miniIcon
+                // крупнее прежних 30: в одном ряду с замком и шестернёй
+                // мелкие кружки выглядели вдавленными
+                Layout.preferredWidth: 38
+                Layout.preferredHeight: 38
+                radius: 19
+                color: miniIcon.parent.parent.on ? miniIcon.parent.parent.accent
+                                                 : Qt.rgba(1, 1, 1, 0.10)
+                Behavior on color { ColorAnimation { duration: 180 } }
+                scale: miniIconMa.pressed ? 0.9 : (miniIconMa.containsMouse ? 1.07 : 1.0)
+                Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutBack } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: miniIcon.parent.parent.icon
+                    color: "#ffffff"
+                    font { family: view.sys.fontFam; pixelSize: 17 }
+                }
+                MouseArea {
+                    id: miniIconMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: miniIcon.parent.parent.iconClicked()
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+                Text {
+                    Layout.fillWidth: true
+                    text: miniIcon.parent.parent.label
+                    color: view.sys.colFg
+                    elide: Text.ElideRight
+                    font { family: view.sys.fontFam; pixelSize: 12; bold: true }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: miniIcon.parent.parent.sub
+                    color: view.sys.colMuted
+                    elide: Text.ElideRight
+                    font { family: view.sys.fontFam; pixelSize: 10 }
+                }
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            anchors.leftMargin: 44     // не перекрываем круглую кнопку
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: parent.bodyClicked()
+        }
+    }
+
+    // Мелкая плашка с цифрой на странице батареи
+    component BattStat: Rectangle {
+        property string label: ""
+        property string value: ""
+
+        implicitWidth: 90
+        implicitHeight: 44
+        Layout.fillWidth: true
+        radius: 12
+        color: Qt.rgba(1, 1, 1, 0.05)
+        border.color: view.sys.colLine
+        border.width: 1
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 0
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                text: parent.parent.label
+                color: view.sys.colMuted
+                font { family: view.sys.fontFam; pixelSize: 10 }
+            }
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                text: parent.parent.value
+                color: view.sys.colFg
+                font { family: view.sys.fontFam; pixelSize: 12; bold: true }
+            }
+        }
+    }
+
+    // Круглая кнопка управления плеером в карточке трека.
+    component MediaBtn: Rectangle {
+        property string icon: ""
+        property bool primary: false
+        property bool enabledAction: true
+        signal act()
+
+        implicitWidth: primary ? 42 : 34
+        implicitHeight: primary ? 42 : 34
+        radius: width / 2
+        color: primary ? view.sys.colFg
+              : (mbMa.containsMouse ? view.sys.colHover : Qt.rgba(1, 1, 1, 0.08))
+        opacity: enabledAction ? 1 : 0.35
+        Behavior on color { ColorAnimation { duration: 140 } }
+        scale: mbMa.pressed ? 0.9 : (mbMa.containsMouse ? 1.08 : 1.0)
+        Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutBack } }
+
+        Text {
+            anchors.centerIn: parent
+            text: parent.icon
+            color: parent.primary ? view.sys.colBg : view.sys.colFg
+            font { family: view.sys.fontFam; pixelSize: parent.primary ? 17 : 14 }
+        }
+        MouseArea {
+            id: mbMa
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: parent.enabledAction
+            cursorShape: Qt.PointingHandCursor
+            onClicked: parent.act()
+        }
+    }
+
+    // Карточка звука той же высоты: название устройства сверху, под ним
+    // ползунок прямо в плитке — громкость правится не уходя на страницу.
+    component VolCard: Rectangle {
+        implicitWidth: 190
+        implicitHeight: 56
+        radius: 14
+        color: Qt.rgba(1, 1, 1, 0.05)
+        border.color: view.sys.colLine
+        border.width: 1
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 11
+            anchors.rightMargin: 11
+            anchors.topMargin: 7
+            anchors.bottomMargin: 8
+            spacing: 5
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Text {
+                    text: view.sys.tr("Звук")
+                    color: view.sys.colFg
+                    font { family: view.sys.fontFam; pixelSize: 12; bold: true }
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.sys.togglePage("audio")
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                    Layout.maximumWidth: 130
+                    text: view.sys.sinkName.length ? view.sys.sinkName
+                                                   : view.sys.tr("Нет устройств")
+                    color: view.sys.colMuted
+                    elide: Text.ElideRight
+                    font { family: view.sys.fontFam; pixelSize: 10 }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.sys.togglePage("audio")
+                    }
+                }
+            }
+
+            // Ползунок-дорожка: заполнение и есть «ручка», как в iOS —
+            // отдельный кружок на такой высоте некуда было бы поставить.
+            Item {
+                id: vol
+                Layout.fillWidth: true
+                Layout.preferredHeight: 22
+
+                readonly property var a: view.sys.sinkAudio
+                readonly property real pos: vol.a ? vol.a.volume : 0
+                function setFromX(x) {
+                    if (!vol.a) return;
+                    var r = Math.max(0, Math.min(1, x / Math.max(1, width)));
+                    // шаг 5%, как у мультимедийных клавиш
+                    vol.a.volume = Math.round(r * 20) / 20;
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: height / 2
+                    color: Qt.rgba(1, 1, 1, 0.12)
+                    clip: true
+
+                    Rectangle {
+                        width: Math.max(parent.height, parent.width * vol.pos)
+                        height: parent.height
+                        radius: height / 2
+                        color: view.sys.colFg
+                        Behavior on width {
+                            NumberAnimation { duration: volMa.pressed ? 0 : 120 }
+                        }
+                    }
+                }
+
+                // значок слева — он же кнопка «без звука»
+                Text {
+                    x: 6
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: !vol.a ? String.fromCodePoint(0xF075F)
+                        : vol.a.muted ? String.fromCodePoint(0xF075F)
+                        : vol.a.volume < 0.34 ? String.fromCodePoint(0xF057F)
+                        : vol.a.volume < 0.67 ? String.fromCodePoint(0xF0580)
+                                              : String.fromCodePoint(0xF057E)
+                    color: view.sys.colBg
+                    font { family: view.sys.fontFam; pixelSize: 15 }
+                }
+
+                MouseArea {
+                    id: volMa
+                    anchors.fill: parent
+                    // клик по самому значку — не тянуть, а заглушить
+                    anchors.leftMargin: 22
+                    preventStealing: true
+                    cursorShape: Qt.PointingHandCursor
+                    onPressed: mouse => vol.setFromX(mouse.x + 22)
+                    onPositionChanged: mouse => { if (pressed) vol.setFromX(mouse.x + 22); }
+                }
+                MouseArea {
+                    width: 22
+                    height: parent.height
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: if (vol.a) vol.a.muted = !vol.a.muted
+                }
+            }
+        }
+    }
+
     // Шапка страницы-списка: назад + заголовок + обновить
     component Header: RowLayout {
         property string title: ""
@@ -292,6 +734,7 @@ Item {
         implicitHeight: view.sys.page === "main" ? mainPage.implicitHeight
                       : view.sys.page === "wifi" ? wifiPage.implicitHeight
                       : view.sys.page === "traymenu" ? trayPage.implicitHeight
+                      : view.sys.page === "battery" ? battPage.implicitHeight
                       : btPage.implicitHeight
         // Высоту анимирует сама капсула в shell.qml. Вторая анимация здесь
         // складывалась с ней: капсула догоняла уже анимируемое значение,
@@ -357,229 +800,233 @@ Item {
                     }
                 }
 
-                // менеджер паролей: замок открыт, когда хранилище разблокировано
-                Rectangle {
-                    id: vaultBtn
-                    visible: view.sys.cfg.featVault
-                    Layout.preferredWidth: 32
-                    Layout.preferredHeight: 32
-                    radius: 16
-                    color: vaultMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
-                    border.color: view.sys.vaultUnlocked
-                                  ? Qt.rgba(0.13, 0.77, 0.37, 0.5) : view.sys.colLine
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: 160 } }
-                    Behavior on border.color { ColorAnimation { duration: 160 } }
-
-                    scale: vaultMa.pressed ? 0.9 : (vaultMa.containsMouse ? 1.08 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
-
-                    Glyph {
-                        anchors.fill: parent
-                        glyph: String.fromCodePoint(view.sys.vaultUnlocked ? 0xF0FC6 : 0xF033E)
-                        color: view.sys.vaultUnlocked ? "#22c55e"
-                             : vaultMa.containsMouse ? view.sys.colFg : view.sys.colMuted
-                        fontFam: view.sys.fontFam
-                        size: view.sys.iconSize - 3
-                    }
-
-                    MouseArea {
-                        id: vaultMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: view.sys.togglePage("vault")
-                    }
-                }
-
-                // колокольчик: активные уведомления и история
-                Rectangle {
-                    id: bellBtn
-                    visible: view.sys.cfg.featNotifications
-                    Layout.preferredWidth: 32
-                    Layout.preferredHeight: 32
-                    radius: 16
-                    color: bellMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
-                    border.color: view.sys.colLine
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: 160 } }
-
-                    scale: bellMa.pressed ? 0.9 : (bellMa.containsMouse ? 1.08 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
-
-                    Glyph {
-                        anchors.fill: parent
-                        glyph: String.fromCodePoint(view.sys.dnd ? 0xF009B : 0xF009A)
-                        color: view.sys.dnd ? view.sys.colMuted
-                             : bellMa.containsMouse ? view.sys.colFg : view.sys.colMuted
-                        fontFam: view.sys.fontFam
-                        size: view.sys.iconSize - 3
-                    }
-
-                    // счётчик непрочитанных
-                    Rectangle {
-                        width: 15; height: 15; radius: 8
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: -3
-                        visible: view.sys.notifications.count > 0
-                        color: view.sys.colOn
-                        Text {
-                            anchors.centerIn: parent
-                            text: view.sys.notifications.count > 9 ? "9+" : view.sys.notifications.count
-                            color: "#ffffff"
-                            font { family: view.sys.fontFam; pixelSize: 9; bold: true }
-                        }
-                    }
-
-                    MouseArea {
-                        id: bellMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: view.sys.togglePage("notif")
-                    }
-                }
-
-                Rectangle {
-                    id: gearBtn
-                    Layout.preferredWidth: 32
-                    Layout.preferredHeight: 32
-                    radius: 16
-                    color: gearMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
-                    border.color: view.sys.colLine
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: 160 } }
-
-                    scale: gearMa.pressed ? 0.9 : (gearMa.containsMouse ? 1.08 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
-
-                    Glyph {
-                        anchors.fill: parent
-                        glyph: String.fromCodePoint(0xF0493)
-                        color: gearMa.containsMouse ? view.sys.colFg : view.sys.colMuted
-                        fontFam: view.sys.fontFam
-                        size: view.sys.iconSize - 2
-                        rotation: gearMa.containsMouse ? 60 : 0
-                        Behavior on rotation {
-                            NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
-                        }
-                    }
-
-                    MouseArea {
-                        id: gearMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: view.sys.togglePage("settings")
-                    }
-                }
             }
 
-            Tile {
-                icon: view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
-                                       : view.sys.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
-                // подключены — в заголовке имя сети, иначе обычное «Wi-Fi»
-                label: (view.sys.wifiOn && view.sys.wifiSsid.length)
-                       ? view.sys.wifiSsid : "Wi-Fi"
-                sub: !view.sys.wifiOn ? view.sys.tr("Выключен")
-                   : (view.sys.wifiSsid.length
-                      ? view.sys.tr("Подключено") + " · " + view.sys.wifiQuality + "%"
-                      : view.sys.tr("Не подключено"))
-                on: view.sys.wifiOn
-                onIconClicked: view.sys.toggleWifi()
-                onBodyClicked: {
-                    // страница сетей могла быть отключена установщиком —
-                    // тогда плитка только переключает Wi-Fi
-                    if (!view.sys.wifiOn || !view.sys.cfg.featWifi) return;
-                    view.sys.page = "wifi";
-                    view.sys.refreshWifiList();
-                    view.sys.scanWifi();
-                }
-            }
-
-            Tile {
-                icon: view.sys.btOn ? "󰂯" : "󰂲"
-                // подключено устройство — его имя вместо «Bluetooth»
-                label: (view.sys.btOn && view.sys.btConnectedName.length)
-                       ? view.sys.btConnectedName : "Bluetooth"
-                sub: !view.sys.btOn ? view.sys.tr("Выключен")
-                   : (view.sys.btConnectedName.length
-                      ? (view.sys.tr("Подключено")
-                         + (view.sys.btConnectedBattery >= 0
-                            ? " · 󰥉 " + view.sys.btConnectedBattery + "%" : ""))
-                      : view.sys.tr("Нет подключений"))
-                on: view.sys.btOn
-                accent: "#0ea5e9"
-                onIconClicked: view.sys.toggleBt()
-                onBodyClicked: {
-                    if (!view.sys.btOn || !view.sys.cfg.featBluetooth) return;
-                    view.sys.page = "bt";
-                    view.sys.scanBt();
-                }
-            }
-
-            // ------------------------------------------------------ звук
-            Tile {
-                visible: view.sys.cfg.featAudio
-                icon: String.fromCodePoint(0xF057E)
-                label: view.sys.tr("Звук")
-                sub: view.sys.sinkName.length ? view.sys.sinkName
-                                              : view.sys.tr("Нет устройств")
-                on: false
-                accent: "#a855f7"
-                onIconClicked: view.sys.togglePage("audio")
-                onBodyClicked: view.sys.togglePage("audio")
-            }
-
-            // ---------------------------------------------- запись экрана
-            Tile {
-                visible: view.sys.cfg.featRecord
-                icon: String.fromCodePoint(view.sys.recActive ? 0xF04DB : 0xF044A)
-                label: view.sys.recActive
-                       ? view.sys.tr("Запись") + " · " + view.sys.recTimeText
-                       : view.sys.tr("Запись экрана")
-                sub: !view.sys.recActive
-                     ? view.sys.cfg.recFps + " FPS · " + view.sys.cfg.recDir
-                     : (view.sys.recPaused ? view.sys.tr("Пауза")
-                                           : view.sys.recFile.split("/").pop())
-                on: view.sys.recActive
-                accent: "#ef4444"
-                onIconClicked: view.sys.toggleRecord()
-                onBodyClicked: view.sys.togglePage("record")
-            }
-
-            // ------------------------------------------- режимы питания
+            // ------------------------------- Wi-Fi · Bluetooth · звук в строчку
+            // Три самых частых переключателя занимали три полосы подряд.
+            // Теперь это одна строка, а громкость правится прямо в плитке.
             RowLayout {
-                visible: view.sys.cfg.featPowerProfiles
                 Layout.fillWidth: true
-                Layout.topMargin: 2
-                spacing: 9
+                spacing: 8
 
-                PowerSeg {
-                    icon: "󰾆"
-                    label: view.sys.tr("Экономия")
-                    profile: "power-saver"
-                    accent: view.sys.colOk
+                MiniTile {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 56
+                    icon: view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
+                                           : view.sys.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
+                    // подключены — в заголовке имя сети, иначе обычное «Wi-Fi»
+                    label: (view.sys.wifiOn && view.sys.wifiSsid.length)
+                           ? view.sys.wifiSsid : "Wi-Fi"
+                    sub: !view.sys.wifiOn ? view.sys.tr("Выключен")
+                       : (view.sys.wifiSsid.length
+                          ? view.sys.wifiQuality + "%"
+                          : view.sys.tr("Не подключено"))
+                    on: view.sys.wifiOn
+                    onIconClicked: view.sys.toggleWifi()
+                    onBodyClicked: {
+                        // страница сетей могла быть отключена установщиком —
+                        // тогда плитка только переключает Wi-Fi
+                        if (!view.sys.wifiOn || !view.sys.cfg.featWifi) return;
+                        view.sys.openSub("wifi");
+                        view.sys.refreshWifiList();
+                        view.sys.scanWifi();
+                    }
                 }
-                PowerSeg {
-                    icon: "󰾅"
-                    label: view.sys.tr("Баланс")
-                    profile: "balanced"
-                    accent: view.sys.colOn
+
+                MiniTile {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 56
+                    icon: view.sys.btOn ? "󰂯" : "󰂲"
+                    // подключено устройство — его имя вместо «Bluetooth»
+                    label: (view.sys.btOn && view.sys.btConnectedName.length)
+                           ? view.sys.btConnectedName : "Bluetooth"
+                    sub: !view.sys.btOn ? view.sys.tr("Выключен")
+                       : (view.sys.btConnectedName.length
+                          ? (view.sys.btConnectedBattery >= 0
+                             ? "󰥉 " + view.sys.btConnectedBattery + "%"
+                             : view.sys.tr("Подключено"))
+                          : view.sys.tr("Нет подключений"))
+                    on: view.sys.btOn
+                    accent: "#0ea5e9"
+                    onIconClicked: view.sys.toggleBt()
+                    onBodyClicked: {
+                        if (!view.sys.btOn || !view.sys.cfg.featBluetooth) return;
+                        view.sys.openSub("bt");
+                        view.sys.scanBt();
+                    }
                 }
-                PowerSeg {
-                    icon: "󰓅"
-                    label: view.sys.tr("Максимум")
-                    profile: "performance"
-                    accent: "#f59e0b"
+
+                VolCard {
+                    visible: view.sys.cfg.featAudio
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 190
+                    Layout.preferredHeight: 56
                 }
             }
 
-            // ------------------------------------------- не спать + батарея
-            // Заряд стоит компактной плашкой справа от Coffee mode: обе
-            // строчки про «сколько машина ещё протянет», и вместе они
-            // занимают одну полосу вместо двух.
+            // ----------------------------------------------- играющий трек
+            // Стоит под переключателями: пока что-то играет, трек с кнопками
+            // и эквалайзером во всю ширину заменяет отдельную страницу
+            // плеера, которая раньше открывалась по наведению.
+            Rectangle {
+                id: mediaCard
+                readonly property var p: view.sys.player
+
+                visible: view.sys.mediaActive && view.sys.cfg.featPlayer
+                Layout.fillWidth: true
+                Layout.preferredHeight: 108
+                radius: 16
+                color: Qt.rgba(1, 1, 1, 0.05)
+                border.color: view.sys.colLine
+                border.width: 1
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 11
+                    anchors.rightMargin: 12
+                    anchors.topMargin: 10
+                    anchors.bottomMargin: 10
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 11
+
+                        // обложка — клик открывает подробную страницу плеера
+                        Rectangle {
+                            Layout.preferredWidth: 42
+                            Layout.preferredHeight: 42
+                            radius: 10
+                            color: Qt.rgba(1, 1, 1, 0.07)
+                            clip: true
+
+                            Image {
+                                id: cardArt
+                                anchors.fill: parent
+                                source: view.sys.mediaArt
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                sourceSize.width: 120
+                                visible: status === Image.Ready
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                visible: cardArt.status !== Image.Ready
+                                text: "󰝚"
+                                color: view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: 18 }
+                            }
+                            // клик по обложке — пауза: отдельной страницы
+                            // плеера больше нет, всё управление здесь
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (mediaCard.p) mediaCard.p.togglePlaying()
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: mediaCard.p ? mediaCard.p.trackTitle : ""
+                                color: view.sys.colFg
+                                elide: Text.ElideRight
+                                font { family: view.sys.fontFam; pixelSize: 13; bold: true }
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: mediaCard.p ? mediaCard.p.trackArtist : ""
+                                color: view.sys.colMuted
+                                elide: Text.ElideRight
+                                font { family: view.sys.fontFam; pixelSize: 11 }
+                            }
+                        }
+
+                        MediaBtn {
+                            icon: "󰒮"
+                            enabledAction: mediaCard.p ? mediaCard.p.canGoPrevious : false
+                            onAct: if (mediaCard.p) mediaCard.p.previous()
+                        }
+                        MediaBtn {
+                            icon: mediaCard.p && mediaCard.p.isPlaying ? "󰏤" : "󰐊"
+                            primary: true
+                            enabledAction: mediaCard.p ? mediaCard.p.canTogglePlaying : false
+                            onAct: if (mediaCard.p) mediaCard.p.togglePlaying()
+                        }
+                        MediaBtn {
+                            icon: "󰒭"
+                            enabledAction: mediaCard.p ? mediaCard.p.canGoNext : false
+                            onAct: if (mediaCard.p) mediaCard.p.next()
+                        }
+                    }
+
+                    // эквалайзер во всю ширину — тот же cava, что в пилюле
+                    WaveBars {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 28
+                        barCount: 42
+                        gap: 3
+                        barColor: view.sys.colFg
+                        active: mediaCard.p ? mediaCard.p.isPlaying : false
+                    }
+                }
+            }
+
+            // ------------------------------- запись экрана · режим батареи
+            // Режимы питания больше не занимают отдельную полосу из трёх
+            // сегментов: они уехали на страницу батареи, а сюда встала одна
+            // плитка рядом с записью.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                MiniTile {
+                    visible: view.sys.cfg.featRecord
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 56
+                    icon: String.fromCodePoint(view.sys.recActive ? 0xF04DB : 0xF044A)
+                    label: view.sys.recActive
+                           ? view.sys.tr("Запись") + " · " + view.sys.recTimeText
+                           : view.sys.tr("Запись экрана")
+                    sub: !view.sys.recActive
+                         ? view.sys.cfg.recFps + " FPS"
+                         : (view.sys.recPaused ? view.sys.tr("Пауза")
+                                               : view.sys.recFile.split("/").pop())
+                    on: view.sys.recActive
+                    accent: "#ef4444"
+                    onIconClicked: view.sys.toggleRecord()
+                    onBodyClicked: view.sys.togglePage("record")
+                }
+
+                MiniTile {
+                    visible: view.sys.cfg.featPowerProfiles || view.sys.batteryPresent
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 56
+                    icon: view.sys.batteryPresent ? view.sys.batteryLevelIcon
+                                                  : String.fromCodePoint(0xF0241)
+                    label: view.sys.batteryPresent
+                           ? view.sys.batteryPct + "%" : view.sys.tr("Батарея")
+                    // подпись — состояние питания и текущий режим, без
+                    // прогнозов «сколько осталось»: UPower врёт на глазах
+                    sub: view.sys.batteryCharging ? view.sys.tr("Заряжается")
+                       : view.sys.acOnline ? view.sys.tr("От сети")
+                                           : view.sys.profileLabel
+                    on: view.sys.batteryCharging || view.sys.acOnline
+                    wave: view.sys.batteryCharging
+                    waveLevel: view.sys.batteryPct / 100
+                    accent: view.sys.batteryPct <= 15 && !view.sys.acOnline
+                            ? view.sys.colCrit : view.sys.colOk
+                    onIconClicked: view.sys.openSub("battery")
+                    onBodyClicked: view.sys.openSub("battery")
+                }
+            }
+
+            // -------------------------------- не спать + кнопки-иконки
+            // Замок, уведомления и настройки уехали сюда из правого верхнего
+            // угла: одна нижняя полоса вместо значков, спорящих с часами.
             RowLayout {
             Layout.fillWidth: true
             spacing: 8
@@ -604,12 +1051,12 @@ Item {
                     spacing: 11
 
                     Glyph {
-                        Layout.preferredWidth: 22
-                        Layout.preferredHeight: 22
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
                         glyph: String.fromCodePoint(view.sys.keepAwake ? 0xF0176 : 0xF0177)
                         color: view.sys.keepAwake ? "#f59e0b" : view.sys.colMuted
                         fontFam: view.sys.fontFam
-                        size: view.sys.iconSize - 2
+                        size: view.sys.iconSize + 2
                     }
                     Text {
                         Layout.fillWidth: true
@@ -648,56 +1095,29 @@ Item {
                 }
             }
 
-            // ------------------------------------------------------ батарея
-            Rectangle {
-                id: battChip
-                visible: view.sys.batteryPresent
-                // По содержимому, а не на всю строку: Coffee mode тянется,
-                // плашка остаётся ровно такой, какой нужна.
-                Layout.preferredWidth: battRow.implicitWidth + 24
-                Layout.preferredHeight: 44
-                radius: 12
-                color: Qt.rgba(1, 1, 1, 0.05)
-                border.color: view.sys.colLine
-                border.width: 1
+            // менеджер паролей: замок открыт, когда хранилище разблокировано
+            IconBtn {
+                visible: view.sys.cfg.featVault
+                glyph: String.fromCodePoint(view.sys.vaultUnlocked ? 0xF0FC6 : 0xF033E)
+                tip: view.sys.tr("Пароли")
+                active: view.sys.vaultUnlocked
+                activeColor: "#22c55e"
+                onAct: view.sys.togglePage("vault")
+            }
 
-                readonly property color tint:
-                    view.sys.batteryCharging || view.sys.acOnline ? view.sys.colOk
-                  : view.sys.batteryPct <= 15 ? view.sys.colCrit
-                  : view.sys.colFg
+            // колокольчик: активные уведомления и история
+            IconBtn {
+                visible: view.sys.cfg.featNotifications
+                glyph: String.fromCodePoint(view.sys.dnd ? 0xF009B : 0xF009A)
+                tip: view.sys.dnd ? view.sys.tr("Не беспокоить") : view.sys.tr("Уведомления")
+                badge: view.sys.notifications.count
+                onAct: view.sys.togglePage("notif")
+            }
 
-                RowLayout {
-                    id: battRow
-                    anchors.centerIn: parent
-                    spacing: 5
-
-                    Glyph {
-                        Layout.preferredWidth: 22
-                        Layout.preferredHeight: 22
-                        glyph: view.sys.batteryLevelIcon
-                        color: battChip.tint
-                        fontFam: view.sys.fontFam
-                        size: view.sys.iconSize - 2
-                    }
-                    Glyph {
-                        visible: view.sys.batteryCharging
-                        Layout.preferredWidth: visible ? 12 : 0
-                        Layout.preferredHeight: 22
-                        glyph: String.fromCodePoint(0xF0241)  // молния
-                        color: view.sys.colOk
-                        fontFam: view.sys.fontFam
-                        size: view.sys.iconSize - 6
-                    }
-                    Text {
-                        text: view.sys.batteryPct + "%"
-                        color: battChip.tint
-                        font {
-                            family: view.sys.fontFam
-                            pixelSize: view.sys.fontSize - 2
-                            bold: true
-                        }
-                    }
-                }
+            IconBtn {
+                glyph: String.fromCodePoint(0xF0493)
+                tip: view.sys.tr("Настройки")
+                onAct: view.sys.togglePage("settings")
             }
             }
 
@@ -805,6 +1225,160 @@ Item {
                 }
 
                 Item { Layout.fillWidth: true }
+            }
+        }
+
+        // ---------------------------------------------------------- батарея
+        // Режимы питания плюс всё, что UPower знает про заряд: сколько
+        // осталось работы (или до полной зарядки), ёмкость и износ.
+        ColumnLayout {
+            id: battPage
+            width: parent.width
+            spacing: 8
+            opacity: view.sys.page === "battery" ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: view.sys.animFast } }
+
+            Header {
+                title: view.sys.tr("Батарея")
+                onBack: view.sys.page = "main"
+            }
+
+            // крупная строка состояния: процент и что происходит сейчас
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 62
+                radius: 14
+                color: Qt.rgba(1, 1, 1, 0.05)
+                border.color: view.sys.colLine
+                border.width: 1
+
+                readonly property color tint:
+                    view.sys.batteryCharging || view.sys.acOnline ? view.sys.colOk
+                  : view.sys.batteryPct <= 15 ? view.sys.colCrit
+                  : view.sys.colFg
+
+                // пока подключена зарядка — плашка налита живой волной
+                ChargeWave {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    tint: view.sys.colOk
+                    level: view.sys.batteryPct / 100
+                    running: view.sys.batteryCharging
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 14
+                    anchors.rightMargin: 14
+                    spacing: 12
+
+                    Glyph {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        glyph: view.sys.batteryLevelIcon
+                        color: parent.parent.tint
+                        fontFam: view.sys.fontFam
+                        size: view.sys.iconSize + 3
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 1
+                        Text {
+                            text: view.sys.batteryPct + "%"
+                            color: parent.parent.parent.tint
+                            font { family: view.sys.fontFam; pixelSize: 18; bold: true }
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: view.sys.batteryCharging
+                                  ? view.sys.tr("Заряжается")
+                                  : view.sys.acOnline ? view.sys.tr("От сети")
+                                                      : view.sys.profileLabel
+                            color: view.sys.colMuted
+                            elide: Text.ElideRight
+                            font { family: view.sys.fontFam; pixelSize: 11 }
+                        }
+                    }
+
+                    // Индикатор питания вместо прогнозов времени: молния,
+                    // когда идёт зарядка, вилка — когда просто от сети.
+                    Rectangle {
+                        Layout.preferredWidth: 30
+                        Layout.preferredHeight: 30
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: 15
+                        visible: view.sys.batteryCharging || view.sys.acOnline
+                        color: Qt.rgba(view.sys.colOk.r, view.sys.colOk.g,
+                                       view.sys.colOk.b, 0.18)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: String.fromCodePoint(
+                                      view.sys.batteryCharging ? 0xF0241 : 0xF06A5)
+                            color: view.sys.colOk
+                            font { family: view.sys.fontFam; pixelSize: 15 }
+                            // пока заряжается — молния мягко пульсирует
+                            SequentialAnimation on opacity {
+                                running: view.sys.batteryCharging
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.4; duration: 750; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 1.0; duration: 750; easing.type: Easing.InOutSine }
+                            }
+                            onVisibleChanged: if (!visible) opacity = 1
+                        }
+                    }
+                }
+            }
+
+            // режимы питания — те самые три сегмента, теперь живут здесь
+            RowLayout {
+                visible: view.sys.cfg.featPowerProfiles
+                Layout.fillWidth: true
+                spacing: 8
+
+                PowerSeg {
+                    icon: "󰾆"
+                    label: view.sys.tr("Экономия")
+                    profile: "power-saver"
+                    accent: view.sys.colOk
+                }
+                PowerSeg {
+                    icon: "󰾅"
+                    label: view.sys.tr("Баланс")
+                    profile: "balanced"
+                    accent: view.sys.colOn
+                }
+                PowerSeg {
+                    icon: "󰓅"
+                    label: view.sys.tr("Максимум")
+                    profile: "performance"
+                    accent: "#f59e0b"
+                }
+            }
+
+            // мелкие цифры — ёмкость, износ и текущий расход, в одну полосу
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                visible: view.sys.batteryPresent
+
+                BattStat {
+                    label: view.sys.tr("Ёмкость")
+                    value: view.sys.batteryCapacity > 0
+                           ? view.sys.batteryCapacity.toFixed(1) + " Wh" : "—"
+                }
+                BattStat {
+                    label: view.sys.tr("Износ")
+                    value: view.sys.batteryHealth > 0
+                           ? view.sys.batteryHealth + "%" : "—"
+                }
+                BattStat {
+                    label: view.sys.batteryCharging ? "󰐥" : "󰚥"
+                    value: Math.abs(view.sys.batteryRate) > 0.05
+                           ? Math.abs(view.sys.batteryRate).toFixed(1) + " W" : "—"
+                }
             }
         }
 

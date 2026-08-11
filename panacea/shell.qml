@@ -454,6 +454,12 @@ PanelWindow {
         "Экономия": "Power saver",
         "Баланс": "Balanced",
         "Максимум": "Performance",
+        "Батарея": "Battery",
+        "Режим": "Mode",
+        "Ёмкость": "Capacity",
+        "Износ": "Health",
+        "От сети": "On AC",
+        "Заряжается": "Charging",
         "Поиск приложений": "Search apps",
         "Сети": "Networks",
         "Устройства": "Devices",
@@ -941,6 +947,17 @@ PanelWindow {
     // По ready сводного устройства, а не по isLaptopBattery: у displayDevice
     // это составной агрегат, и признак ноутбучной батареи на нём не выставлен.
     readonly property bool batteryPresent: battDev !== null && battDev.ready
+
+    // Подробности для страницы «Батарея»: ёмкость, износ и текущий расход.
+    // Прогнозов «сколько осталось» здесь намеренно нет — UPower пересчитывает
+    // их рывками, и цифра прыгала на глазах.
+    readonly property real batteryHealth:
+        battDev && battDev.ready ? Math.round(battDev.healthPercentage) : 0
+    readonly property real batteryCapacity:
+        battDev && battDev.ready ? battDev.energyCapacity : 0
+    // Вт: положительная — заряд, отрицательная — разряд
+    readonly property real batteryRate:
+        battDev && battDev.ready ? battDev.changeRate : 0
 
     readonly property string batteryIcon: {
         // Заряжается — молния. От сети без зарядки — обычная батарея,
@@ -1590,6 +1607,12 @@ PanelWindow {
         onRunningChanged: if (!running) pPowerGet.running = true
     }
     Timer { interval: 10000; running: true; repeat: true; onTriggered: pPowerGet.running = true }
+
+    // Человеческое имя текущего режима питания — для подписи плитки батареи
+    readonly property string profileLabel:
+        powerProfile === "power-saver" ? tr("Экономия")
+      : powerProfile === "performance" ? tr("Максимум")
+                                       : tr("Баланс")
 
     function setPowerProfile(name) {
         // отражаем сразу, потом подтверждаем реальным значением от демона
@@ -2506,15 +2529,21 @@ PanelWindow {
             focus: true
             onLoaded: if (item) item.forceActiveFocus()
             // Esc закрывает любую страницу: если сам вид его не обработал
-            // (или обработал только на подстранице), событие всплывает сюда
-            Keys.onEscapePressed: root.collapse()
+            // (или обработал только на подстранице), событие всплывает сюда.
+            // Сначала спрашиваем вид, есть ли ему куда вернуться: со списка
+            // сетей или устройств Escape должен уводить к плиткам, а не
+            // захлопывать панель целиком.
+            Keys.onEscapePressed: {
+                var it = contentLoader.item;
+                if (it && typeof it.goBack === "function" && it.goBack()) return;
+                root.collapse();
+            }
             opacity: root.expanded ? 1 : 0
             Behavior on opacity {
                 NumberAnimation { duration: root.expanded ? root.animFast : 70 }
             }
 
             sourceComponent: root.page === "launcher" ? launcherComp
-                           : root.page === "player"   ? playerComp
                            : root.page === "settings" ? settingsComp
                            : root.page === "clip"     ? clipComp
                            : root.page === "power"    ? powerComp
@@ -2608,6 +2637,60 @@ PanelWindow {
         anchors.left: capsule.right
         opacity: root.settingsMode ? 0 : 1
         Behavior on opacity { NumberAnimation { duration: root.animFast } }
+    }
+}
+
+// Обзор рабочих столов — отдельный полноэкранный слой: пилюля тут ни при
+// чём, а клавиатура нужна целиком.
+LazyLoader {
+    activeAsync: root.overviewOpen
+
+    PanelWindow {
+        anchors { top: true; bottom: true; left: true; right: true }
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: root.overviewOpen ? WlrKeyboardFocus.Exclusive
+                                                       : WlrKeyboardFocus.None
+        visible: root.overviewOpen
+
+        Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(0, 0, 0, 0.55)
+            opacity: root.overviewOpen ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 160 } }
+        }
+
+        OverviewView {
+            anchors.fill: parent
+            sys: root
+        }
+    }
+}
+
+// Проводник отдельным окном. Живёт на уровне ShellRoot, а не внутри
+// пилюли: окно не может быть ребёнком другого окна.
+Instantiator {
+    model: filesWindows
+
+    FloatingWindow {
+        required property var model
+        title: "Panacea · " + root.tr("Проводник")
+        color: root.colBg
+        minimumSize.width: 720
+        minimumSize.height: 460
+        visible: true
+        // крестик в заголовке — окно должно уйти и из списка
+        onVisibleChanged: if (!visible) root.closeFilesWindow(model.wid)
+
+        FilesView {
+            anchors.fill: parent
+            anchors.margins: 15
+            sys: root
+            // в оконном режиме закрывать надо своё окно, а не пилюлю
+            windowMode: true
+            windowId: model.wid
+        }
     }
 }
 

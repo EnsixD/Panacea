@@ -11,7 +11,10 @@ Item {
 
     focus: true
     Component.onCompleted: forceActiveFocus()
-    Keys.onEscapePressed: view.sys.collapse()
+    // Esc возвращает к плиткам, а не закрывает пилюлю целиком: страницу
+    // открыли из quick settings, туда же логично и вернуться.
+    function goBack() { view.sys.page = "main"; return true; }
+    Keys.onEscapePressed: view.goBack()
 
     ColumnLayout {
         id: col
