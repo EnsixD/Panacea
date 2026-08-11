@@ -1143,12 +1143,24 @@ PanelWindow {
     }
     function touchVault() { if (root.vaultUnlocked) vaultIdle.restart(); }
 
+    // Закрывается сразу, но ключ и записи держим до конца недописанного
+    // сохранения: иначе правка, сделанная за секунду до блокировки, пропадала.
+    property bool vaultLockPending: false
+    function finishLockVault() {
+        root.vaultLockPending = false;
+        root.vaultKey = "";
+        root.vaultEntries = [];
+    }
     function lockVault() {
         vaultIdle.stop();
         root.vaultUnlocked = false;
-        root.vaultKey = "";
-        root.vaultEntries = [];
         root.vaultError = "";
+        if (root.vaultDirty || pVaultSave.running) {
+            root.vaultLockPending = true;
+            vaultSaveTimer.restart();
+            return;
+        }
+        finishLockVault();
     }
 
     PamContext {
@@ -1219,11 +1231,39 @@ PanelWindow {
     Process {
         id: pVaultSave
         stdinEnabled: true
-        onExited: code => { if (code !== 0) root.vaultError = root.tr("Не удалось сохранить"); }
+        onExited: code => {
+            if (code !== 0) root.vaultError = root.tr("Не удалось сохранить");
+            // за время записи список мог измениться ещё раз — пишем снова
+            if (root.vaultDirty) vaultSaveTimer.restart();
+            else if (root.vaultLockPending) root.finishLockVault();
+        }
+    }
+
+    // Запись идёт через один процесс, поэтому подряд идущие правки нельзя
+    // отправлять «в лоб». Раньше «Добавить все» вызывал vaultSave() на каждую
+    // запись: первый вызов запускал openssl, остальные видели running === true,
+    // ничего не запускали, а их write() уходил в уже закрытый stdin. На диск
+    // попадала одна первая запись — отсюда «пароли не сохраняются».
+    // Теперь правки копятся и уходят одним файлом.
+    property bool vaultDirty: false
+    Timer {
+        id: vaultSaveTimer
+        interval: 120
+        onTriggered: root.vaultFlush()
     }
     function vaultSave() {
         if (!root.vaultUnlocked) return;
         touchVault();
+        root.vaultDirty = true;
+        vaultSaveTimer.restart();
+    }
+    function vaultFlush() {
+        // Не по vaultUnlocked: закрытие хранилища ждёт именно этой записи,
+        // а к тому моменту флаг уже снят.
+        if (root.vaultKey.length === 0) return;
+        // предыдущая запись ещё идёт — подождём и попробуем снова
+        if (pVaultSave.running) { vaultSaveTimer.restart(); return; }
+        root.vaultDirty = false;
         pVaultSave.stdinEnabled = true;
         pVaultSave.command = ["sh", "-c",
             Quickshell.env("HOME") + "/.config/panacea/scripts/vault.sh save"];

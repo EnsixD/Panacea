@@ -38,6 +38,9 @@ FocusScope {
         z: -1
     }
 
+    function goBack() { view.sys.page = "main"; return true; }
+    Keys.onEscapePressed: view.goBack()
+
     property string editId: ""       // id записи в режиме правки
     property string query: ""
 
@@ -147,7 +150,9 @@ FocusScope {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: view.sys.lockVault()
+                    // закрыли хранилище — держать пустую страницу с запросом
+                    // пароля незачем, уходим к плиткам
+                    onClicked: { view.sys.lockVault(); view.sys.page = "main"; }
                 }
             }
         }
