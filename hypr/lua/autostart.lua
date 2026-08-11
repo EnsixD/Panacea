@@ -28,7 +28,13 @@ hl.on("hyprland.start", function ()
   -- Два агента одновременно зарегистрироваться не могут.
   -- hl.exec_cmd("systemctl --user start hyprpolkitagent")
   hl.exec_cmd("hyprsunset -t 5000")
-  hl.exec_cmd("/home/ensi/.config/hypr/scripts/switch_theme.sh --restore")
+  -- автомонтирование флешек и карт: без него раздел «Съёмные»
+  -- в проводнике не появится сам
+  hl.exec_cmd("udiskie --no-notify --no-tray")
+  -- Восстановление последней темы. Путь через $HOME, а не /home/ensi:
+  -- на чужой машине жёсткий путь молча не срабатывал, и после перезагрузки
+  -- возвращалась тема из theme.conf, положенного установщиком.
+  hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/switch_theme.sh --restore")
   hl.exec_cmd("rm -f $XDG_RUNTIME_DIR/wob.fifo && mkfifo $XDG_RUNTIME_DIR/wob.fifo")
   hl.exec_cmd("cliphist list | tail -n +501 | cliphist delete")
 end)

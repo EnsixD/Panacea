@@ -74,6 +74,8 @@ DEPS=(
     "python3|python|helper scripts"
     "rfkill|util-linux|Bluetooth soft-unblock"
     "openssl|openssl|encrypting the password vault"
+    "upower|upower|battery state and the battery page"
+    "lsblk|util-linux|disks and removable media in the file manager"
     "cava|cava|the audio spectrum in the pill"
 )
 FILE_DEPS=(
@@ -82,6 +84,10 @@ FILE_DEPS=(
 )
 EXTRA_PKGS=(power-profiles-daemon bluez bluez-utils iwd cava pipewire-audio
             ttf-jetbrains-mono-nerd papirus-icon-theme
+            # носители в проводнике: udisks2 монтирует, udiskie делает это
+            # автоматически при подключении — без него раздел «Съёмные»
+            # появится только после ручного монтирования
+            udisks2 udiskie
             # необязательные: без них импорт паролей из браузеров просто
             # пропускает соответствующее семейство, всё остальное работает
             python-secretstorage python-cryptography)
@@ -165,13 +171,29 @@ install_configs() {
     chmod +x "$CONF"/panacea/scripts/*.sh 2>/dev/null
     chmod +x "$CONF"/panacea/scripts/*.py 2>/dev/null
     chmod +x "$CONF"/hypr/scripts/*.sh 2>/dev/null
+    personalize_paths
+}
+
+# В репозитории часть путей записана как /home/ensi — так их писал автор.
+# На чужой машине это молча ломало обои, темы (тема переставала
+# восстанавливаться после перезагрузки) и мультимедийные клавиши.
+# После копирования переписываем их на домашний каталог того, кто ставит.
+personalize_paths() {
+    [ "$HOME" = "/home/ensi" ] && return 0
+    local n=0
+    while IFS= read -r f; do
+        sed -i "s|/home/ensi|$HOME|g" "$f" && n=$((n + 1))
+    done < <(grep -rl '/home/ensi' "$CONF/hypr" "$CONF/panacea" "$HOME/.local/bin" 2>/dev/null)
+    [ "$n" -gt 0 ] && ok "paths rewritten to $HOME in $n files"
+    return 0
 }
 
 # ------------------------------------------------------------------- services
 enable_services() {
     command -v systemctl >/dev/null 2>&1 || return 0
-    # Bluetooth and power profiles are what the pill talks to; iwd backs Wi-Fi.
-    for svc in bluetooth power-profiles-daemon iwd; do
+    # Bluetooth and power profiles are what the pill talks to; iwd backs Wi-Fi,
+    # upower feeds the charge indicator in the pill and the battery page.
+    for svc in bluetooth power-profiles-daemon iwd upower; do
         if systemctl list-unit-files "$svc.service" >/dev/null 2>&1; then
             sudo systemctl enable --now "$svc.service" >/dev/null 2>&1 \
                 && ok "$svc enabled" || warn "could not enable $svc"
