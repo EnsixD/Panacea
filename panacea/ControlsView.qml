@@ -14,6 +14,16 @@ Item {
     id: view
     property var sys
 
+    // «м:сс» для полосы продолжительности; часы появляются только если нужны
+    function fmtTime(sec) {
+        var t = Math.max(0, Math.floor(sec));
+        var h = Math.floor(t / 3600);
+        var m = Math.floor((t % 3600) / 60);
+        var s = t % 60;
+        var mm = h > 0 && m < 10 ? "0" + m : String(m);
+        return (h > 0 ? h + ":" : "") + mm + ":" + (s < 10 ? "0" + s : String(s));
+    }
+
     implicitHeight: stack.implicitHeight
 
     focus: true
@@ -874,7 +884,7 @@ Item {
 
                 visible: view.sys.mediaActive && view.sys.cfg.featPlayer
                 Layout.fillWidth: true
-                Layout.preferredHeight: 108
+                Layout.preferredHeight: 124
                 radius: 16
                 color: Qt.rgba(1, 1, 1, 0.05)
                 border.color: view.sys.colLine
@@ -963,14 +973,177 @@ Item {
                         }
                     }
 
-                    // эквалайзер во всю ширину — тот же cava, что в пилюле
-                    WaveBars {
+                    // ------------------- полоса продолжительности с cava
+                    // Эквалайзер и есть ползунок: пройденная часть спектра
+                    // светится акцентом, остаток — приглушённый. Так плашка
+                    // не растёт на две отдельные полосы, а перемотка видна
+                    // прямо по звуку.
+                    //
+                    // Оба слоя берут один и тот же поток из CavaSource,
+                    // поэтому полосы в них совпадают кадр в кадр, и стык
+                    // между «сыграно» и «осталось» не видно.
+                    Item {
+                        id: seek
+                        readonly property var p: mediaCard.p
+                        readonly property real dur: seek.p ? Math.max(0, seek.p.length) : 0
+                        readonly property bool usable:
+                            seek.p !== null && seek.dur > 0
+                            && seek.p.positionSupported && seek.p.canSeek
+                        readonly property real frac: seek.dur > 0
+                                ? Math.max(0, Math.min(1, seek.pos / seek.dur)) : 0
+
+                        // позиция, которую показываем: секунды
+                        property real pos: 0
+                        property bool dragging: false
+                        // до первого опроса анимация выключена: иначе на
+                        // раскрытии полоса ехала от нуля к текущему месту
+                        property bool primed: false
+
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 28
-                        barCount: 42
-                        gap: 3
-                        barColor: view.sys.colFg
-                        active: mediaCard.p ? mediaCard.p.isPlaying : false
+                        Layout.preferredHeight: 34
+                        visible: seek.p !== null
+                        // панель закрыли — при следующем раскрытии позиция
+                        // должна встать на место сразу, а не доезжать
+                        Component.onDestruction: seek.primed = false
+
+                        // MPRIS отдаёт позицию только по запросу: между
+                        // опросами полосу двигает линейная анимация, иначе
+                        // она прыгала бы раз в полсекунды. На перетаскивании
+                        // анимация выключена — ручка идёт точно за курсором.
+                        Behavior on pos {
+                            enabled: seek.primed && !seek.dragging
+                            NumberAnimation { duration: 520; easing.type: Easing.Linear }
+                        }
+                        Timer {
+                            interval: 500
+                            repeat: true
+                            running: seek.visible && seek.p !== null
+                            triggeredOnStart: true
+                            onTriggered: {
+                                if (seek.p === null) return;
+                                seek.p.positionChanged();
+                                if (seek.dragging) return;
+                                seek.pos = seek.p.position;
+                                seek.primed = true;
+                            }
+                        }
+                        Connections {
+                            target: mediaCard.p
+                            ignoreUnknownSignals: true
+                            // сменился трек — начинаем с нуля, без переезда
+                            function onTrackTitleChanged() {
+                                seek.dragging = false;
+                                seek.primed = false;   // новый трек — снова без переезда
+                                seek.pos = 0;
+                            }
+                        }
+
+                        function fracOf(x) {
+                            return Math.max(0, Math.min(1, x / Math.max(1, seek.width)));
+                        }
+
+                        // остаток трека — приглушённые полосы
+                        WaveBars {
+                            id: barsRest
+                            anchors.fill: parent
+                            barCount: 46
+                            gap: 3
+                            barColor: Qt.rgba(1, 1, 1, 0.22)
+                            active: seek.p ? seek.p.isPlaying : false
+                        }
+
+                        // сыграно — те же полосы акцентом, обрезанные по позиции
+                        Item {
+                            width: seek.width * seek.frac
+                            height: seek.height
+                            clip: true
+                            WaveBars {
+                                width: seek.width
+                                height: seek.height
+                                barCount: 46
+                                gap: 3
+                                barColor: view.sys.colOn
+                                // Оба слоя живые: с active: false верхние полосы
+                                // стояли на месте, и в ритм двигались только
+                                // серые из-под них. Поток у CavaSource общий и
+                                // считается по ссылкам, второго процесса нет.
+                                active: seek.p ? seek.p.isPlaying : false
+                            }
+                        }
+
+                        // тонкая линия по низу: без неё пустые паузы в звуке
+                        // выглядели бы обрывом полосы
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            height: 2
+                            radius: 1
+                            color: Qt.rgba(1, 1, 1, 0.12)
+                            Rectangle {
+                                width: parent.width * seek.frac
+                                height: parent.height
+                                radius: 1
+                                color: view.sys.colOn
+                            }
+                        }
+
+                        // ручка — вертикальная риска на позиции
+                        Rectangle {
+                            x: seek.width * seek.frac - width / 2
+                            width: seekMa.pressed ? 3 : 2
+                            height: parent.height
+                            radius: 1.5
+                            color: "#ffffff"
+                            opacity: seek.usable ? (seekMa.containsMouse || seekMa.pressed
+                                                    ? 1 : 0.75) : 0.3
+                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                            Behavior on width { NumberAnimation { duration: 120 } }
+                        }
+
+                        MouseArea {
+                            id: seekMa
+                            anchors.fill: parent
+                            anchors.margins: -3
+                            hoverEnabled: true
+                            preventStealing: true
+                            enabled: seek.usable
+                            cursorShape: seek.usable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onPressed: mouse => {
+                                seek.dragging = true;
+                                seek.pos = seek.fracOf(mouse.x) * seek.dur;
+                            }
+                            onPositionChanged: mouse => {
+                                if (!pressed) return;
+                                seek.pos = seek.fracOf(mouse.x) * seek.dur;
+                            }
+                            onReleased: mouse => {
+                                // отправляем плееру уже на отпускании: на каждом
+                                // кадре MPRIS-клиент начинает спорить и дёргать
+                                // позицию назад
+                                if (seek.usable) seek.p.position = seek.pos;
+                                seek.dragging = false;
+                            }
+                            onCanceled: seek.dragging = false
+                        }
+                    }
+
+                    // время: прошло и всего
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: -6
+                        visible: seek.visible && seek.dur > 0
+                        Text {
+                            text: view.fmtTime(seek.pos)
+                            color: view.sys.colMuted
+                            font { family: view.sys.fontFam; pixelSize: 10 }
+                        }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: view.fmtTime(seek.dur)
+                            color: Qt.rgba(1, 1, 1, 0.28)
+                            font { family: view.sys.fontFam; pixelSize: 10 }
+                        }
                     }
                 }
             }
