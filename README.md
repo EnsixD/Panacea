@@ -15,8 +15,7 @@ gap, no border — only the content changes.
 ## Demo
 
 
-https://github.com/user-attachments/assets/f00d4d0e-ebbf-4718-9cc2-b3b663960073
-
+https://github.com/user-attachments/assets/39f9b55b-6d42-4092-bd4c-c4da9b4f5fc6
 
 
 <sub>A ~1-minute silent tour, recorded with the pill's own screen recorder.
