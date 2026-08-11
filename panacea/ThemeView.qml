@@ -11,7 +11,8 @@ Item {
 
     implicitHeight: col.implicitHeight
 
-    readonly property int columns: 4
+    // список в одну колонку: вверх-вниз двигают выбор
+    readonly property int columns: 1
     property int current: 0
 
     focus: true
@@ -65,7 +66,26 @@ Item {
     }
     Process {
         id: pSet
-        onRunningChanged: if (!running) { view.applying = ""; view.reload(); }
+        onRunningChanged: {
+            if (running) return;
+            view.applying = "";
+            // Список НЕ перечитываем: reload() очищал модель, панель на кадр
+            // схлопывалась до нуля и разъезжалась заново — со стороны это
+            // выглядело как повторное открытие прямо перед закрытием.
+            // Тема уже применена, а при следующем открытии список соберётся
+            // заново сам.
+            fadeOut.restart();
+        }
+    }
+    Timer {
+        id: fadeOut
+        interval: 120
+        onTriggered: { view.sys.endThemeFade(); closeAfter.restart(); }
+    }
+    Timer {
+        id: closeAfter
+        interval: 380
+        onTriggered: view.sys.collapse()
     }
 
     function reload() {
@@ -75,6 +95,9 @@ Item {
     }
     function apply(name) {
         view.applying = name;
+        // снимок нынешних обоев ДО запуска скрипта: после него на диске
+        // уже новый путь и снимать будет нечего
+        view.sys.startThemeFade();
         pSet.command = ["sh", "-c", view.sys.scriptDir + "/themes.sh set \"$1\"", "_", name];
         pSet.running = true;
     }
@@ -88,19 +111,19 @@ Item {
     ColumnLayout {
         id: col
         width: parent.width
-        spacing: 14
+        spacing: 9
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 10
+            spacing: 9
+
             Text {
-                text: "Panacea"
+                text: view.sys.tr("Темы")
                 color: view.sys.colFg
-                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 5; bold: true }
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 1; bold: true }
             }
             Text {
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignBaseline
                 text: view.sys.tr("обои")
                 color: Qt.rgba(1, 1, 1, 0.28)
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3; italic: true }
@@ -110,195 +133,210 @@ Item {
                 text: view.sys.tr("Применяю…")
                 color: view.sys.colOn
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                opacity: view.applying.length > 0 ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 160 } }
             }
         }
 
-        GridLayout {
+        // Узкий список вместо сетки во весь экран: строка = маленькое превью
+        // обоев плюс название. Пилюля остаётся пилюлей.
+        ListView {
+            id: list
             Layout.fillWidth: true
-            columns: view.columns
-            rowSpacing: 12
-            columnSpacing: 12
+            Layout.preferredHeight: Math.min(304, themes.count * 58)
+            clip: true
+            spacing: 6
+            model: themes
+            currentIndex: view.current
+            boundsBehavior: Flickable.StopAtBounds
+            highlightMoveDuration: 160
 
-            Repeater {
-                model: themes
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+                contentItem: Rectangle { radius: 2; color: Qt.rgba(1, 1, 1, 0.22) }
+            }
 
-                Rectangle {
-                    id: card
-                    required property int    index
-                    required property string tName
-                    required property string tWall
-                    required property bool   tActive
-                    required property bool   tCustom
+            delegate: Rectangle {
+                id: row
+                required property int    index
+                required property string tName
+                required property string tWall
+                required property bool   tActive
+                required property bool   tCustom
 
-                    readonly property bool isCurrent: view.current === card.index
+                readonly property bool isCurrent: view.current === row.index
+                readonly property bool busy: view.applying === row.tName
 
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 132
-                    radius: 14
-                    color: card.isCurrent ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05)
-                    Behavior on color { ColorAnimation { duration: 160 } }
-                    border.color: card.tActive
-                                  ? view.sys.colOn
-                                  : (card.isCurrent || cardMa.containsMouse
-                                     ? Qt.rgba(1, 1, 1, 0.35) : view.sys.colLine)
-                    border.width: card.tActive ? 2 : (card.isCurrent ? 2 : 1)
-                    Behavior on border.color { ColorAnimation { duration: 160 } }
+                width: ListView.view.width
+                height: 52
+                radius: 13
+                color: row.isCurrent || rowMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10)
+                                                            : Qt.rgba(1, 1, 1, 0.05)
+                border.color: row.tActive ? view.sys.colOn
+                            : (row.isCurrent ? Qt.rgba(1, 1, 1, 0.28) : view.sys.colLine)
+                border.width: row.tActive ? 2 : 1
+                Behavior on color { ColorAnimation { duration: 160 } }
+                Behavior on border.color { ColorAnimation { duration: 160 } }
+                scale: rowMa.pressed ? 0.985 : 1.0
+                Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutBack } }
 
-                    scale: cardMa.pressed ? 0.96
-                         : (cardMa.containsMouse || card.isCurrent ? 1.03 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 7
+                    anchors.rightMargin: 12
+                    spacing: 11
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 6
-                        spacing: 6
+                    // маленькое превью обоев
+                    Rectangle {
+                        Layout.preferredWidth: 66
+                        Layout.preferredHeight: 38
+                        radius: 9
+                        clip: true
+                        color: "#000000"
 
-                        // превью обоев
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 84
-                            radius: 10
-                            clip: true
-                            color: "#000000"
-
-                            Image {
-                                id: thumb
-                                anchors.fill: parent
-                                // это уже готовая миниатюра из ~/.cache/panacea/thumbs
-                                source: card.tWall.indexOf("/") === 0 ? "file://" + card.tWall : ""
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                cache: true
-                                smooth: true
-                                opacity: status === Image.Ready ? 1 : 0
-                                Behavior on opacity {
-                                    NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-                                }
-                            }
-
-                            // пока картинка грузится — мягкая пульсация вместо пустоты
-                            Rectangle {
-                                anchors.fill: parent
-                                visible: thumb.status === Image.Loading
-                                color: Qt.rgba(1, 1, 1, 0.06)
-                                SequentialAnimation on opacity {
-                                    running: parent.visible
-                                    loops: Animation.Infinite
-                                    NumberAnimation { to: 0.35; duration: 620 }
-                                    NumberAnimation { to: 1.0;  duration: 620 }
-                                }
-                            }
-
-                            // у темы без обоев (чёрная) — просто заливка
-                            Text {
-                                anchors.centerIn: parent
-                                visible: card.tWall.indexOf("/") !== 0
-                                text: String.fromCodePoint(0xF03E4)
-                                color: Qt.rgba(1, 1, 1, 0.25)
-                                font { family: view.sys.fontFam; pixelSize: 26 }
-                            }
-
-                            // отметка активной темы
-                            Rectangle {
-                                anchors.right: parent.right
-                                anchors.top: parent.top
-                                anchors.margins: 6
-                                width: 22; height: 22; radius: 11
-                                visible: card.tActive
-                                color: view.sys.colOn
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: String.fromCodePoint(0xF012C)
-                                    color: "#ffffff"
-                                    font { family: view.sys.fontFam; pixelSize: 12 }
-                                }
+                        Image {
+                            id: thumb
+                            anchors.fill: parent
+                            // это уже готовая миниатюра из ~/.cache/panacea/thumbs
+                            source: row.tWall.indexOf("/") === 0 ? "file://" + row.tWall : ""
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: true
+                            smooth: true
+                            opacity: status === Image.Ready ? 1 : 0
+                            Behavior on opacity {
+                                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
                             }
                         }
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: view.pretty(card.tName)
-                            color: card.tActive ? view.sys.colFg : view.sys.colMuted
-                            horizontalAlignment: Text.AlignHCenter
-                            elide: Text.ElideRight
-                            font {
-                                family: view.sys.fontFam
-                                pixelSize: view.sys.fontSize - 3
-                                bold: card.tActive
+                        // пока картинка грузится — мягкая пульсация вместо пустоты
+                        Rectangle {
+                            id: thumbPulse
+                            anchors.fill: parent
+                            visible: thumb.status === Image.Loading
+                            color: Qt.rgba(1, 1, 1, 0.06)
+                            // именно по id: внутри анимации parent — null,
+                            // и привязка каждый раз падала в TypeError
+                            SequentialAnimation on opacity {
+                                running: thumbPulse.visible
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.35; duration: 620 }
+                                NumberAnimation { to: 1.0;  duration: 620 }
                             }
+                        }
+
+                        // у темы без обоев (чёрная) — просто заливка
+                        Text {
+                            anchors.centerIn: parent
+                            visible: row.tWall.indexOf("/") !== 0
+                            text: String.fromCodePoint(0xF03E4)
+                            color: Qt.rgba(1, 1, 1, 0.25)
+                            font { family: view.sys.fontFam; pixelSize: 16 }
                         }
                     }
 
-                    // крестик удаления — только у своих обоев
+                    Text {
+                        Layout.fillWidth: true
+                        text: view.pretty(row.tName)
+                        color: row.tActive ? view.sys.colFg : view.sys.colMuted
+                        elide: Text.ElideRight
+                        font {
+                            family: view.sys.fontFam
+                            pixelSize: view.sys.fontSize - 2
+                            bold: row.tActive
+                        }
+                    }
+
+                    // корзина — только у своих обоев
                     Rectangle {
-                        visible: card.tCustom && (cardMa.containsMouse || card.isCurrent)
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.margins: 6
-                        width: 22; height: 22; radius: 11
-                        color: delMa.containsMouse ? view.sys.colCrit : Qt.rgba(0, 0, 0, 0.55)
+                        visible: row.tCustom && (rowMa.containsMouse || row.isCurrent)
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        radius: 13
+                        color: delMa.containsMouse ? view.sys.colCrit : Qt.rgba(1, 1, 1, 0.08)
+                        Behavior on color { ColorAnimation { duration: 140 } }
                         Text {
                             anchors.centerIn: parent
-                            text: String.fromCodePoint(0xF01B4)   // корзина
-                            color: "#ffffff"
-                            font { family: view.sys.fontFam; pixelSize: 11 }
+                            text: String.fromCodePoint(0xF01B4)
+                            color: delMa.containsMouse ? "#ffffff" : view.sys.colMuted
+                            font { family: view.sys.fontFam; pixelSize: 12 }
                         }
                         MouseArea {
                             id: delMa
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: view.removeWall(card.tName, card.tActive)
+                            onClicked: view.removeWall(row.tName, row.tActive)
                         }
                     }
 
-                    MouseArea {
-                        id: cardMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: { view.current = card.index; view.forceActiveFocus() }
-                        onClicked: if (!card.tActive) view.apply(card.tName)
+                    // отметка активной темы; пока применяется — точка-пульс
+                    Rectangle {
+                        Layout.preferredWidth: 22
+                        Layout.preferredHeight: 22
+                        radius: 11
+                        visible: row.tActive || row.busy
+                        color: row.busy ? Qt.rgba(1, 1, 1, 0.12) : view.sys.colOn
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Text {
+                            anchors.centerIn: parent
+                            text: String.fromCodePoint(row.busy ? 0xF0765 : 0xF012C)
+                            color: row.busy ? view.sys.colMuted : "#ffffff"
+                            font { family: view.sys.fontFam; pixelSize: 12 }
+                            SequentialAnimation on opacity {
+                                running: row.busy
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.3; duration: 480 }
+                                NumberAnimation { to: 1.0; duration: 480 }
+                            }
+                            onVisibleChanged: if (!visible) opacity = 1
+                        }
                     }
                 }
-            }
 
-            // ---- карточка «+»: добавить свои обои
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 132
-                radius: 14
-                color: addMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.04)
-                border.color: addMa.containsMouse ? view.sys.colOn : view.sys.colLine
-                border.width: 1
-                Behavior on color { ColorAnimation { duration: 160 } }
-                Behavior on border.color { ColorAnimation { duration: 160 } }
-                scale: addMa.pressed ? 0.96 : (addMa.containsMouse ? 1.03 : 1.0)
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: String.fromCodePoint(0xF0415)   // плюс
-                        color: addMa.containsMouse ? view.sys.colOn : view.sys.colMuted
-                        font { family: view.sys.fontFam; pixelSize: 30 }
-                    }
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: view.sys.tr("Свои обои")
-                        color: view.sys.colMuted
-                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
-                    }
-                }
                 MouseArea {
-                    id: addMa
+                    id: rowMa
                     anchors.fill: parent
+                    anchors.rightMargin: 44   // не перекрываем корзину
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: view.sys.startWallpaperPick()
+                    onEntered: view.current = row.index
+                    onClicked: if (!row.tActive) view.apply(row.tName)
                 }
+            }
+        }
+
+        // ---- строка «+»: добавить свои обои
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 42
+            radius: 13
+            color: addMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.04)
+            border.color: addMa.containsMouse ? view.sys.colOn : view.sys.colLine
+            border.width: 1
+            Behavior on color { ColorAnimation { duration: 160 } }
+            Behavior on border.color { ColorAnimation { duration: 160 } }
+
+            RowLayout {
+                anchors.centerIn: parent
+                spacing: 8
+                Text {
+                    text: String.fromCodePoint(0xF0415)
+                    color: addMa.containsMouse ? view.sys.colOn : view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: 16 }
+                }
+                Text {
+                    text: view.sys.tr("Свои обои")
+                    color: addMa.containsMouse ? view.sys.colFg : view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                }
+            }
+            MouseArea {
+                id: addMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: view.sys.startWallpaperPick()
             }
         }
     }
@@ -344,7 +382,7 @@ Item {
         z: 91
         visible: view.sys.wallpaperPick.length > 0
         anchors.centerIn: parent
-        width: 420
+        width: Math.min(420, parent.width - 24)
         implicitHeight: nameCol.implicitHeight + 36
         radius: 20
         color: Qt.rgba(0.04, 0.04, 0.05, 0.98)

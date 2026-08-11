@@ -329,6 +329,43 @@ PanelWindow {
         "Добавить": "Add",
         "Скрыть": "Hide",
         "обои": "wallpapers",
+        "Темы": "Themes",
+        " · сохранена": " · saved",
+        "Кроп": "Crop",
+        "Сохранить кусок с кропом": "Save the crop",
+        "Система": "System",
+        "О системе": "About",
+        "автор Panacea": "author of Panacea",
+        "Ядро": "Kernel",
+        "Композитор": "Compositor",
+        "Оболочка": "Shell",
+        "Процессор": "CPU",
+        "Память": "Memory",
+        "Экран": "Display",
+        "Аптайм": "Uptime",
+        "Кадров в секунду": "Frames per second",
+        "Писать звук системы": "Record system audio",
+        "Писать микрофон": "Record microphone",
+        "Что включено": "Enabled features",
+        "Выключенная страница пропадает из пилюли вместе со своей кнопкой.": "A disabled page leaves the pill together with its button.",
+        "Громкость и яркость на экране": "Volume and brightness overlay",
+        "Быстрые клавиши": "Shortcuts cheat sheet",
+        "Проводник отдельным окном": "File manager as a window",
+        "Тайлится в Hyprland, живёт на своём рабочем столе и не трогает пилюлю.": "Tiled by Hyprland, stays on its workspace and leaves the pill alone.",
+        "Диски": "Disks",
+        "Съёмные": "Removable",
+        "Скопировать сюда": "Copy here",
+        "Переместить сюда": "Move here",
+        "Перенесите файлы сюда": "Drop files here",
+        "Рабочие столы": "Workspaces",
+        "Обзор столов": "Workspace overview",
+        "Стрелки — выбрать · Enter — перейти · Esc — закрыть": "Arrows to pick · Enter to switch · Esc to close",
+        "Сортировка": "Sort",
+        "Имя": "Name",
+        "Дата": "Date",
+        "Размер": "Size",
+        "Тип": "Type",
+        "Папки сверху": "Folders first",
         "Свои обои": "Your wallpaper",
         "Название обоев": "Wallpaper name",
         "Например, Закат": "e.g. Sunset",
@@ -780,29 +817,48 @@ PanelWindow {
         if (launcherOpen) closeLauncher(); else openLauncher();
     }
 
-    readonly property bool playerOpen: expanded && page === "player"
     // Настройки — единственная страница, которая отрывается от верхней кромки
     // и встаёт по центру экрана: содержимого много, у верха оно было тесным.
     // Страницы, которые отрываются от верхней кромки и встают по центру:
     // содержимого много, у верха оно тесное.
+    // Темы отсюда убраны: список стал узким и живёт прямо под пилюлей,
+    // как сети и устройства. Отдельное окно посреди экрана для выбора обоев
+    // было слишком тяжёлым жестом.
     readonly property bool settingsMode:
-        expanded && (page === "settings" || page === "theme"
+        expanded && (page === "settings"
                      || page === "files" || page === "media")
 
     // Вкладка «Клавиши» раскладывается в две колонки, поэтому окно шире:
     // вертикальный список не влезал и уезжал за нижнюю кромку экрана.
     property bool wideSettings: false
     readonly property int settingsW: {
-        var want = page === "theme" ? 900
-                 : page === "files" ? Math.round((screen ? screen.width : 1920) * 0.78)
+        var want = page === "files" ? Math.round((screen ? screen.width : 1920) * 0.78)
                  : page === "media" ? Math.round((screen ? screen.width : 1920) * 0.72)
-                 : (wideSettings ? 1120 : 720);
+                 : (wideSettings ? 1300 : 720);
         var lim = (screen ? screen.width : 1920) - 80;
         return Math.min(want, lim);
     }
 
-    // Super+M: плеер в закреплённом положении — не закрывается по уходу мыши
-    function togglePlayer() { togglePage("player"); }
+    // ------------------------------------------------------------ смена темы
+    // hyprpaper меняет обои мгновенно и без перехода. Поэтому снимок старых
+    // обоев остаётся висеть поверх экрана и плавно тает — снизу к этому
+    // моменту уже новые, и получается честный кроссфейд без смены бэкенда.
+    property string themeFadeWall: ""
+    property bool   themeFading: false
+
+    FileView {
+        id: curThemeFile
+        path: Quickshell.env("HOME") + "/.config/hypr/theme.conf"
+        blockLoading: true
+    }
+
+    function startThemeFade() {
+        var m = /^\$wallpaper\s*=\s*(.+)$/m.exec(curThemeFile.text() || "");
+        if (!m) return;
+        root.themeFadeWall = "file://" + String(m[1]).trim();
+        root.themeFading = true;
+    }
+    function endThemeFade() { root.themeFading = false; }
 
     // ------------------------------------------------------------------ медиа
     // «Липкий» текущий плеер: пока выбранный плеер ещё существует, держимся
@@ -1950,6 +2006,22 @@ PanelWindow {
         }
     }
 
+    // Снимок прежних обоев: лежит ниже пилюли и выше рабочего стола,
+    // клики не ловит — маска окна всё равно пропускает их насквозь.
+    Image {
+        anchors.fill: parent
+        z: -5
+        source: root.themeFadeWall
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: false
+        cache: false
+        visible: opacity > 0.01
+        opacity: root.themeFading ? 1 : 0
+        Behavior on opacity {
+            NumberAnimation { duration: 700; easing.type: Easing.InOutCubic }
+        }
+    }
+
     // ------------------------------------------------------------- сама пилюля
     Rectangle {
         id: capsule
@@ -2474,6 +2546,45 @@ PanelWindow {
         Component { id: authComp;     AuthView { sys: root } }
         Component { id: vaultComp;     VaultView { sys: root } }
         Component { id: vaultSaveComp; VaultSaveView { sys: root } }
+    }
+
+    // ------------------------------------------------------- общий тултип
+    // Панель настроек обрезается капсулой (clip), и подпись, выходящая за её
+    // левый край, там просто исчезала. Поэтому тултип рисует сам корень:
+    // вид сообщает текст и точку, от которой раскрываться влево.
+    property string tipText: ""
+    property real   tipX: 0
+    property real   tipY: 0
+    function showTip(text, x, y) { root.tipText = text; root.tipX = x; root.tipY = y; }
+    function hideTip(text) { if (root.tipText === text) root.tipText = ""; }
+
+    Rectangle {
+        id: globalTip
+        z: 200
+        visible: opacity > 0.01
+        opacity: root.tipText.length > 0 ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 130 } }
+
+        width: globalTipText.implicitWidth + 20
+        height: 26
+        radius: 13
+        x: Math.max(6, root.tipX - width - 10)
+        y: root.tipY - height / 2
+        color: Qt.rgba(0.04, 0.04, 0.05, 0.98)
+        border.color: root.colLine
+        border.width: 1
+
+        scale: root.tipText.length > 0 ? 1 : 0.92
+        transformOrigin: Item.Right
+        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+
+        Text {
+            id: globalTipText
+            anchors.centerIn: parent
+            text: root.tipText
+            color: root.colFg
+            font { family: root.fontFam; pixelSize: 11 }
+        }
     }
 
     // ------------------------------------ плавное примыкание к кромке экрана
