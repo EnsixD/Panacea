@@ -480,7 +480,7 @@ PanelWindow {
 
     property bool tourRunning: false
     property int  tourIndex: 0
-    readonly property var tourPages: ["main", "wifi", "bt", "player", "clip", "power", "launcher"]
+    readonly property var tourPages: ["main", "wifi", "bt", "clip", "power", "launcher"]
     property int tourStepMs: 2200
 
     function startTour() {
@@ -592,9 +592,11 @@ PanelWindow {
 
     // ------------------------------------------------------------ состояние UI
     property bool expanded: false
-    // "main" | "wifi" | "bt" | "launcher" | "player"
-    // main    — плитки Wi-Fi / Bluetooth / режимы питания
-    // player  — мультимедиа (наведение при играющей музыке, либо Super+M)
+    // "main" | "wifi" | "bt" | "battery" | "launcher"
+    // main    — плитки Wi-Fi / Bluetooth / звук, трек и запись
+    // battery — режимы питания и состояние заряда
+    // Отдельной страницы плеера нет: играющий трек с кнопками и полосами
+    // живёт карточкой на главной, там же, где всё остальное.
     property string page: "main"
     // что показывает медиаплеер (страница "media")
     property string mediaPath: ""
@@ -741,7 +743,6 @@ PanelWindow {
     function pageEnabled(name) {
         switch (name) {
             case "launcher":  return cfg.featLauncher;
-            case "player":    return cfg.featPlayer;
             case "wifi":      return cfg.featWifi;
             case "bt":        return cfg.featBluetooth;
             case "clip":      return cfg.featClipboard;
@@ -1927,8 +1928,7 @@ PanelWindow {
              : root.expanded     ? root.panelW
              : root.toastActive  ? 440
              : root.osdActive    ? osdCapsule.implicitWidth + 32
-             : (root.mediaActive ? mediaCapsule.implicitWidth + 32
-                                 : idleCapsule.implicitWidth + 32)
+             : idleCapsule.implicitWidth + 32
         // целевая высота — к ней анимируется height и по ней же сразу
         // рассчитывается центрирование, чтобы движение было одноэтапным
         // Высота содержимого держится отдельно: при смене страницы новый вид
@@ -2015,10 +2015,11 @@ PanelWindow {
                 // наведение сбрасывало бы уже открытый список сетей
                 if (!root.expanded) {
                     pageResetTimer.stop();
-                    // во время записи наведение открывает пульт записи —
-                    // это то, что нужно под рукой прямо сейчас
-                    root.page = (root.recActive && root.cfg.featRecord) ? "record"
-                              : (root.mediaActive && root.cfg.featPlayer) ? "player" : "main";
+                    // Наведение всегда открывает плитки. Ни музыка, ни идущая
+                    // запись своей страницы больше не подсовывают: трек живёт
+                    // карточкой прямо здесь, а до пульта записи один клик по
+                    // плитке — зато не приходится гадать, что откроется.
+                    root.page = "main";
                 }
                 root.expanded = true;
             }
@@ -2217,9 +2218,73 @@ PanelWindow {
             anchors.centerIn: parent
             height: root.pillH
             spacing: 14
-            visible: !root.expanded && !root.mediaActive && !root.osdActive && !root.toastActive
+            visible: !root.expanded && !root.osdActive && !root.toastActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            // ------------------------------------------------ играет медиа
+            // Плеер больше не отдельное состояние пилюли: обложка, название и
+            // полосы просто встают слева от дня недели, а часы, стол и заряд
+            // остаются на местах. Так пилюля не «подменяется» на музыку.
+            RowLayout {
+                id: mediaSeg
+                spacing: 9
+                visible: root.mediaActive
+                opacity: visible ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+                Rectangle {
+                    Layout.preferredWidth: 20
+                    Layout.preferredHeight: 20
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: 6
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                    clip: true
+                    Image {
+                        id: capsuleArt
+                        anchors.fill: parent
+                        source: root.mediaArt
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        cache: true
+                        sourceSize.width: 56
+                        visible: status === Image.Ready
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        visible: capsuleArt.status !== Image.Ready
+                        text: "󰝚"
+                        color: root.colMuted
+                        font { family: root.fontFam; pixelSize: 11 }
+                    }
+                }
+
+                Text {
+                    Layout.maximumWidth: 150
+                    Layout.alignment: Qt.AlignVCenter
+                    text: root.player ? root.player.trackTitle : ""
+                    color: root.colFg
+                    elide: Text.ElideRight
+                    font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                }
+
+                WaveBars {
+                    Layout.preferredWidth: 26
+                    Layout.preferredHeight: 14
+                    Layout.alignment: Qt.AlignVCenter
+                    barColor: root.colFg
+                    active: root.player ? root.player.isPlaying : false
+                }
+
+                // разделитель — чтобы трек читался отдельно от часов
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 14
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.leftMargin: 2
+                    color: Qt.rgba(1, 1, 1, 0.14)
+                }
+            }
 
             // идёт запись — мигающая точка и таймер слева от даты
             RowLayout {
@@ -2312,57 +2377,6 @@ PanelWindow {
             }
         }
 
-        // ------------------------------------------------- свёрнутое: медиа
-        RowLayout {
-            id: mediaCapsule
-            anchors.centerIn: parent
-            height: root.pillH
-            spacing: 11
-            visible: !root.expanded && root.mediaActive && !root.osdActive && !root.toastActive
-            opacity: visible ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: root.animFast } }
-
-            Rectangle {
-                Layout.preferredWidth: 24
-                Layout.preferredHeight: 24
-                radius: 7
-                color: Qt.rgba(1, 1, 1, 0.08)
-                clip: true
-                Image {
-                    id: capsuleArt
-                    anchors.fill: parent
-                    source: root.mediaArt
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    cache: true
-                    sourceSize.width: 56
-                    visible: status === Image.Ready
-                }
-                Text {
-                    anchors.centerIn: parent
-                    visible: capsuleArt.status !== Image.Ready
-                    text: "󰝚"
-                    color: root.colMuted
-                    font { family: root.fontFam; pixelSize: 13 }
-                }
-            }
-
-            Text {
-                Layout.maximumWidth: 240
-                text: root.player ? root.player.trackTitle : ""
-                color: root.colFg
-                elide: Text.ElideRight
-                font { family: root.fontFam; pixelSize: 15; bold: true }
-            }
-
-            WaveBars {
-                Layout.preferredWidth: 40
-                Layout.preferredHeight: 17
-                barColor: root.colFg
-                active: root.player ? root.player.isPlaying : false
-            }
-        }
-
         // --------------------------------------------------- раскрытая панель
         Loader {
             id: contentLoader
@@ -2406,7 +2420,6 @@ PanelWindow {
         }
 
         Component { id: controlsComp; ControlsView { sys: root } }
-        Component { id: playerComp;   PlayerView   { sys: root } }
         Component { id: launcherComp; LauncherView { sys: root } }
         Component { id: settingsComp; SettingsView { sys: root; tab: root.settingsTab } }
         Component { id: clipComp;     ClipboardView { sys: root } }
