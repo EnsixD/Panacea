@@ -431,6 +431,17 @@ fi
     && (setsid "$CONF/panacea/scripts/thumbs.sh" all >/dev/null 2>&1 &) \
     && ok "wallpaper thumbnails warming up in the background"
 
+# Идёт обновление? Тогда перезапуск не наш.
+#
+# Установщик убивает qs — а update.sh запущен ИЗ оболочки и умирал вместе с
+# ней прямо здесь, не успев вернуть настройки, записать список изменений и
+# отметить версию. Свежий update.sh теперь сам передаёт нам --no-restart, но
+# у людей на руках старые копии, которые про это не знают. Решаем за них:
+# идёт обновление — оболочку не трогаем, Quickshell сам перечитает файлы.
+if pgrep -f "update\.sh apply" >/dev/null 2>&1; then
+    DO_RESTART=0
+fi
+
 step "Starting the shell"
 if [ "$DO_RESTART" != "1" ]; then
     ok "restart skipped"
