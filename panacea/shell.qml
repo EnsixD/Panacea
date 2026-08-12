@@ -2155,13 +2155,15 @@ PanelWindow {
         interval: 1000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: {
             var d = new Date();
-            // 12-часовой формат — с AM/PM, 24-часовой — без
+            // 12-часовой формат — с AM/PM, 24-часовой — без; секунды
+            // добавляются в оба, если их попросили во вкладке Clock & Date
+            var sec = root.cfg.clockSeconds ? ":ss" : "";
             root.timeText = root.cfg.clock12
-                ? Qt.formatDateTime(d, "h:mm AP")
-                : Qt.formatDateTime(d, "HH:mm");
-            root.dateLong = root.isEn
-                ? Qt.formatDateTime(d, "dddd, d MMMM")
-                : Qt.formatDateTime(d, "dddd, d MMMM");
+                ? Qt.formatDateTime(d, "h:mm" + sec + " AP")
+                : Qt.formatDateTime(d, "HH:mm" + sec);
+            // формат даты и день недели перед ней — тоже из настроек
+            root.dateLong = (root.cfg.clockWeekday ? Qt.formatDateTime(d, "dddd") + ", " : "")
+                + Qt.formatDateTime(d, root.cfg.clockDateFmt || "d MMMM");
             root.dayText = root.isEn
                 ? ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]
                 : ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][d.getDay()];
@@ -2984,7 +2986,12 @@ PanelWindow {
         TextMetrics {
             id: mClock
             font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
-            text: root.cfg.clock12 ? "12:00 PM" : "00:00"
+            // Эталон под самый широкий вариант ИМЕННО текущего формата:
+            // с секундами строка длиннее, а место под неё резервировалось
+            // старое — часы налезали на соседей, и остров стоял впритык.
+            text: (root.cfg.clock12 ? "12:00" : "00:00")
+                  + (root.cfg.clockSeconds ? ":00" : "")
+                  + (root.cfg.clock12 ? " PM" : "")
         }
         TextMetrics {
             id: mBatt
