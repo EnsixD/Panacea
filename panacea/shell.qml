@@ -45,6 +45,10 @@ PanelWindow {
             property int    pillH:  38
             // где живёт остров: top | bottom | left | right
             property string pillPos: "top"
+            // Автоскрытие: остров уезжает за кромку и не занимает место под
+            // себя, окна получают весь экран. Возвращается наведением на
+            // узкую полоску у самого края.
+            property bool   pillAutoHide: false
             // Настройки мониторов из вкладки Display, JSON вида
             // {"eDP-1":{w,h,rr,scale,transform,vrr,pos}}. Hyprland их не
             // запоминает: hyprctl правит живое состояние, и после перезагрузки
@@ -228,7 +232,8 @@ PanelWindow {
         fontDisplay: "JetBrainsMono Nerd Font", fontSize: 15, iconSize: 17,
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
-        pillH: 38, pillPos: "top", pillScreen: "auto", pillDrag: false, panelW: 540,
+        pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false,
+        pillDrag: false, panelW: 540,
         monOverrides: "",
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
         islandGap: 12, islandRadius: 0,
@@ -465,6 +470,8 @@ PanelWindow {
         "Экран блокировки": "Lock screen",
         "Экраны не читаются: hyprctl не ответил.": "Screens cannot be read: hyprctl did not answer.",
         "Динамический остров": "Dynamic island",
+        "Автоскрытие": "Auto-hide",
+        "Остров уезжает за кромку и не занимает место под себя: окна получают весь экран. Возвращается наведением на край.": "The island slides off the edge and stops reserving space, so windows get the whole screen. Point at the edge to bring it back.",
         "Не установлен git": "git is not installed",
         "Нет связи с GitHub": "Cannot reach GitHub",
         "Не удалось скачать обновление": "Could not download the update",
@@ -2949,7 +2956,8 @@ PanelWindow {
     implicitWidth: root.screen ? root.screen.width : 1920
     color: "transparent"
     // зазор между пилюлей и окнами
-    exclusiveZone: (root.fullscreenActive && !root.expanded) ? 0 : pillH + gap
+    exclusiveZone: (root.pillHidden || (root.fullscreenActive && !root.expanded))
+                   ? 0 : pillH + gap
     WlrLayershell.layer: WlrLayer.Overlay
     // Пока поверх экрана развёрнутое окно, пилюли не видно совсем.
     // Показываем её обратно, если панель раскрыли клавишами или если
@@ -2959,7 +2967,33 @@ PanelWindow {
     // Пока открыта закреплённая страница, ввод принимает всё окно:
     // иначе клики по панели (особенно по центрированным настройкам)
     // проваливались мимо, и ползунки не реагировали.
-    Region { id: capsuleRegion; item: capsule }
+    // Спрятан ли остров прямо сейчас. Всё, ради чего его вообще показывают —
+    // раскрытая панель, перетаскивание, громкость — держит его на экране.
+    readonly property bool pillHidden: root.cfg.pillAutoHide
+                                       && !root.expanded && !root.holdOpen
+                                       && !root.osdActive && !root.pillDragging
+                                       && !revealHover.hovered && !capsuleHover.hovered
+
+    // Полоска у самой кромки: спрятанный остров курсором не поймать, и
+    // вернуть его нечем — кроме узкой зоны, которая ловит наведение.
+    Item {
+        id: revealStrip
+        visible: root.cfg.pillAutoHide
+        anchors.top:    root.pillAtBottom ? undefined : parent.top
+        anchors.bottom: root.pillAtBottom ? parent.bottom : undefined
+        anchors.left:   root.pillAtRight  ? undefined : parent.left
+        anchors.right:  root.pillAtRight  ? parent.right : undefined
+        width:  root.pillSide ? 4 : parent.width
+        height: root.pillSide ? parent.height : 4
+        HoverHandler { id: revealHover }
+    }
+
+    Region {
+        id: capsuleRegion
+        item: capsule
+        // спрятанный остров вне экрана, и без полоски его не позвать
+        Region { item: revealStrip; intersection: Intersection.Combine }
+    }
     mask: root.holdOpen ? null : capsuleRegion
     // Лаунчер забирает клавиатуру сразу (Exclusive), чтобы можно было
     // печатать без клика. OnDemand отдаёт фокус только после клика мышью.
@@ -3053,13 +3087,15 @@ PanelWindow {
         // перестаёт быть продолжением края экрана и становится отдельной
         // капсулой, висящей рядом с ним.
         readonly property real freeGap: root.cfg.notchMode ? 0 : root.cfg.islandGap
+        // Спрятанный остров уходит за кромку целиком: отрицательный отступ
+        // выносит его за границу окна, и на экране не остаётся ничего.
         readonly property real edgeMargin: root.settingsMode && !root.pillSide
                                            ? Math.max(24, (root.height - targetH) / 2)
-                                           : freeGap
+                                           : root.pillHidden ? -(targetH + 4) : freeGap
         // у боковых положений от кромки отрывает уже горизонтальный отступ
         readonly property real sideMargin: root.settingsMode && root.pillSide
                                            ? Math.max(24, (root.width - width) / 2)
-                                           : freeGap
+                                           : root.pillHidden ? -(width + 4) : freeGap
         anchors.topMargin:    root.pillAtTop    ? edgeMargin : 0
         anchors.bottomMargin: root.pillAtBottom ? edgeMargin : 0
         anchors.leftMargin:   root.pillAtLeft   ? sideMargin : 0
@@ -4053,7 +4089,7 @@ PanelWindow {
          : root.pillAtBottom ? parent.height - height : 0
         // Уголки уходят вместе с островом: в настройках он отрывается от
         // кромки, а на карусели обоев прячется целиком.
-        opacity: root.settingsMode || root.wallsOpen ? 0 : 1
+        opacity: root.settingsMode || root.wallsOpen || root.pillHidden ? 0 : 1
         Behavior on opacity { NumberAnimation { duration: root.animFast } }
     }
     NotchCorner {
@@ -4071,7 +4107,7 @@ PanelWindow {
                             : capsule.x + capsule.width
         y: root.pillSide ? capsule.y + capsule.height
          : root.pillAtBottom ? parent.height - height : 0
-        opacity: root.settingsMode || root.wallsOpen ? 0 : 1
+        opacity: root.settingsMode || root.wallsOpen || root.pillHidden ? 0 : 1
         Behavior on opacity { NumberAnimation { duration: root.animFast } }
     }
 }

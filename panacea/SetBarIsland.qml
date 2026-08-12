@@ -25,6 +25,14 @@ ColumnLayout {
             onToggled: value => { page.sys.cfg.notchMode = value; page.sys.saveCfg(); }
         }
 
+        SetToggle {
+            sys: page.sys
+            label: page.sys.tr("Автоскрытие")
+            sub: page.sys.tr("Остров уезжает за кромку и не занимает место под себя: окна получают весь экран. Возвращается наведением на край.")
+            on: page.sys.cfg.pillAutoHide
+            onToggled: value => { page.sys.cfg.pillAutoHide = value; page.sys.saveCfg(); }
+        }
+
         SetSlider {
             sys: page.sys
             enabled: page.notch
