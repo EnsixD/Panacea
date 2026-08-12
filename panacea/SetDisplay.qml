@@ -48,45 +48,23 @@ ColumnLayout {
         }
     }
 
-    Process { id: pApply; property string args: ""; command: ["sh", "-c", pApply.args] }
-
-    // Как разговаривать с Hyprland про мониторы.
-    //
-    // Раньше здесь был `hyprctl keyword monitor ...`, и на свежих конфигах он
-    // молча ничего не делал: Hyprland отвечает «keyword can't work with
-    // non-legacy parsers, use eval» — и отвечает это с нулевым кодом возврата,
-    // поэтому промах был не виден вообще никак. Отсюда и «настройки монитора
-    // не меняются совсем».
-    //
-    // Теперь сначала пробуем `hyprctl eval` с вызовом hl.monitor{} (так устроен
-    // Lua-конфиг), и только если ответ не «ok» — откатываемся на старый keyword
-    // ради тех, у кого конфиг ещё на legacy-парсере.
+    // Применяем через оболочку: там же настройка и запоминается, чтобы
+    // пережить hyprctl reload и перезаход — сам Hyprland её не хранит.
     function apply(m, over) {
-        var w  = over.w  !== undefined ? over.w  : m.w;
-        var h  = over.h  !== undefined ? over.h  : m.h;
-        var rr = over.rr !== undefined ? over.rr : m.rr;
-        var sc = over.scale !== undefined ? over.scale : m.scale;
-        var tr = over.transform !== undefined ? over.transform : m.transform;
-        var vrr = over.vrr !== undefined ? over.vrr : m.vrr;
-        // Позицию всегда передаём текущую, а не "auto": иначе смена разрешения
-        // пересобирала бы раскладку экранов заново и монитор уезжал бы.
-        var pos = over.pos !== undefined ? over.pos : page.placeOf(m);
-
-        var mode = w + "x" + h + "@" + Number(rr).toFixed(2);
-
-        var lua = "hl.monitor({ output=\"" + m.name + "\", mode=\"" + mode
-              + "\", position=\"" + pos + "\", scale=" + Number(sc).toFixed(6)
-              + ", transform=" + tr + ", vrr=" + (vrr ? 1 : 0) + " })";
-
-        var legacy = m.name + "," + mode + "," + pos + "," + Number(sc).toFixed(6)
-              + ",transform," + tr + ",vrr," + (vrr ? 1 : 0);
-
-        pApply.args = "out=$(hyprctl eval '" + lua + "' 2>&1); "
-                    + "case \"$out\" in ok*) exit 0 ;; esac; "
-                    + "hyprctl keyword monitor '" + legacy + "'";
-        pApply.running = true;
+        page.sys.monApply(m.name, {
+            w:  over.w  !== undefined ? over.w  : m.w,
+            h:  over.h  !== undefined ? over.h  : m.h,
+            rr: over.rr !== undefined ? over.rr : m.rr,
+            scale: over.scale !== undefined ? over.scale : m.scale,
+            transform: over.transform !== undefined ? over.transform : m.transform,
+            vrr: over.vrr !== undefined ? over.vrr : m.vrr,
+            // Позицию всегда передаём текущую, а не "auto": иначе смена
+            // разрешения пересобирала бы раскладку и монитор уезжал бы.
+            pos: over.pos !== undefined ? over.pos : page.placeOf(m)
+        });
         reload.restart();
     }
+
     Timer {
         id: reload
         interval: 700

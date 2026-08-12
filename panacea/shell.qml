@@ -45,6 +45,11 @@ PanelWindow {
             property int    pillH:  38
             // где живёт остров: top | bottom | left | right
             property string pillPos: "top"
+            // Настройки мониторов из вкладки Display, JSON вида
+            // {"eDP-1":{w,h,rr,scale,transform,vrr,pos}}. Hyprland их не
+            // запоминает: hyprctl правит живое состояние, и после перезагрузки
+            // конфига или перезахода экран возвращается к своему конфигу.
+            property string monOverrides: ""
             // На каком экране живёт остров. "auto" — на том, где сейчас
             // фокус: остров переезжает за человеком. Иначе имя выхода
             // ("eDP-1", "DP-2") — остров прибит к нему намертво.
@@ -224,6 +229,7 @@ PanelWindow {
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
         pillH: 38, pillPos: "top", pillScreen: "auto", pillDrag: false, panelW: 540,
+        monOverrides: "",
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
         islandGap: 12, islandRadius: 0,
         reduceMotion: false, animMove: 230, animFade: 200, animHover: 150, animBounce: 0,
@@ -238,6 +244,53 @@ PanelWindow {
     function resetCfg() {
         for (var k in root.defaultCfg) cfg[k] = root.defaultCfg[k];
         root.saveCfg();
+    }
+
+    // ------------------------------------------------------- экраны
+    // Одна точка, через которую вкладка Display разговаривает с Hyprland,
+    // и она же — память об этом разговоре.
+    //
+    // hyprctl keyword отвергается новым (не-legacy) парсером конфига и при
+    // этом выходит с нулевым кодом, поэтому раньше настройки монитора молча
+    // никуда не уезжали. Идём через hyprctl eval и hl.monitor{}, а keyword
+    // оставляем запасным путём для старых конфигов.
+    Process { id: pMon; property string args: ""; command: ["sh", "-c", pMon.args] }
+
+    function monCmd(n, o) {
+        var mode = o.w + "x" + o.h + "@" + Number(o.rr).toFixed(2);
+        var lua = "hl.monitor({ output=\"" + n + "\", mode=\"" + mode
+                + "\", position=\"" + o.pos + "\", scale=" + Number(o.scale).toFixed(6)
+                + ", transform=" + o.transform + ", vrr=" + (o.vrr ? 1 : 0) + " })";
+        var legacy = n + "," + mode + "," + o.pos + "," + Number(o.scale).toFixed(6)
+                   + ",transform," + o.transform + ",vrr," + (o.vrr ? 1 : 0);
+        return "out=$(hyprctl eval '" + lua + "' 2>&1); case \"$out\" in ok*) ;; *) "
+             + "hyprctl keyword monitor '" + legacy + "' ;; esac";
+    }
+
+    function monMap() {
+        try { return JSON.parse(root.cfg.monOverrides || "{}") || ({}); }
+        catch (e) { return ({}); }
+    }
+
+    function monApply(n, o) {
+        pMon.args = root.monCmd(n, o);
+        pMon.running = false;
+        pMon.running = true;
+        var all = root.monMap();
+        all[n] = o;
+        root.cfg.monOverrides = JSON.stringify(all);
+        root.saveCfg();
+    }
+
+    // Накатить запомненное заново: на старте оболочки и после каждой
+    // перезагрузки конфига компоновщика — она сбрасывает живые настройки.
+    function monReplay() {
+        var all = root.monMap(), parts = [];
+        for (var n in all) parts.push(root.monCmd(n, all[n]));
+        if (!parts.length) return;
+        pMon.args = parts.join("; ");
+        pMon.running = false;
+        pMon.running = true;
     }
 
     // семейства моноширинных шрифтов для выпадающего списка настроек
@@ -1221,11 +1274,16 @@ PanelWindow {
                 || n === "closewindow" || n === "openwindow" || n === "workspace"
                 || n === "focusedmon")
                 fsProbe.restart();
+            // перезагрузка конфига Hyprland стирает всё, что мы наприменяли
+            if (n === "configreloaded") monReplayTimer.restart();
         }
     }
+    Timer { id: monReplayTimer; interval: 400; onTriggered: root.monReplay() }
+
     Component.onCompleted: {
         fsProbe.restart();
         syncGreeterLocale();
+        monReplayTimer.restart();
     }
 
     // ------------------------------------------------- перетаскивание файлов
