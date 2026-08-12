@@ -1035,8 +1035,12 @@ PanelWindow {
     Timer { id: fsProbe; interval: 120; onTriggered: pFullscreen.running = true }
     // События Hyprland приходят не на все переходы (например, при смене
     // окна внутри полноэкранного слоя), поэтому подстраховываемся опросом.
+    // Опрос — только страховка: основное приходит событиями Hyprland, и
+    // fsProbe перепроверяет состояние сразу после каждого. Ежесекундный
+    // запуск hyprctl с двумя grep'ами стоил трёх процессов в секунду
+    // круглые сутки, а ловил лишь редкие пропущенные переходы.
     Timer {
-        interval: 1000; running: true; repeat: true; triggeredOnStart: true
+        interval: 5000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: pFullscreen.running = true
     }
 
@@ -1433,7 +1437,11 @@ PanelWindow {
     // за него, даже когда на паузе он перестаёт быть «играющим». Иначе на
     // паузе выбор перескакивал на другой MPRIS-источник (например, вкладку
     // браузера без обложки) — и обложка/название мигали.
-    property var stickyPlayer: null
+    // Прежний выбор держим в обычном объекте, а не в свойстве: привязка
+    // player читает его и тут же сама в него пишет. Со свойством это был
+    // цикл привязки — Qt ругался в лог и пересчитывал выбор на каждом кадре
+    // проигрывания. Поле внутри объекта зависимости не создаёт.
+    readonly property var stickyBox: ({ p: null })
     readonly property var player: {
         var list = Mpris.players ? Mpris.players.values : [];
         var playing = null, any = null, stickyAlive = null;
@@ -1441,13 +1449,13 @@ PanelWindow {
             var p = list[i];
             if (!p) continue;
             if (!any) any = p;
-            if (p === root.stickyPlayer) stickyAlive = p;
+            if (p === root.stickyBox.p) stickyAlive = p;
             if (p.isPlaying && !playing) playing = p;
         }
         // играющий побеждает; иначе прежний, если он ещё жив; иначе любой
         return playing || stickyAlive || any;
     }
-    onPlayerChanged: { if (player) stickyPlayer = player; refreshMediaArt(); }
+    onPlayerChanged: { if (player) root.stickyBox.p = player; refreshMediaArt(); }
     readonly property bool mediaActive:
         cfg.featPlayer
         && player !== null && player !== undefined
@@ -2248,7 +2256,13 @@ PanelWindow {
         id: pPowerSet
         onRunningChanged: if (!running) pPowerGet.running = true
     }
-    Timer { interval: 10000; running: true; repeat: true; onTriggered: pPowerGet.running = true }
+    // Режим питания меняется человеком и почти всегда через саму панель,
+    // поэтому в закрытом виде его достаточно сверять раз в полминуты.
+    Timer {
+        interval: root.expanded ? 10000 : 30000
+        running: true; repeat: true
+        onTriggered: pPowerGet.running = true
+    }
 
     // Человеческое имя текущего режима питания — для подписи плитки батареи
     readonly property string profileLabel:
@@ -2340,7 +2354,13 @@ PanelWindow {
             }
         }
     }
-    Timer { interval: 4000; running: true; repeat: true; onTriggered: pWifiStatus.running = true }
+    // Свёрнутый остров показывает только значок сети: там хватает редкого
+    // опроса. Частый нужен, когда открыт список сетей.
+    Timer {
+        interval: root.expanded ? 4000 : 15000
+        running: true; repeat: true
+        onTriggered: pWifiStatus.running = true
+    }
 
     Process {
         id: pWifiList
@@ -2443,12 +2463,14 @@ PanelWindow {
             }
         }
     }
+    // Пока запись не идёт, секундная стрелка никому не нужна: таймер сам
+    // переходит на редкий шаг и перестаёт будить процессор каждую секунду.
     Timer {
-        interval: 1000; running: true; repeat: true; triggeredOnStart: true
+        interval: root.recActive ? 1000 : 15000
+        running: true; repeat: true; triggeredOnStart: true
         onTriggered: {
             root.recNow = Math.floor(Date.now() / 1000);
-            // пока не пишем — опрашиваем реже, чтобы не дёргать скрипт зря
-            if (root.recActive || (root.recNow % 5) === 0) pRecStatus.running = true;
+            pRecStatus.running = true;
         }
     }
 
@@ -2691,7 +2713,10 @@ PanelWindow {
     Image {
         anchors.fill: parent
         z: -5
-        source: root.themeFadeWall
+        // Пока кроссфейда нет, снимок не нужен и в памяти его быть не должно:
+        // распакованные обои во весь экран — это десяток мегабайт, которые
+        // висели круглые сутки ради семисот миллисекунд перехода.
+        source: (root.themeFading || opacity > 0.01) ? root.themeFadeWall : ""
         fillMode: Image.PreserveAspectCrop
         // у обоев бывает 75 мегапикселей: без ограничения Qt отказывается их
         // декодировать (лимит 256 МБ на картинку) и кроссфейд не появлялся
