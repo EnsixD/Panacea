@@ -36,6 +36,12 @@ current() {
 }
 
 if [ "$1" = "--restore" ]; then
+    # последними стояли живые обои — отдаём их своему скрипту и выходим
+    LIVE=$(grep -m1 '^\$live' "$STATE" 2>/dev/null | cut -d= -f2- | sed 's/^ *//; s/ *$//')
+    LIVE="${LIVE/#\~/$HOME}"
+    if [ -n "$LIVE" ] && [ -f "$LIVE" ]; then
+        exec "$(dirname "$0")/live_wallpaper.sh" set "$LIVE"
+    fi
     WALL=$(current)
     [ -n "$WALL" ] || WALL=$(ls "$WALL_DIR"/*.jpg "$WALL_DIR"/*.png 2>/dev/null | head -1)
 elif [ -n "$1" ]; then
@@ -50,6 +56,12 @@ fi
 
 WALL="${WALL/#\~/$HOME}"
 [ -n "$WALL" ] && [ -f "$WALL" ] || { echo "не нашёл обои: $1" >&2; exit 1; }
+
+# Живые обои и статичные — один и тот же фон, поэтому включение картинки
+# выключает видео. Иначе mpvpaper остался бы крутиться под ней.
+if grep -q '^\$live' "$STATE" 2>/dev/null || pgrep -x mpvpaper >/dev/null 2>&1; then
+    pkill -x mpvpaper >/dev/null 2>&1
+fi
 
 # запоминаем выбор: отсюда его читают пилюля, экран блокировки и автозапуск
 mkdir -p "$(dirname "$STATE")"

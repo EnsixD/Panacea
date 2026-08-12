@@ -489,6 +489,9 @@ PanelWindow {
         "мс": "ms",
         "Сохранено": "Saved",
         "Обои": "Wallpapers",
+        "Живые обои": "Live wallpapers",
+        "Папка живых обоев": "Live wallpaper folder",
+        "Папка живых обоев пуста": "The live wallpaper folder is empty",
         // подписи макета проводника в настройках
         "Картинки": "Pictures",
         "объектов": "items",
@@ -851,6 +854,56 @@ PanelWindow {
     function refreshWalls() {
         pWallList.running = false;
         pWallList.running = true;
+        root.refreshLiveWalls();
+    }
+
+    // ------------------------------------------------------- живые обои
+    // Видео вместо картинки на фоне. Список и постеры готовит
+    // hypr/scripts/live_wallpaper.sh, играет mpvpaper.
+    property var liveList: []
+    property bool liveListReady: false
+    property string liveDir: ""
+
+    Process {
+        id: pLiveDir
+        command: ["bash", Quickshell.env("HOME")
+                          + "/.config/hypr/scripts/live_wallpaper.sh", "dir"]
+        running: true
+        stdout: StdioCollector { onStreamFinished: root.liveDir = text.trim() }
+    }
+    Process {
+        id: pLiveList
+        command: ["bash", Quickshell.env("HOME")
+                          + "/.config/hypr/scripts/live_wallpaper.sh", "list"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var rows = [];
+                var lines = text.split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var p = lines[i].trim().split("|");
+                    if (p.length < 4) continue;
+                    rows.push({
+                        wName:   p[0],
+                        wThumb:  p[1],          // постер; пусто, пока не готов
+                        wActive: p[2] === "yes",
+                        wOwn:    true,          // живые обои всегда свои
+                        wPath:   p[3]
+                    });
+                }
+                root.liveList = rows;
+                root.liveListReady = true;
+            }
+        }
+    }
+    function refreshLiveWalls() {
+        pLiveList.running = false;
+        pLiveList.running = true;
+    }
+    // папка живых обоев в проводнике: складывать видео надо именно туда
+    function openLiveFolder() {
+        if (root.liveDir.length === 0) return;
+        root.closeWalls();
+        root.openFilesAt(root.liveDir);
     }
     Timer {
         // не на самом старте: при входе в систему и без нас есть чем заняться
@@ -964,9 +1017,23 @@ PanelWindow {
     property int filesWindowSeq: 0
     ListModel { id: filesWindows }
 
-    function openFilesWindow() {
+    function openFilesWindow(startDir) {
         root.filesWindowSeq++;
-        filesWindows.append({ wid: root.filesWindowSeq });
+        filesWindows.append({ wid: root.filesWindowSeq,
+                              startDir: String(startDir || "") });
+    }
+
+    // Открыть проводник сразу в нужной папке — например в каталоге живых
+    // обоев из карусели. В оконном режиме это новое окно, иначе страница
+    // пилюли, которая читает каталог при загрузке.
+    property string filesStartDir: ""
+    function openFilesAt(path) {
+        var p = String(path || "");
+        if (p.length === 0) return;
+        if (cfg.filesWindow) { root.openFilesWindow(p); return; }
+        root.filesStartDir = p;
+        if (root.page === "files" && root.expanded) root.collapse();
+        root.togglePage("files");
     }
     function closeFilesWindow(wid) {
         for (var i = 0; i < filesWindows.count; i++) {
@@ -3284,6 +3351,8 @@ Instantiator {
             anchors.fill: parent
             anchors.margins: 15
             sys: root
+            // папка, с которой окно открылось (пусто — домашняя)
+            dir: model.startDir
             // в оконном режиме закрывать надо своё окно, а не пилюлю
             windowMode: true
             windowId: model.wid

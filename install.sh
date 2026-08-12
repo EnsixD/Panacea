@@ -82,6 +82,7 @@ DEPS=(
     "upower|upower|battery state and the battery page"
     "lsblk|util-linux|disks and removable media in the file manager"
     "cava|cava|the audio spectrum in the pill"
+    "mpvpaper|mpvpaper|live video wallpapers (AUR)"
     "curl|curl|downloading the wallpaper pack"
     "file|file|sanity-checking downloaded wallpapers"
 )
@@ -185,6 +186,9 @@ install_configs() {
     chmod +x "$CONF"/panacea/scripts/*.sh 2>/dev/null
     chmod +x "$CONF"/panacea/scripts/*.py 2>/dev/null
     chmod +x "$CONF"/hypr/scripts/*.sh 2>/dev/null
+    # каталог живых обоев: карусель открывает его кнопкой, и он должен
+    # существовать ещё до того, как туда что-то положат
+    mkdir -p "$CONF/hypr/wallpaper/live"
     personalize_paths
 }
 

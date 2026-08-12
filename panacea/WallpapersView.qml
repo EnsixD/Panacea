@@ -32,6 +32,15 @@ Item {
     // Листал ли человек сам. Пока нет — держим фокус на текущих обоях, даже
     // если список успел обновиться: открывая меню, ищут именно то, что стоит.
     property bool userScrolled: false
+
+    // Вкладка: "still" — обычные обои, "live" — видео. Модель, скрипт и
+    // подписи меняются вместе с ней, карусель остаётся той же.
+    property string mode: "still"
+    // Накопитель колеса: мышь и тачпад сыплют десятками мелких событий, и по
+    // одной карточке на каждое лента пролетала мимо. Шагаем, только когда
+    // накопилось на щелчок (120 единиц), и не чаще одного шага за паузу.
+    property real wheelAcc: 0
+    readonly property bool live: view.mode === "live"
     // Открыто ли меню. Отдельным свойством, а не прямо sys.wallsOpen: пока
     // выбранные обои вставляются, меню уже «закрыто» для анимаций, но окно
     // ещё живёт — иначе оно мигало обратно перед исчезновением.
@@ -101,14 +110,21 @@ Item {
     // Список читает корень (sys.wallList) — здесь только раскладываем его в
     // модель. Открытие поэтому мгновенное: данные уже есть.
     function reload() {
-        var rows = view.sys.wallList || [];
+        var rows = (view.live ? view.sys.liveList : view.sys.wallList) || [];
         var act = -1;
         for (var i = 0; i < rows.length; i++) if (rows[i].wActive) act = i;
         view.applyRows(rows, act);
     }
     Connections {
         target: view.sys
-        function onWallListChanged() { view.reload(); }
+        function onWallListChanged() { if (!view.live) view.reload(); }
+        function onLiveListChanged() { if (view.live)  view.reload(); }
+    }
+    onModeChanged: {
+        view.userScrolled = false;
+        view.reload();
+        view.jumpToActive();
+        if (view.live) liveWarmDelay.restart();
     }
 
     // Прогрев миниатюр для новых обоев — уже после того, как карусель
@@ -135,6 +151,20 @@ Item {
         id: warmDelay
         interval: 900
         onTriggered: pWarm.running = true
+    }
+
+    // Постеры для видео: кадр из середины каждого. Тоже после открытия —
+    // вытаскивать кадры из десятка файлов синхронно значит ждать.
+    Process {
+        id: pLiveWarm
+        command: ["bash", Quickshell.env("HOME")
+                          + "/.config/hypr/scripts/live_wallpaper.sh", "warm"]
+        onRunningChanged: if (!running) view.sys.refreshLiveWalls()
+    }
+    Timer {
+        id: liveWarmDelay
+        interval: 700
+        onTriggered: pLiveWarm.running = true
     }
 
     Process {
@@ -183,7 +213,10 @@ Item {
         view.flying = path;
         // снимок нынешних обоев ДО скрипта: после него на диске уже новый путь
         view.sys.startThemeFade();
-        pSet.command = ["sh", "-c", view.sys.scriptDir + "/themes.sh set \"$1\"", "_", path];
+        pSet.command = view.live
+            ? ["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/live_wallpaper.sh",
+               "set", path]
+            : ["sh", "-c", view.sys.scriptDir + "/themes.sh set \"$1\"", "_", path];
         pSet.running = true;
     }
 
@@ -221,11 +254,23 @@ Item {
         anchors.fill: parent
         onClicked: view.sys.closeWalls()
         onWheel: wheel => {
-            // колесо листает по одной карточке, а не по пикселям
-            if (wheel.angleDelta.y > 0 || wheel.angleDelta.x < 0) view.move(-1);
-            else if (wheel.angleDelta.y < 0 || wheel.angleDelta.x > 0) view.move(1);
+            var d = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : -wheel.angleDelta.x;
+            if (d === 0) return;
+            // при смене направления копить заново, иначе прежний остаток
+            // сначала уводит ленту в прежнюю сторону
+            if ((d > 0) !== (view.wheelAcc > 0)) view.wheelAcc = 0;
+            // ограничиваем запас: резкий рывок не должен ставить в очередь
+            // десяток шагов, которые потом доигрываются сами
+            view.wheelAcc = Math.max(-240, Math.min(240, view.wheelAcc + d));
+            if (wheelCool.running || Math.abs(view.wheelAcc) < 120) return;
+            view.wheelAcc += view.wheelAcc > 0 ? -120 : 120;
+            view.move(view.wheelAcc > 0 ? -1 : (view.wheelAcc < 0 ? 1 : (d > 0 ? -1 : 1)));
+            wheelCool.restart();
         }
     }
+
+    // пауза между шагами: карточка успевает доехать до центра
+    Timer { id: wheelCool; interval: 130 }
 
     // ------------------------------------------------------------- заголовок
     ColumnLayout {
@@ -238,19 +283,74 @@ Item {
 
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: view.sys.tr("Обои")
+            text: view.live ? view.sys.tr("Живые обои") : view.sys.tr("Обои")
             color: view.sys.colFg
             font {
                 family: view.sys.fontFam
                 pixelSize: view.sys.fontSize + 12; bold: true
             }
         }
+        // Вкладки: картинки и видео. Карусель у них одна и та же — меняется
+        // только источник строк и скрипт, который ставит фон.
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 10
+            spacing: 8
+
+            Repeater {
+                model: [
+                    { m: "still", t: view.sys.tr("Обои") },
+                    { m: "live",  t: view.sys.tr("Живые обои") }
+                ]
+                Rectangle {
+                    id: tabBtn
+                    required property var modelData
+                    readonly property bool picked: view.mode === tabBtn.modelData.m
+
+                    Layout.preferredWidth: tabTxt.implicitWidth + 34
+                    Layout.preferredHeight: 34
+                    radius: 17
+                    color: tabBtn.picked
+                           ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                     view.sys.colOn.b, 0.24)
+                           : (tabMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12)
+                                                  : Qt.rgba(1, 1, 1, 0.06))
+                    border.color: tabBtn.picked ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.10)
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: 160 } }
+                    Behavior on border.color { ColorAnimation { duration: 160 } }
+
+                    Text {
+                        id: tabTxt
+                        anchors.centerIn: parent
+                        text: tabBtn.modelData.t
+                        color: tabBtn.picked ? view.sys.colFg : view.sys.colMuted
+                        font {
+                            family: view.sys.fontFam
+                            pixelSize: view.sys.fontSize - 2
+                            bold: tabBtn.picked
+                        }
+                        Behavior on color { ColorAnimation { duration: 160 } }
+                    }
+                    MouseArea {
+                        id: tabMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.mode = tabBtn.modelData.m
+                    }
+                }
+            }
+        }
+
         Text {
             Layout.alignment: Qt.AlignHCenter
             text: walls.count
                   ? (view.target + 1) + " / " + walls.count
-                  : view.sys.wallListReady ? view.sys.tr("Обоев не найдено")
-                                           : view.sys.tr("Читаю…")
+                  : (view.live ? view.sys.liveListReady : view.sys.wallListReady)
+                    ? (view.live ? view.sys.tr("Папка живых обоев пуста")
+                                 : view.sys.tr("Обоев не найдено"))
+                    : view.sys.tr("Читаю…")
             color: view.sys.colMuted
             font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
         }
@@ -566,8 +666,45 @@ Item {
             }
         }
 
+        // Папка живых обоев: складывать видео надо именно туда, поэтому её
+        // открывает проводник — искать путь руками не нужно.
+        Rectangle {
+            visible: view.live
+            Layout.preferredWidth: 196
+            Layout.preferredHeight: 38
+            radius: 13
+            color: folderMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
+            border.color: folderMa.containsMouse ? view.sys.colOn : view.sys.colLine
+            border.width: 1
+            Behavior on color { ColorAnimation { duration: 160 } }
+            Behavior on border.color { ColorAnimation { duration: 160 } }
+
+            RowLayout {
+                anchors.centerIn: parent
+                spacing: 8
+                Text {
+                    text: String.fromCodePoint(0xF024B)
+                    color: folderMa.containsMouse ? view.sys.colOn : view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: 16 }
+                }
+                Text {
+                    text: view.sys.tr("Папка живых обоев")
+                    color: folderMa.containsMouse ? view.sys.colFg : view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                }
+            }
+            MouseArea {
+                id: folderMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: view.sys.openLiveFolder()
+            }
+        }
+
         // свои обои — через проводник, как и раньше
         Rectangle {
+            visible: !view.live
             Layout.preferredWidth: 156
             Layout.preferredHeight: 38
             radius: 13

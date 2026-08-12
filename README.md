@@ -47,7 +47,7 @@ one geometry, one palette and one animation timeline.
 | Quick settings | `Super + Z` | Wi‑Fi, Bluetooth, sound, now playing with transport and seeking straight on the equaliser, recorder, battery, passwords, tray |
 | Networks / Bluetooth | `Super + Shift + W` / `+ B` | Scan, connect, pair |
 | Notifications | `Super + Shift + N` | Live cards that open what they are about, one history list, do‑not‑disturb |
-| Wallpapers | `Super + Shift + T` | Full‑screen carousel with parallax previews |
+| Wallpapers | `Super + Shift + T` | Full‑screen carousel with parallax previews, stills and live video |
 | Workspaces | `Super + Tab` | Live previews of every workspace, switch from the grid |
 | Launcher | `Super + A` | App search + calculator, recents first |
 | Clipboard | `Super + V` | `cliphist` history with search |
@@ -168,7 +168,17 @@ author of an image and want it gone, open an issue and it will be removed.
   `~/.config/hypr/wallpaper/shell`. Individual images belong to their own
   authors; the collection only gathers them.
 
-**Live wallpapers** (not bundled — bring your own, or take them from here)
+**Live wallpapers**
+
+Video wallpapers play through [mpvpaper](https://github.com/GhostNaN/mpvpaper),
+which puts mpv on the background layer; hyprpaper steps aside while a video is
+up. Drop `.mp4`, `.webm`, `.mkv` or `.mov` files into
+`~/.config/hypr/wallpaper/live` — the **Live wallpapers** tab of the carousel has
+a button that opens that folder in the file manager. Posters are pulled from the
+middle of each clip, and mpv is paused whenever the wallpaper is covered, so a
+maximised window costs nothing.
+
+Nothing is bundled — bring your own, or take them from here:
 
 - [DesktopHut](https://www.desktophut.com) — large library of ready‑made MP4
   loops, including very minimal abstractions.

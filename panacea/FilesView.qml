@@ -72,6 +72,12 @@ Item {
 
     focus: true
     Component.onCompleted: {
+        // Каталог, с которого попросили открыться (карусель живых обоев,
+        // например). Одноразовый: дальше проводник ходит сам.
+        if (!view.dir.length && view.sys.filesStartDir.length) {
+            view.dir = view.sys.filesStartDir;
+            view.sys.filesStartDir = "";
+        }
         if (!view.dir.length) view.dir = view.sys.filesDir;
         forceActiveFocus();
         loadPlaces();
