@@ -187,11 +187,16 @@ cmd_apply() {
     # Ставим тем же установщиком, что и с нуля: одна логика на установку и
     # обновление — значит, обновлённая машина ничем не отличается от свежей.
     # Пакеты, тема входа и загрузчик не трогаются: их ставят один раз.
+    # --no-restart обязателен, а не только в проверочном прогоне.
+    #
+    # Установщик перезапускает оболочку сам: pkill -x qs. Но этот скрипт
+    # запущен ИЗ оболочки и умирал вместе с ней прямо здесь — до восстановления
+    # настроек, до списка изменений и до отметки версии. Со стороны обновление
+    # выглядело сорвавшимся и предлагалось снова при каждом запуске. Поэтому
+    # установщик оболочку не трогает, а перезапуск делаем сами и в самом конце.
     echo "step=install"
-    local extra=""
-    [ "$DRY" = "1" ] && extra="--no-restart"
     if ! (cd "$tmp/src" && bash ./install.sh --no-deps --no-sddm --no-grub \
-            --no-services --no-wallpapers $extra --yes >"$tmp/log" 2>&1); then
+            --no-services --no-wallpapers --no-restart --yes >"$tmp/log" 2>&1); then
         restore_user_state
         echo "status=error"
         echo "error=установщик завершился с ошибкой, подробности в $tmp/log"
@@ -213,13 +218,24 @@ cmd_apply() {
         echo "version=$sha"
         return 0
     fi
-    # Оболочку поднимает сам установщик; если он этого не сделал (например,
-    # она была не запущена), поднимаем сами.
-    if ! pgrep -f "qs -c $CONF/panacea" >/dev/null 2>&1; then
-        (setsid qs -c "$CONF/panacea" >/dev/null 2>&1 &)
-    fi
+    # Печатаем итог ДО перезапуска: оболочка читает вывод этого скрипта, и
+    # после pkill читать его будет уже некому.
     echo "status=done"
     echo "version=$sha"
+
+    # Перезапуск отдельным сеансом: он переживёт смерть и оболочки, и нас
+    # самих. Пауза даёт оболочке дочитать вывод и закрыться по-человечески.
+    if have hyprctl && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        setsid sh -c '
+            sleep 1
+            hyprctl reload >/dev/null 2>&1
+            [ -x "'"$CONF"'/hypr/scripts/switch_theme.sh" ] \
+                && "'"$CONF"'/hypr/scripts/switch_theme.sh" --restore >/dev/null 2>&1
+            pkill -x qs >/dev/null 2>&1
+            sleep 1
+            exec qs -c "'"$CONF"'/panacea"
+        ' >/dev/null 2>&1 &
+    fi
 }
 
 case "${1:-check}" in
