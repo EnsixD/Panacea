@@ -20,9 +20,15 @@ Item {
 
     // 0 — пилюля, 1 — система, 2 — экран, 3 — клавиши, 4 — о системе
     property int tab: 0
+    // Клавиши живут отдельным окном (Super + /), а не разделом настроек: их
+    // правят редко и подолгу, а список длинный. В этом режиме полоса разделов
+    // не рисуется, и виден только он.
+    property bool keysOnly: false
     // обе вкладки раскладываются в две колонки, поэтому окно всегда широкое:
     // «Пилюля» вертикально уже не помещалась и уезжала за нижнюю кромку
-    onTabChanged: view.sys.wideSettings = true
+    // view.sys может быть ещё не присвоен: обработчик срабатывает и на
+    // начальном значении tab, до того как вид получил ссылку на оболочку
+    onTabChanged: if (!view.keysOnly && view.sys) view.sys.wideSettings = true
 
     // ------------------------------------------------------------- черновик
     // Копия оформления. Ползунки крутят её, настоящие настройки не трогаются,
@@ -41,13 +47,11 @@ Item {
         property int    animMs: 230
         property string lang: "en"
         property bool   clock12: false
-        property string pillPos: "top"
     }
 
     readonly property var appearanceKeys: [
         "fontFam", "fontSize", "iconSize", "colFg", "mutedAlpha",
-        "colOn", "pillH", "panelW", "cornerR", "animMs", "lang", "clock12",
-        "pillPos"
+        "colOn", "pillH", "panelW", "cornerR", "animMs", "lang", "clock12"
     ]
 
     property bool dirty: false
@@ -381,7 +385,7 @@ Item {
         draft.fontSize = 15; draft.iconSize = 17;
         draft.colFg = "#ffffff"; draft.mutedAlpha = 0.45; draft.colOn = "#3b82f6";
         draft.pillH = 38; draft.panelW = 540; draft.cornerR = 14; draft.animMs = 230;
-        draft.lang = "en"; draft.clock12 = false; draft.pillPos = "top";
+        draft.lang = "en"; draft.clock12 = false;
         // клавиши тоже возвращаем к заводским, а не просто отменяем правки
         var o = {};
         var def = view.sys.defaultBinds;
@@ -396,12 +400,16 @@ Item {
         dirty = true;
     }
 
-    Component.onCompleted: { loadDraft(); view.sys.wideSettings = true; forceActiveFocus(); }
+    Component.onCompleted: {
+        loadDraft();
+        if (!view.keysOnly) view.sys.wideSettings = true;
+        forceActiveFocus();
+    }
     Component.onDestruction: {
         view.sys.tipText = "";
         // не оставляем систему без горячих клавиш и не запоминаем широкий режим
         if (capturingKey.length) grabKeys(false);
-        view.sys.wideSettings = false;
+        if (!view.keysOnly) view.sys.wideSettings = false;
     }
 
     // ----------------------------------------------------------- о системе
@@ -580,7 +588,11 @@ Item {
 
     Keys.onPressed: event => {
         if (capturingKey.length === 0) {
-            if (event.key === Qt.Key_Escape) { view.sys.collapse(); event.accepted = true; }
+            if (event.key === Qt.Key_Escape) {
+                if (view.keysOnly) view.sys.keysWindowOpen = false;
+                else               view.sys.collapse();
+                event.accepted = true;
+            }
             return;
         }
         event.accepted = true;
@@ -957,101 +969,6 @@ Item {
         Layout.fillWidth: true
     }
 
-    // Мини-экран с островом у одной из кромок — выбирается кликом.
-    component PosTile: Rectangle {
-        id: tile
-        property string pos: "top"
-        property string label: ""
-        readonly property bool picked: draft.pillPos === tile.pos
-        readonly property bool side: tile.pos === "left" || tile.pos === "right"
-
-        Layout.preferredWidth: 108
-        Layout.preferredHeight: 82
-        radius: 14
-        color: tile.picked
-               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.14)
-               : (tileMa.containsMouse ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.04))
-        border.color: tile.picked
-                      ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.09)
-        border.width: tile.picked ? 2 : 1
-        scale: tileMa.pressed ? 0.96 : 1.0
-        Behavior on color { ColorAnimation { duration: 160 } }
-        Behavior on border.color { ColorAnimation { duration: 160 } }
-        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
-
-        // рамка «экрана»
-        Rectangle {
-            id: screenBox
-            anchors.centerIn: parent
-            anchors.verticalCenterOffset: -6
-            width: 72; height: 42
-            radius: 6
-            color: Qt.rgba(0, 0, 0, 0.35)
-            border.color: Qt.rgba(1, 1, 1, 0.14)
-            border.width: 1
-
-            // сам остров у выбранной кромки
-            Rectangle {
-                width: tile.side ? 5 : 30
-                height: tile.side ? 22 : 5
-                radius: 3
-                color: tile.picked ? view.sys.colOn : view.sys.colMuted
-                x: tile.pos === "left"  ? 4
-                 : tile.pos === "right" ? screenBox.width - width - 4
-                                        : (screenBox.width - width) / 2
-                y: tile.pos === "top"   ? 4
-                 : tile.pos === "bottom" ? screenBox.height - height - 4
-                                         : (screenBox.height - height) / 2
-                Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                Behavior on color { ColorAnimation { duration: 160 } }
-            }
-
-            // стрелка раскрытия — всегда к центру экрана
-            Rectangle {
-                width: tile.side ? 16 : 3
-                height: tile.side ? 3 : 12
-                radius: 2
-                opacity: tile.picked ? 0.75 : 0.3
-                color: tile.picked ? view.sys.colOn : view.sys.colMuted
-                anchors.centerIn: parent
-                anchors.horizontalCenterOffset: tile.pos === "left" ? -12
-                                              : tile.pos === "right" ? 12 : 0
-                anchors.verticalCenterOffset: tile.pos === "top" ? -10
-                                            : tile.pos === "bottom" ? 10 : 0
-                Behavior on opacity { NumberAnimation { duration: 160 } }
-            }
-        }
-
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 6
-            text: tile.label
-            color: tile.picked ? view.sys.colFg : view.sys.colMuted
-            font {
-                family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4
-                bold: tile.picked
-            }
-            Behavior on color { ColorAnimation { duration: 160 } }
-        }
-
-        MouseArea {
-            id: tileMa
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            // Как и остальное оформление — через «Применить»: остров
-            // переезжает по всему экрану, и делать это на каждый клик мимо
-            // было бы слишком резко. Пока правка видна в макете сверху.
-            onClicked: {
-                if (draft.pillPos === tile.pos) return;
-                draft.pillPos = tile.pos;
-                view.touch();
-            }
-        }
-    }
-
     // Подпись слева от ряда кнопок. Сам ряд — Flow: кнопок бывает много
     // (режимы экрана), и они переносятся на следующую строку, а не ужимаются.
     component ChipLabel: Text {
@@ -1109,20 +1026,22 @@ Item {
             Layout.maximumWidth: 40
             Layout.alignment: Qt.AlignTop
             spacing: 4
+            visible: !view.keysOnly
 
             Repeater {
+                // Индексы заданы явно: клавиши (3) в полосе не показываются,
+                // но сама страница осталась — её открывает отдельное окно.
                 model: [
-                    { t: view.sys.tr("Пилюля"),   g: 0xF12E1 },
-                    { t: view.sys.tr("Система"),  g: 0xF0493 },
-                    { t: view.sys.tr("Экран"),    g: 0xF0379 },
-                    { t: view.sys.tr("Клавиши"),  g: 0xF030C },
-                    { t: view.sys.tr("О системе"), g: 0xF02FD }
+                    { i: 0, t: view.sys.tr("Пилюля"),    g: 0xF12E1 },
+                    { i: 1, t: view.sys.tr("Система"),   g: 0xF0493 },
+                    { i: 2, t: view.sys.tr("Экран"),     g: 0xF0379 },
+                    { i: 4, t: view.sys.tr("О системе"), g: 0xF02FD }
                 ]
                 Rectangle {
                     id: navBtn
                     required property int index
                     required property var modelData
-                    readonly property bool active: view.tab === navBtn.index
+                    readonly property bool active: view.tab === navBtn.modelData.i
 
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
@@ -1151,7 +1070,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: view.tab = navBtn.index
+                        onClicked: view.tab = navBtn.modelData.i
                         onEntered: {
                             // точка в координатах окна: тултип раскроется от неё влево
                             var p = navBtn.mapToItem(null, 0, navBtn.height / 2);
@@ -1169,6 +1088,7 @@ Item {
         Rectangle {
             Layout.preferredWidth: 1
             Layout.fillHeight: true
+            visible: !view.keysOnly
             // заметнее colLine и на всю высоту окна: фон у полосы и у
             // содержимого одинаковый, слабая черта на нём терялась
             color: Qt.rgba(1, 1, 1, 0.18)
@@ -1255,21 +1175,101 @@ Item {
             }
 
         // ===================================================== ВКЛАДКА «ПИЛЮЛЯ»
-        // Осталось главное: где висит остров и какими он будет цветами.
-        // Ползунки размеров, шрифтов и скорости убраны — их крутили один раз
-        // и забывали, а вкладка из-за них читалась как таблица настроек.
+        // Только то, что действительно правят: цвета и способ переставить
+        // остров. Макет рабочего стола и четыре кнопки кромок убраны —
+        // остров теперь переносится прямо на экране, руками.
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 14
             visible: view.tab === 0
 
-            // Макет рабочего стола: сразу видно, у какой кромки будет остров,
-            // как он повернётся и куда раскроется панель.
-            PillPreview {
+            Section { Layout.topMargin: 0; text: view.sys.tr("Положение") }
+
+            Toggle {
+                label: view.sys.tr("Переносить остров мышью")
+                on: view.sys.cfg.pillDrag
+                // Тумблер про поведение, а не про оформление: действует сразу,
+                // ждать «Применить» ему не за чем.
+                onToggled: {
+                    view.sys.cfg.pillDrag = !view.sys.cfg.pillDrag;
+                    view.sys.saveCfg();
+                }
+            }
+
+            Text {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 640
-                sys: view.sys
-                d: draft
+                text: view.sys.tr("Раскройте быстрые настройки и потяните за "
+                                  + "полосу над часами. У кромки остров "
+                                  + "прицепится к её центру, в пустоте — "
+                                  + "вернётся на место.")
+                color: Qt.rgba(1, 1, 1, 0.32)
+                wrapMode: Text.WordWrap
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: view.sys.tr("Сейчас: ") + view.sys.tr(
+                          view.sys.pillPos === "bottom" ? "Снизу"
+                        : view.sys.pillPos === "left"   ? "Слева"
+                        : view.sys.pillPos === "right"  ? "Справа" : "Сверху")
+                color: view.sys.colMuted
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
+            }
+
+            CardBox {
+                Layout.topMargin: 6
+                Layout.preferredHeight: colorsCol.implicitHeight + 34
+                ColumnLayout {
+                    id: colorsCol
+                    anchors.fill: parent
+                    anchors.margins: 17
+                    spacing: 12
+
+                    Section { Layout.topMargin: 0; text: view.sys.tr("Цвета") }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+                        Text {
+                            Layout.preferredWidth: 90
+                            text: view.sys.tr("Текст")
+                            color: view.sys.colFg
+                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+                        }
+                        Repeater {
+                            model: ["#ffffff", "#e5e7eb", "#fbbf24", "#86efac", "#93c5fd", "#f9a8d4"]
+                            Swatch {
+                                required property string modelData
+                                hex: modelData
+                                picked: draft.colFg === modelData
+                                onChosen: { draft.colFg = modelData; view.touch(); }
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+                        Text {
+                            Layout.preferredWidth: 90
+                            text: view.sys.tr("Акцент")
+                            color: view.sys.colFg
+                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
+                        }
+                        Repeater {
+                            model: ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4"]
+                            Swatch {
+                                required property string modelData
+                                hex: modelData
+                                picked: draft.colOn === modelData
+                                onChosen: { draft.colOn = modelData; view.touch(); }
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                }
             }
 
             Text {
@@ -1281,101 +1281,8 @@ Item {
                 Behavior on color { ColorAnimation { duration: 200 } }
             }
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-
-                CardBox {
-                    Layout.preferredWidth: 1
-                    Layout.preferredHeight: posCol.implicitHeight + 34
-                    ColumnLayout {
-                        id: posCol
-                        anchors.fill: parent
-                        anchors.margins: 17
-                        spacing: 12
-
-                        Section { Layout.topMargin: 0; text: view.sys.tr("Положение на экране") }
-
-                        // Именно RowLayout: Flow внутри колоночной раскладки не
-                        // сообщает свою высоту, и плитки складывались в
-                        // полоску нулевой высоты — их попросту не было видно.
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 9
-                            PosTile { pos: "top";    label: view.sys.tr("Сверху") }
-                            PosTile { pos: "bottom"; label: view.sys.tr("Снизу") }
-                            PosTile { pos: "left";   label: view.sys.tr("Слева") }
-                            PosTile { pos: "right";  label: view.sys.tr("Справа") }
-                            Item { Layout.fillWidth: true }
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: view.sys.tr("Раскрытие всегда идёт к центру экрана.")
-                            color: Qt.rgba(1, 1, 1, 0.32)
-                            wrapMode: Text.WordWrap
-                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
-                        }
-                    }
-                }
-
-                CardBox {
-                    Layout.preferredWidth: 1
-                    Layout.preferredHeight: colorsCol.implicitHeight + 34
-                    ColumnLayout {
-                        id: colorsCol
-                        anchors.fill: parent
-                        anchors.margins: 17
-                        spacing: 12
-
-                        Section { Layout.topMargin: 0; text: view.sys.tr("Цвета") }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 14
-                            Text {
-                                Layout.preferredWidth: 90
-                                text: view.sys.tr("Текст")
-                                color: view.sys.colFg
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                            }
-                            Repeater {
-                                model: ["#ffffff", "#e5e7eb", "#fbbf24", "#86efac", "#93c5fd", "#f9a8d4"]
-                                Swatch {
-                                    required property string modelData
-                                    hex: modelData
-                                    picked: draft.colFg === modelData
-                                    onChosen: { draft.colFg = modelData; view.touch(); }
-                                }
-                            }
-                            Item { Layout.fillWidth: true }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 14
-                            Text {
-                                Layout.preferredWidth: 90
-                                text: view.sys.tr("Акцент")
-                                color: view.sys.colFg
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 1 }
-                            }
-                            Repeater {
-                                model: ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4"]
-                                Swatch {
-                                    required property string modelData
-                                    hex: modelData
-                                    picked: draft.colOn === modelData
-                                    onChosen: { draft.colOn = modelData; view.touch(); }
-                                }
-                            }
-                            Item { Layout.fillWidth: true }
-                        }
-                    }
-                }
-            }
+            Item { Layout.fillHeight: true }
         }
-
 
         // ==================================================== ВКЛАДКА «СИСТЕМА»
         // Всё, что не про внешний вид пилюли: язык, формат часов и поведение
@@ -1597,7 +1504,7 @@ Item {
                                     PillMock {
                                         anchors.fill: parent
                                         sys: view.sys
-                                        pos: draft.pillPos
+                                        pos: view.sys.pillPos
                                         fgCol: draft.colFg
                                         onCol: draft.colOn
                                         k: fmShot.height / (view.sys.screen
@@ -1634,13 +1541,13 @@ Item {
                                         visible: fmPane.modelData.win
                                         anchors.fill: parent
                                         anchors.margins: Math.max(6, fmShot.height * 0.03)
-                                        anchors.topMargin: draft.pillPos === "top"
+                                        anchors.topMargin: view.sys.pillPos === "top"
                                                 ? fmShot.height * 0.09 : Math.max(6, fmShot.height * 0.03)
-                                        anchors.bottomMargin: draft.pillPos === "bottom"
+                                        anchors.bottomMargin: view.sys.pillPos === "bottom"
                                                 ? fmShot.height * 0.09 : Math.max(6, fmShot.height * 0.03)
-                                        anchors.leftMargin: draft.pillPos === "left"
+                                        anchors.leftMargin: view.sys.pillPos === "left"
                                                 ? fmShot.width * 0.05 : Math.max(6, fmShot.height * 0.03)
-                                        anchors.rightMargin: draft.pillPos === "right"
+                                        anchors.rightMargin: view.sys.pillPos === "right"
                                                 ? fmShot.width * 0.05 : Math.max(6, fmShot.height * 0.03)
                                         spacing: 8
 

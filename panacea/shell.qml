@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
@@ -44,6 +45,8 @@ PanelWindow {
             property int    pillH:  38
             // где живёт остров: top | bottom | left | right
             property string pillPos: "top"
+            // разрешено ли переносить остров мышью прямо на экране
+            property bool   pillDrag: false
             property int    panelW: 540
             property int    cornerR: 14
             property int    animMs: 230
@@ -489,6 +492,11 @@ PanelWindow {
         "мс": "ms",
         "Сохранено": "Saved",
         "Обои": "Wallpapers",
+        "Положение": "Position",
+        "Переносить остров мышью": "Drag the island with the mouse",
+        "Раскройте быстрые настройки и потяните за полосу над часами. У кромки остров прицепится к её центру, в пустоте — вернётся на место.":
+            "Open quick settings and drag the bar above the clock. Near an edge the island snaps to its centre; in open space it returns where it was.",
+        "Сейчас: ": "Now: ",
         "Живые обои": "Live wallpapers",
         "Папка живых обоев": "Live wallpaper folder",
         "Папка живых обоев пуста": "The live wallpaper folder is empty",
@@ -639,6 +647,43 @@ PanelWindow {
     readonly property bool pillAtRight:  pillPos === "right"
     // у боковых положений капсула стоит по центру высоты, а не у кромки экрана
     readonly property bool pillSide: pillAtLeft || pillAtRight
+
+    // ------------------------------------------------- перенос острова мышью
+    // Тумблер в настройках; тянут за полосу над часами в раскрытых быстрых
+    // настройках. У кромки остров цепляется к её центру, в пустоте —
+    // возвращается на место: цепляться там не за что.
+    property bool  pillDragging: false
+    property real  dragDX: 0            // смещение от родного места, px
+    property real  dragDY: 0
+    // кромка, к которой прицепится остров, если отпустить сейчас
+    property string dragEdge: ""
+
+    // Кромку выбираем по тому, к какой ближе центр капсулы, и только если он
+    // уже в её полосе — четверть экрана. Иначе отпускать некуда.
+    function edgeAt(cx, cy) {
+        var w = root.width, h = root.height;
+        var dTop = cy, dBottom = h - cy, dLeft = cx, dRight = w - cx;
+        var m = Math.min(dTop, dBottom, dLeft, dRight);
+        if (m > Math.min(w, h) * 0.25) return "";
+        if (m === dTop)    return "top";
+        if (m === dBottom) return "bottom";
+        if (m === dLeft)   return "left";
+        return "right";
+    }
+
+    function dropPill() {
+        var edge = root.dragEdge;
+        root.pillDragging = false;
+        root.dragEdge = "";
+        // смещение снимаем с анимацией: остров едет либо к новой кромке,
+        // либо обратно на своё место
+        root.dragDX = 0;
+        root.dragDY = 0;
+        if (edge.length && edge !== root.pillPos) {
+            cfg.pillPos = edge;
+            root.saveCfg();
+        }
+    }
 
     // Где именно сейчас стоит капсула. Нужно карусели обоев: она начинает
     // разворот ровно из острова, поэтому ей нужны его координаты.
@@ -799,6 +844,13 @@ PanelWindow {
     function toggleOverview() {
         if (root.overviewOpen) closeOverview(); else openOverview();
     }
+
+    // ------------------------------------------------------------- клавиши
+    // Список сочетаний уехал из настроек в своё окно: их правят редко и
+    // подолгу, список длинный, а держать его пятой вкладкой значило каждый раз
+    // растягивать окно настроек под самый большой раздел.
+    property bool keysWindowOpen: false
+    function toggleKeysWindow() { root.keysWindowOpen = !root.keysWindowOpen; }
 
     // ------------------------------------------------------------------ обои
     // Карусель обоев — отдельный полноэкранный слой, как обзор столов:
@@ -2272,8 +2324,7 @@ PanelWindow {
             root.scanBt();
         }
         function settings(): void { root.settingsTab = 0; root.togglePage("settings"); }
-        function shortcuts(): void { root.settingsTab = 3;
-            if (root.page !== "settings") root.togglePage("settings"); }
+        function shortcuts(): void { root.toggleKeysWindow(); }
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }
         function cancelCapture(): void { root.cancelCaptureRequested(); }
@@ -2380,6 +2431,28 @@ PanelWindow {
         }
     }
 
+    // Подсветка кромки, к которой прицепится остров. Пока тянут по пустоте,
+    // ничего не горит — значит отпускать некуда, вернётся на место.
+    Repeater {
+        model: ["top", "bottom", "left", "right"]
+        Rectangle {
+            required property string modelData
+            readonly property bool side: modelData === "left" || modelData === "right"
+            readonly property bool lit: root.pillDragging && root.dragEdge === modelData
+
+            width:  side ? 4 : parent.width
+            height: side ? parent.height : 4
+            x: modelData === "right" ? parent.width - width : 0
+            y: modelData === "bottom" ? parent.height - height : 0
+            z: 80
+            radius: 2
+            color: root.colOn
+            opacity: lit ? 0.9 : 0
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: 140 } }
+        }
+    }
+
     // ------------------------------------------------------------- сама пилюля
     Rectangle {
         id: capsule
@@ -2467,7 +2540,25 @@ PanelWindow {
                 ? contentH
                 : root.pillSide ? idleLen
                                 : idleThick
-        height: targetH
+        // Не выше экрана: у боковых кромок вертикальная раскладка страницы
+        // отдавала такую высоту, что остров разворачивался во весь экран.
+        height: Math.min(targetH, root.height - root.gap * 2)
+
+        // Перенос: капсула сдвигается от своего места на dragDX/dragDY. Пока
+        // тянут — без анимации, чтобы шла точно за курсором; на отпускании
+        // смещение сбрасывается в ноль и она сама доезжает до кромки.
+        transform: Translate {
+            x: root.dragDX
+            y: root.dragDY
+            Behavior on x {
+                enabled: !root.pillDragging
+                NumberAnimation { duration: root.animMs; easing.type: Easing.OutCubic }
+            }
+            Behavior on y {
+                enabled: !root.pillDragging
+                NumberAnimation { duration: root.animMs; easing.type: Easing.OutCubic }
+            }
+        }
 
         onXChanged:      root.pillRectX = capsule.x
         onYChanged:      root.pillRectY = capsule.y
@@ -3120,6 +3211,60 @@ PanelWindow {
                 }
             }
 
+        // ------------------------------------------------------- ручка переноса
+        // Полоса над содержимым: тянут за неё, а не за всю панель — иначе
+        // любое движение по плиткам таскало бы остров. Видна только когда
+        // перенос разрешён и открыты быстрые настройки.
+        Item {
+            id: dragHandle
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 16
+            z: 60
+            visible: root.cfg.pillDrag && root.expanded && root.page === "main"
+                     && !root.settingsMode
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 46
+                height: 4
+                radius: 2
+                color: root.pillDragging ? root.colOn
+                     : (handleMa.containsMouse ? Qt.rgba(1, 1, 1, 0.45)
+                                               : Qt.rgba(1, 1, 1, 0.18))
+                Behavior on color { ColorAnimation { duration: 140 } }
+            }
+
+            MouseArea {
+                id: handleMa
+                anchors.fill: parent
+                hoverEnabled: true
+                preventStealing: true
+                cursorShape: root.pillDragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+
+                property real pressX: 0
+                property real pressY: 0
+
+                onPressed: mouse => {
+                    var p = mapToItem(null, mouse.x, mouse.y);
+                    handleMa.pressX = p.x;
+                    handleMa.pressY = p.y;
+                    root.pillDragging = true;
+                }
+                onPositionChanged: mouse => {
+                    if (!root.pillDragging) return;
+                    var p = mapToItem(null, mouse.x, mouse.y);
+                    root.dragDX = p.x - handleMa.pressX;
+                    root.dragDY = p.y - handleMa.pressY;
+                    root.dragEdge = root.edgeAt(capsule.x + root.dragDX + capsule.width / 2,
+                                                capsule.y + root.dragDY + capsule.height / 2);
+                }
+                onReleased: root.dropPill()
+                onCanceled: root.dropPill()
+            }
+        }
+
         // --------------------------------------------------- раскрытая панель
         Loader {
             id: contentLoader
@@ -3328,6 +3473,88 @@ LazyLoader {
         WallpapersView {
             anchors.fill: parent
             sys: root
+        }
+    }
+}
+
+// Клавиши (Super + /) — свой полноэкранный слой, а не тайлящееся окно:
+// раскрывается из острова по центру экрана и так же складывается обратно.
+LazyLoader {
+    activeAsync: root.keysWindowOpen
+
+    PanelWindow {
+        anchors { top: true; bottom: true; left: true; right: true }
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: root.keysWindowOpen ? WlrKeyboardFocus.Exclusive
+                                                         : WlrKeyboardFocus.None
+        visible: root.keysWindowOpen || keysScrim.opacity > 0.01
+
+        Rectangle {
+            id: keysScrim
+            anchors.fill: parent
+            color: Qt.rgba(0, 0, 0, 0.62)
+            opacity: root.keysWindowOpen ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animMs } }
+        }
+
+        // клик мимо карточки закрывает — как у обзора столов и карусели обоев
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.keysWindowOpen = false
+        }
+
+        // Карточка начинает ровно в геометрии капсулы и растёт до своего
+        // размера по центру: получается развернувшийся остров, а не окно,
+        // приехавшее со стороны.
+        Rectangle {
+            id: keysCard
+            readonly property real fullW: Math.min(1280, parent.width - 80)
+            readonly property real fullH: Math.min(940, parent.height - 80)
+
+            color: root.colBg
+            clip: true
+            x: root.keysWindowOpen ? (parent.width - fullW) / 2 : root.pillRectX
+            y: root.keysWindowOpen ? (parent.height - fullH) / 2 : root.pillRectY
+            width:  root.keysWindowOpen ? fullW : Math.max(8, root.pillRectW)
+            height: root.keysWindowOpen ? fullH : Math.max(8, root.pillRectH)
+            radius: root.keysWindowOpen ? 26 : Math.min(width, height) / 2
+
+            Behavior on x      { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
+            Behavior on y      { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
+            Behavior on width  { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
+            Behavior on height { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
+            Behavior on radius { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
+
+            // Список сочетаний длиннее любого экрана, поэтому он в прокрутке:
+            // раньше нижние разделы просто обрезались краем карточки.
+            Flickable {
+                anchors.fill: parent
+                anchors.margins: 22
+                clip: true
+                contentWidth: width
+                contentHeight: keysBody.implicitHeight
+                boundsBehavior: Flickable.StopAtBounds
+                flickDeceleration: 3000
+                // содержимое проявляется вслед за карточкой: на первых кадрах
+                // она ещё размером с пилюлю, и список в неё не влезает
+                opacity: root.keysWindowOpen ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: root.animMs } }
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    contentItem: Rectangle { radius: 2; color: Qt.rgba(1, 1, 1, 0.22) }
+                }
+
+                SettingsView {
+                    id: keysBody
+                    width: parent.width
+                    sys: root
+                    keysOnly: true
+                    tab: 3
+                }
+            }
         }
     }
 }
