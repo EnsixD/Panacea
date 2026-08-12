@@ -962,7 +962,8 @@ PanelWindow {
     // закрыто, а поймает его собственная служба уведомлений оболочки.
     Process {
         id: pUpdNotify
-        command: ["notify-send", "-a", "Panacea", "-i", "system-software-update",
+        command: ["notify-send", "-a", "Panacea", "-i",
+                  Quickshell.env("HOME") + "/.config/panacea/assets/logo-128.png",
                   root.tr("Доступно обновление Panacea"), root.updSubject]
     }
 
@@ -1934,7 +1935,27 @@ PanelWindow {
     readonly property string notifSummary: notifCurrent ? String(notifCurrent.summary || "") : ""
     readonly property string notifBody:    notifCurrent ? String(notifCurrent.body || "") : ""
     readonly property string notifApp:     notifCurrent ? String(notifCurrent.appName || "") : ""
-    readonly property string notifImage:   notifCurrent ? String(notifCurrent.image || "") : ""
+    readonly property string notifImage:   notifCurrent ? root.notifIconFor(notifCurrent) : ""
+
+    // notify-send -i отдаёт ИМЯ значка из темы оформления, а не путь к файлу.
+    // Image такое имя открыть не может и рисует на его месте «битую картинку»
+    // в клеточку. Имена разворачиваем через тему; не нашлось — отдаём пусто,
+    // и карточка нарисует свой значок колокольчика.
+    function notifIconFor(n) {
+        var img = String(n.image || "");
+        if (img.length === 0) img = String(n.appIcon || "");
+        if (img.length === 0) return "";
+        // Значок из темы оформления Quickshell отдаёт как image://icon/ИМЯ,
+        // и если темы в системе нет, провайдер молча возвращает клетчатую
+        // заглушку со статусом Ready — поймать её по статусу нельзя. Поэтому
+        // разворачиваем имя сами: iconPath со вторым true отдаёт пустую
+        // строку, когда значка нет, и карточка рисует свой колокольчик.
+        if (img.indexOf("image://icon/") === 0)
+            return Quickshell.iconPath(img.substring(13).split("?")[0], true);
+        // путь, file://, data: — отдаём как есть
+        if (img.indexOf("/") >= 0 || img.indexOf(":") >= 0) return img;
+        return Quickshell.iconPath(img, true);
+    }
     readonly property bool   notifUrgent:
         notifCurrent ? notifCurrent.urgency === NotificationUrgency.Critical : false
 
@@ -1956,7 +1977,7 @@ PanelWindow {
                 nSummary: String(n.summary || ""),
                 nBody: String(n.body || ""),
                 nApp: String(n.appName || ""),
-                nImage: String(n.image || ""),
+                nImage: root.notifIconFor(n),
                 nUrgent: n.urgency === NotificationUrgency.Critical,
                 nTime: Qt.formatDateTime(new Date(), "HH:mm")
             });
@@ -3309,16 +3330,19 @@ PanelWindow {
                                         : Qt.rgba(1, 1, 1, 0.08)
 
                 Image {
+                    id: toastIcon
                     anchors.fill: parent
                     anchors.margins: 5
                     source: root.notifImage
-                    visible: source != ""
+                    // не Ready — значит не открылась: пусть лучше будет свой
+                    // значок, чем клетчатый прямоугольник «битой картинки»
+                    visible: source != "" && status === Image.Ready
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                 }
                 Text {
                     anchors.centerIn: parent
-                    visible: root.notifImage === ""
+                    visible: !toastIcon.visible
                     text: String.fromCodePoint(root.notifUrgent ? 0xF0026 : 0xF009A)
                     color: root.notifUrgent ? root.colCrit : root.colFg
                     font { family: root.fontFam; pixelSize: root.iconSize - 1 }
@@ -3356,7 +3380,11 @@ PanelWindow {
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
                     elide: Text.ElideRight
-                    textFormat: Text.PlainText
+                    // Спецификация разрешает в теле подмножество разметки
+                    // (<b>, <i>, <u>, <a>), и мы заявляем её поддержку в
+                    // bodyMarkupSupported. PlainText показывал теги как есть —
+                    // Telegram присылал «<b>Паша брат</b>» прямо текстом.
+                    textFormat: Text.StyledText
                     font { family: root.fontFam; pixelSize: root.fontSize - 3 }
                 }
             }

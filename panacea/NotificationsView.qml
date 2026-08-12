@@ -146,16 +146,19 @@ Item {
                         radius: 9
                         color: row.nUrgent ? Qt.rgba(1, 0.27, 0.27, 0.18) : Qt.rgba(1, 1, 1, 0.08)
                         Image {
+                            id: rowIcon
                             anchors.fill: parent
                             anchors.margins: 5
                             source: row.nImage
-                            visible: source != ""
+                            // не Ready — значит не открылась: пусть лучше будет
+                            // свой значок, чем клетчатый прямоугольник Qt
+                            visible: source != "" && status === Image.Ready
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                         }
                         Text {
                             anchors.centerIn: parent
-                            visible: row.nImage === ""
+                            visible: !rowIcon.visible
                             text: String.fromCodePoint(row.nUrgent ? 0xF0026 : 0xF009A)
                             color: row.nUrgent ? view.sys.colCrit : view.sys.colMuted
                             font { family: view.sys.fontFam; pixelSize: view.sys.iconSize - 4 }
@@ -190,7 +193,9 @@ Item {
                             wrapMode: Text.WordWrap
                             maximumLineCount: 2
                             elide: Text.ElideRight
-                            textFormat: Text.PlainText
+                            // тело уведомления может содержать разметку —
+                            // см. bodyMarkupSupported в shell.qml
+                            textFormat: Text.StyledText
                             font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
                         }
                     }
