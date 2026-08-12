@@ -23,12 +23,20 @@ CONF="${XDG_CONFIG_HOME:-$HOME/.config}"
 DO_DEPS=1
 DO_SDDM=1
 DO_GRUB=1
+# Обновлению и проверкам это не нужно: службы уже включены, обои уже скачаны,
+# а перезапуск оболочки в песочнице убил бы рабочую.
+DO_SERVICES=1
+DO_WALLS=1
+DO_RESTART=1
 ASSUME_YES=0
 for arg in "$@"; do
     case "$arg" in
         --no-deps) DO_DEPS=0 ;;
         --no-sddm) DO_SDDM=0 ;;
         --no-grub) DO_GRUB=0 ;;
+        --no-services) DO_SERVICES=0 ;;
+        --no-wallpapers) DO_WALLS=0 ;;
+        --no-restart) DO_RESTART=0 ;;
         --yes|-y)  ASSUME_YES=1 ;;
         --help|-h) sed -n '2,13p' "$0"; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 1 ;;
@@ -85,6 +93,10 @@ DEPS=(
     "mpvpaper|mpvpaper|live video wallpapers (AUR)"
     "curl|curl|downloading the wallpaper pack"
     "file|file|sanity-checking downloaded wallpapers"
+    # обновление оболочки из репозитория и сведения о железе на вкладке System
+    "git|git|updating the shell from the repository"
+    "lspci|pciutils|naming the graphics card on the System page"
+    "timedatectl|systemd|time zone and clock on the Clock & Date page"
 )
 FILE_DEPS=(
     "/usr/lib/qt6/qml/QtMultimedia/qmldir|qt6-multimedia|video playback"
@@ -189,7 +201,27 @@ install_configs() {
     # каталог живых обоев: карусель открывает его кнопкой, и он должен
     # существовать ещё до того, как туда что-то положат
     mkdir -p "$CONF/hypr/wallpaper/live"
+    stamp_version
     personalize_paths
+}
+
+# Какую версию поставили. По этой отметке оболочка потом понимает, что на
+# GitHub появилось что-то новее, и предлагает обновиться. Ставили из клона —
+# берём хеш прямо из него; из архива — спрашиваем конец ветки у GitHub.
+stamp_version() {
+    local sha=""
+    if [ -d "$SRC/.git" ] && command -v git >/dev/null 2>&1; then
+        sha="$(git -C "$SRC" rev-parse HEAD 2>/dev/null)"
+    fi
+    if [ -z "$sha" ] && command -v git >/dev/null 2>&1; then
+        sha="$(git ls-remote https://github.com/EnsixD/Panacea.git main 2>/dev/null | cut -f1)"
+    fi
+    if [ -n "$sha" ]; then
+        printf '%s\n' "$sha" > "$CONF/panacea/.version"
+        ok "version stamp ${sha:0:7}"
+    else
+        warn "could not determine version — the shell will not offer updates"
+    fi
 }
 
 # В репозитории часть путей записана как /home/ensi — так их писал автор.
@@ -361,10 +393,12 @@ fi
 step "Copying configs"
 install_configs
 
-step "Enabling services"
-enable_services
+if [ "$DO_SERVICES" = "1" ]; then
+    step "Enabling services"
+    enable_services
+fi
 
-if ask "Download the wallpaper pack (~400 MB, $WALLS_REPO)?"; then
+if [ "$DO_WALLS" = "1" ] && ask "Download the wallpaper pack (~400 MB, $WALLS_REPO)?"; then
     step "Downloading wallpapers"
     install_wallpapers
 fi
@@ -398,7 +432,9 @@ fi
     && ok "wallpaper thumbnails warming up in the background"
 
 step "Starting the shell"
-if command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+if [ "$DO_RESTART" != "1" ]; then
+    ok "restart skipped"
+elif command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
     hyprctl reload >/dev/null 2>&1
     # Обои живут отдельно от палитры: ставим последние выбранные (на чистой
     # установке — те, что лежат в wallpaper.conf репозитория).

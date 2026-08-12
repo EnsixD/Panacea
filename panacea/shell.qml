@@ -661,6 +661,140 @@ PanelWindow {
     }
     onIsEnChanged: syncGreeterLocale()
 
+    // Номер версии оболочки: его правит автор при выпуске, а хеш коммита
+    // рядом говорит, из какого состояния репозитория собрана сборка.
+    readonly property string version: "1.0.1"
+
+    // ------------------------------------------------------------ обновление
+    // Установленную версию помечает установщик (~/.config/panacea/.version),
+    // а update.sh сверяет её с концом ветки на GitHub. Хеш коммита меняется от
+    // любой правки — и от новых файлов, и от изменений в старых, и от удалений,
+    // поэтому одного сравнения хватает, чтобы поймать всё сразу.
+    property string updStatus: ""      // "" | current | behind | unknown | offline
+    property string updSubject: ""     // заголовок последнего коммита
+    property string updLatest: ""      // хеш на GitHub
+    property string updCurrent: ""     // хеш, с которого ставили
+    property bool   updBusy: false
+    property string updStep: ""
+    property string updError: ""
+    // о какой версии уже сообщали: одно уведомление на выпуск, а не на проверку
+    property string updNotified: ""
+
+    readonly property bool updateAvailable: updStatus === "behind"
+
+    function checkUpdate() {
+        if (root.updBusy) return;
+        pUpdCheck.running = false;
+        pUpdCheck.running = true;
+    }
+
+    function applyUpdate() {
+        if (root.updBusy) return;
+        root.updBusy = true;
+        root.updError = "";
+        root.updStep = "download";
+        pUpdApply.running = true;
+    }
+
+    function updParse(text, done) {
+        var lines = String(text).trim().split("\n");
+        for (var i = 0; i < lines.length; i++) {
+            var kv = lines[i].split("=");
+            if (kv.length < 2) continue;
+            var k = kv[0].trim(), v = lines[i].slice(kv[0].length + 1).trim();
+            if (k === "status")       root.updStatus = v;
+            else if (k === "subject") root.updSubject = v;
+            else if (k === "latest")  root.updLatest = v;
+            else if (k === "current") root.updCurrent = v;
+            else if (k === "step")    root.updStep = v;
+            else if (k === "error")   root.updError = v;
+            else if (k === "version") root.updCurrent = v;
+        }
+        if (!done) return;
+        // Уведомление показываем один раз на версию: проверка идёт по таймеру,
+        // и каждые шесть часов напоминать об одном и том же — навязчиво.
+        if (root.updStatus === "behind" && root.updLatest !== root.updNotified) {
+            root.updNotified = root.updLatest;
+            pUpdNotify.running = true;
+        }
+    }
+
+    Process {
+        id: pUpdCheck
+        command: [root.scriptDir + "/update.sh", "check"]
+        stdout: StdioCollector { onStreamFinished: root.updParse(text, true) }
+    }
+
+    Process {
+        id: pUpdApply
+        command: [root.scriptDir + "/update.sh", "apply"]
+        stdout: StdioCollector { onStreamFinished: root.updParse(text, false) }
+        onExited: code => {
+            root.updBusy = false;
+            if (code !== 0 && root.updError.length === 0)
+                root.updError = root.tr("Обновление не удалось");
+            if (code === 0) { root.updStatus = "current"; root.updStep = "done"; }
+        }
+    }
+
+    // Обычное уведомление рабочего стола: его увидят, даже когда окно настроек
+    // закрыто, а поймает его собственная служба уведомлений оболочки.
+    Process {
+        id: pUpdNotify
+        command: ["notify-send", "-a", "Panacea", "-i", "system-software-update",
+                  root.tr("Доступно обновление Panacea"), root.updSubject]
+    }
+
+    // ----------------------------------------------------- «что нового»
+    // update.sh кладёт список изменений в .whatsnew. Оболочка после
+    // перезапуска показывает его один раз и файл стирает.
+    property var whatsNew: []
+    readonly property bool whatsNewOpen: whatsNew.length > 0
+
+    FileView {
+        id: whatsNewFile
+        path: Quickshell.env("HOME") + "/.config/panacea/.whatsnew"
+        watchChanges: true
+        // Файла почти всегда нет, и это не ошибка: он появляется только
+        // после обновления. Без этого лог засорялся при каждом запуске.
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            var t = String(whatsNewFile.text()).trim();
+            root.whatsNew = t.length ? t.split("\n").filter(x => x.trim().length) : [];
+        }
+        onLoadFailed: root.whatsNew = []
+    }
+
+    // Слежение цепляется к существующему файлу, а .whatsnew появляется уже
+    // после запуска оболочки, если обновлялись без перезапуска. Поэтому
+    // первые полминуты перечитываем сами.
+    Timer {
+        interval: 3000
+        running: root.whatsNew.length === 0
+        repeat: true
+        triggeredOnStart: true
+        property int tries: 0
+        onTriggered: {
+            whatsNewFile.reload();
+            if (++tries > 10) running = false;
+        }
+    }
+
+    function dismissWhatsNew() {
+        root.whatsNew = [];
+        pWhatsNewClear.running = true;
+    }
+    Process {
+        id: pWhatsNewClear
+        command: ["rm", "-f", Quickshell.env("HOME") + "/.config/panacea/.whatsnew"]
+    }
+
+    // Первая проверка не на старте: при входе в систему сеть ещё поднимается,
+    // и запрос почти наверняка не прошёл бы.
+    Timer { interval: 45000; running: true; onTriggered: root.checkUpdate() }
+    Timer { interval: 6 * 3600 * 1000; running: true; repeat: true; onTriggered: root.checkUpdate() }
+
     readonly property string scriptDir:
         Quickshell.env("HOME") + "/.config/panacea/scripts"
 
@@ -2458,6 +2592,12 @@ PanelWindow {
             root.scanBt();
         }
         function settings(): void { root.settingsTab = 0; root.togglePage("settings"); }
+        // открыть окно настроек сразу на нужном разделе: удобно вешать на
+        // сочетание клавиш и незаменимо при проверке самих настроек
+        function settingsAt(tab: string): void {
+            root.settingsTab = parseInt(tab) || 0;
+            if (root.page !== "settings" || !root.expanded) root.togglePage("settings");
+        }
         function shortcuts(): void { root.toggleKeysWindow(); }
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }
@@ -3740,6 +3880,27 @@ LazyLoader {
         }
     }
 }
+
+// Экран «что нового» после обновления. Отдельным слоем поверх всего: его
+// показывают один раз, и он должен перехватывать клавиатуру.
+PanelWindow {
+    visible: root.whatsNewOpen
+    anchors { top: true; bottom: true; left: true; right: true }
+    color: "transparent"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: root.whatsNewOpen ? WlrKeyboardFocus.Exclusive
+                                                   : WlrKeyboardFocus.None
+
+    Loader {
+        anchors.fill: parent
+        active: root.whatsNewOpen
+        sourceComponent: WhatsNewView {
+            sys: root
+            lines: root.whatsNew
+        }
+    }
+}
+
 
 // Проводник отдельным окном. Живёт на уровне ShellRoot, а не внутри
 // пилюли: окно не может быть ребёнком другого окна.
