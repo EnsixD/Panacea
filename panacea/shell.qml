@@ -45,11 +45,65 @@ PanelWindow {
             property int    pillH:  38
             // где живёт остров: top | bottom | left | right
             property string pillPos: "top"
+
+            // ---------------------------------------------- Bar & Island
+            // Режим выреза: остров примыкает вплотную к кромке экрана и
+            // растекается по ней вогнутыми уголками. Выключенный — остров
+            // становится прямоугольной капсулой с отступом от кромки.
+            property bool   notchMode: true
+            // радиус вогнутого уголка примыкания
+            property int    notchFlare: 12
+            // ширина свёрнутого острова и высота развёрнутой панели
+            property int    collapsedW: 260
+            property int    expandedH: 620
+            // отступ капсулы от кромки, когда режим выреза выключен
+            property int    islandGap: 12
+            // скругление капсулы вне режима выреза (0 — по половине высоты)
+            property int    islandRadius: 0
+
+            // ---------------------------------------------- Clock & Date
+            property bool   clockSeconds: false
+            property bool   clockWeekday: true
+            // "auto" — регион и часовой пояс берутся у системы
+            property string clockTz: "auto"
+            property string clockDateFmt: "d MMMM"
+
+            // ---------------------------------------------- Appearance
+            // Тема палитры, независимая от обоев. "default" — то, что стоит
+            // сейчас; остальные перечислены в root.themes.
+            property string themeId: "default"
+            // текстовый шрифт и шрифт заголовков
+            property string fontBody: "JetBrainsMono Nerd Font"
+            property string fontDisplay: "JetBrainsMono Nerd Font"
+            // шаг отступов и малый радиус — из них считается вся геометрия
+            property int    spacingUnit: 8
+            property int    smallRadius: 10
+
+            // ---------------------------------------------- Motion
+            // Полный отказ от анимаций: все длительности считаются нулевыми.
+            property bool   reduceMotion: false
+            property int    animMove: 230      // размер и положение, мс
+            property int    animFade: 200      // прозрачность и цвет, мс
+            property int    animHover: 150     // отклик на наведение, мс
+            property int    animBounce: 79     // перелёт осциллятора, %
+
+            // ---------------------------------------------- Notifications
+            property bool   notifDnd: false
+            property int    notifTimeout: 5000       // обычные, мс
+            property int    notifCritTimeout: 0      // 0 — висят до ответа
+            property bool   notifPreview: true       // текст в свёрнутом виде
+
+            // ---------------------------------------------- Lock Screen
+            property int    lockBlur: 32
+            property string lockHint: ""
+
+            // ---------------------------------------------- Control Center
+            // Порядок плиток быстрых настроек, заданный человеком.
+            // Пустая строка — заводская раскладка из root.ccDefault.
+            property string ccLayout: ""
             // разрешено ли переносить остров мышью прямо на экране
             property bool   pillDrag: false
             property int    panelW: 540
-            property int    cornerR: 14
-            property int    animMs: 230
             property string lang: "en"        // "en" | "ru", по умолчанию английский
             property bool   clock12: false    // 12-часовой формат с AM/PM
             // запись экрана
@@ -619,17 +673,45 @@ PanelWindow {
     }
 
     // ---------------------------------------------------------------- палитра
-    readonly property color colBg:     "#000000"
-    readonly property color colFg:     cfg.colFg
+    // Темы не зависят от обоев: цвет всей оболочки задаёт выбранная тема, а
+    // не картинка на столе. Тема «default» — то, что было раньше: фон чёрный,
+    // а текст и акцент берутся из настроек, поэтому вручную выбранные цвета
+    // никуда не деваются.
+    readonly property var themes: [
+        { id: "default",  name: "Default",     bg: "#000000", fg: "#ffffff", on: "#3b82f6", ok: "#22c55e", crit: "#ef4444" },
+        { id: "rose",     name: "Rose Quartz", bg: "#0d0a0b", fg: "#f6eef0", on: "#f0a8b4", ok: "#8fd3a6", crit: "#f2848c" },
+        { id: "matcha",   name: "Matcha",      bg: "#080b09", fg: "#eaf2ec", on: "#7fd1a0", ok: "#7fd1a0", crit: "#e88f7a" },
+        { id: "amber",    name: "Amber",       bg: "#0c0a07", fg: "#f6f0e6", on: "#e8b464", ok: "#a8cf7e", crit: "#e5735f" },
+        { id: "ice",      name: "Ice",         bg: "#070a0d", fg: "#e9f1f7", on: "#7fb6e0", ok: "#74ccb0", crit: "#e07b8a" },
+        { id: "violet",   name: "Violet",      bg: "#0a080e", fg: "#f0ecf7", on: "#b39ae8", ok: "#86d0a8", crit: "#e6798f" },
+        { id: "mono",     name: "Mono",        bg: "#0a0a0a", fg: "#f2f2f2", on: "#bfbfbf", ok: "#bfbfbf", crit: "#e06c6c" }
+    ]
+    function themeOf(id) {
+        for (var i = 0; i < themes.length; i++)
+            if (themes[i].id === id) return themes[i];
+        return themes[0];
+    }
+    readonly property var theme: themeOf(cfg.themeId)
+    readonly property bool themeCustom: cfg.themeId === "default"
+
+    readonly property color colBg:     theme.bg
+    // у «default» цвета текста и акцента остаются за настройками
+    readonly property color colFg:     themeCustom ? cfg.colFg : theme.fg
     readonly property color colMuted:  Qt.rgba(colFg.r, colFg.g, colFg.b, cfg.mutedAlpha)
-    readonly property color colLine:   Qt.rgba(1, 1, 1, 0.10)
-    readonly property color colHover:  Qt.rgba(1, 1, 1, 0.10)
-    readonly property color colOn:     cfg.colOn
-    readonly property color colOk:     "#22c55e"
-    readonly property color colCrit:   "#ef4444"
+    readonly property color colLine:   Qt.rgba(colFg.r, colFg.g, colFg.b, 0.10)
+    readonly property color colHover:  Qt.rgba(colFg.r, colFg.g, colFg.b, 0.10)
+    readonly property color colOn:     themeCustom ? cfg.colOn : theme.on
+    readonly property color colOk:     theme.ok
+    readonly property color colCrit:   theme.crit
     readonly property string fontFam:  cfg.fontFam
+    // текстовый шрифт и шрифт заголовков; пустое значение — общий fontFam
+    readonly property string fontBody:    cfg.fontBody || cfg.fontFam
+    readonly property string fontDisplay: cfg.fontDisplay || cfg.fontFam
     readonly property int fontSize:    cfg.fontSize
     readonly property int iconSize:    cfg.iconSize
+    // шаг отступов и малый радиус: из них считается геометрия карточек
+    readonly property int unit:        cfg.spacingUnit
+    readonly property int radiusS:     cfg.smallRadius
 
     // ---------------------------------------------------------------- метрики
     readonly property int pillH: cfg.pillH      // высота свёрнутой пилюли
