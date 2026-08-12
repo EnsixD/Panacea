@@ -72,16 +72,47 @@ mkdir -p "$(dirname "$STATE")"
 } > "$STATE"
 
 # ------------------------------------------------------------- hyprpaper
+# В 0.8 у hyprpaper сменился формат конфига: вместо пары preload/wallpaper
+# теперь блок wallpaper { monitor, path, fit_mode }.
+#
+# Коварство в том, что на старый формат он не ругается — он его просто не
+# видит: «Monitor eDP-1 has no target, no wp will be created». Картинка при
+# этом ставилась, но только через IPC, то есть пока сидишь в системе. После
+# перезагрузки hyprpaper поднимался с пустым конфигом, и стол оставался
+# чёрным, пока обои не выберешь заново.
+#
+# Пустой monitor в новом формате означает «все экраны» — это заодно снимает
+# зависимость от списка мониторов на момент записи: подключённый позже
+# экран получит те же обои.
+hyprpaper_new_format() {
+    local v maj min
+    v=$(hyprpaper --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    [ -n "$v" ] || return 1
+    maj=${v%%.*}
+    min=$(printf '%s' "$v" | cut -d. -f2)
+    [ "$maj" -gt 0 ] || [ "$min" -ge 8 ]
+}
+
 {
-    printf "preload = %s\n" "$WALL"
-    # одна строка на каждый монитор: ",path" на этой версии не работает
-    hyprctl monitors -j | jq -r '.[].name' | while read -r M; do
-        printf "wallpaper = %s,%s\n" "$M" "$WALL"
-    done
-    printf "splash = false\nipc = on\n"
+    if hyprpaper_new_format; then
+        printf 'wallpaper {\n'
+        printf '    monitor =\n'
+        printf '    path = %s\n' "$WALL"
+        printf '    fit_mode = cover\n'
+        printf '}\n'
+    else
+        printf 'preload = %s\n' "$WALL"
+        # одна строка на каждый монитор: ",path" на этой версии не работает
+        hyprctl monitors -j | jq -r '.[].name' | while read -r M; do
+            printf 'wallpaper = %s,%s\n' "$M" "$WALL"
+        done
+    fi
+    printf 'splash = false\nipc = on\n'
 } > "$HOME/.config/hypr/hyprpaper.conf"
 
-pgrep -x hyprpaper >/dev/null || { hyprpaper & sleep 1; }
+# setsid: скрипт зовут и из оболочки, и из автозапуска — hyprpaper не должен
+# оставаться на нашем выводе и держать канал открытым после нашего выхода
+pgrep -x hyprpaper >/dev/null || { setsid hyprpaper >/dev/null 2>&1 & sleep 1; }
 hyprctl hyprpaper preload "$WALL" >/dev/null 2>&1
 hyprctl monitors -j | jq -r '.[].name' | while read -r M; do
     hyprctl hyprpaper wallpaper "$M,$WALL" >/dev/null 2>&1
