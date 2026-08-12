@@ -1,6 +1,8 @@
 <div align="center">
 
-# 💊 Panacea Shell
+<img src="assets/logo-wide.png" alt="Panacea Shell" width="300">
+
+# Panacea Shell
 
 **One pill for everything.** A Hyprland desktop where the whole shell is a single
 capsule at the edge of the screen.
@@ -179,6 +181,11 @@ author of an image and want it gone, open an issue and it will be removed.
 
 Each of these has its own terms. Check them before redistributing anything you
 download.
+
+**Logo**
+
+`assets/logo*.png` — drawn for this project; the capsule with two concave notch
+cutouts is the shell's own silhouette. Same licence as the code.
 
 **Fonts and icons**
 
