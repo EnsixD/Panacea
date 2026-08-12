@@ -2620,12 +2620,19 @@ PanelWindow {
             id: capsuleHover
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onHoveredChanged: {
-                if (hovered) { collapseTimer.stop(); expandTimer.restart(); }
-                else {
+                if (hovered) {
+                    collapseTimer.stop();
+                    expandTimer.restart();
+                    rearmTimer.stop();
+                } else {
                     expandTimer.stop();
                     collapseTimer.restart();
-                    // курсор ушёл — наведение снова может раскрывать панель
-                    root.hoverExpandArmed = true;
+                    // Курсор ушёл — разрешаем раскрытие снова, но не сразу.
+                    // При переезде к другой кромке остров на кадр выскакивает
+                    // из-под курсора, и мгновенное возвращение разрешения
+                    // означало, что у новой кромки он тут же раскрывался под
+                    // тем же самым курсором.
+                    rearmTimer.restart();
                 }
             }
         }
@@ -2649,6 +2656,12 @@ PanelWindow {
                 }
                 root.expanded = true;
             }
+        }
+        // курсор должен побыть в стороне, а не просто мигнуть мимо
+        Timer {
+            id: rearmTimer
+            interval: 450
+            onTriggered: root.hoverExpandArmed = true
         }
         Timer {
             id: collapseTimer; interval: 180
