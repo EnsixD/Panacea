@@ -6,3 +6,7 @@ fish/fish_variables
 fish/fish_history
 **/__pycache__/
 *.bak
+
+# Список изменений последнего обновления: пишется на машине пользователя
+.whatsnew
+panacea/.version
