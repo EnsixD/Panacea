@@ -64,7 +64,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: view.sys.dnd = !view.sys.dnd
+                    onClicked: view.sys.toggleDnd()
                 }
             }
 

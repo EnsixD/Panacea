@@ -1473,7 +1473,11 @@ PanelWindow {
     // ---------------------------------------------------------- уведомления
     // Пилюля сама работает демоном уведомлений: в системе его не было вовсе,
     // и всё, что присылали программы, молча пропадало.
-    property bool dnd: false                 // не беспокоить
+    // «Не беспокоить» — состояние, а не настройка: его переключает кнопка в
+    // быстрых настройках, но живёт оно в файле, чтобы переживать перезапуск и
+    // совпадать с тем, что показывает окно настроек.
+    property bool dnd: cfg.notifDnd
+    function toggleDnd() { cfg.notifDnd = !cfg.notifDnd; root.saveCfg(); }
     property var  notifCurrent: null         // то, что показывается сейчас
     ListModel { id: notifModel }             // история
     readonly property var notifications: notifModel
@@ -1638,8 +1642,13 @@ PanelWindow {
 
         var n = item.notif;
         root.notifCurrent = n;
-        var ms = n.expireTimeout > 0 ? n.expireTimeout * 1000 : 4500;
-        toastTimer.interval = Math.max(2000, Math.min(12000, ms));
+        // Своё время приложения уважаем, но верхнюю и нижнюю границу задаёт
+        // человек: важные с нулевым сроком висят до ответа.
+        var crit = n.urgency === NotificationUrgency.Critical;
+        var want = crit ? root.cfg.notifCritTimeout : root.cfg.notifTimeout;
+        var ms = n.expireTimeout > 0 ? n.expireTimeout * 1000 : want;
+        if (crit && want === 0) ms = 0;
+        toastTimer.interval = ms > 0 ? Math.max(1000, ms) : 24 * 60 * 60 * 1000;
         toastTimer.restart();
     }
 
@@ -2464,7 +2473,7 @@ PanelWindow {
         // переключить выделение области в плеере (то же, что кнопка «Кроп»)
         function mediaCrop(): void { root.mediaCropToggle(); }
         function recordToggle(): void { root.toggleRecord(); }
-        function dnd(): void { root.dnd = !root.dnd; }
+        function dnd(): void { root.toggleDnd(); }
         // яркость приходит от smart_brightness.sh: службы для неё нет
         function brightness(pct: string): void {
             root.showOsd("bright", parseFloat(pct) / 100.0, false);
@@ -2903,7 +2912,9 @@ PanelWindow {
 
                 Text {
                     Layout.fillWidth: true
-                    visible: root.notifBody.length > 0
+                    // «Показывать текст в карточке» из настроек: выключено —
+                    // видно только приложение и заголовок
+                    visible: root.notifBody.length > 0 && root.cfg.notifPreview
                     text: root.notifBody
                     color: root.colMuted
                     wrapMode: Text.WordWrap
