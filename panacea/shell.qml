@@ -2590,13 +2590,17 @@ PanelWindow {
         anchors.verticalCenter:   root.pillSide ? parent.verticalCenter : undefined
 
         // у кромки — 0, в режиме настроек — по центру экрана
+        // Вне режима выреза остров отходит от кромки на islandGap: он
+        // перестаёт быть продолжением края экрана и становится отдельной
+        // капсулой, висящей рядом с ним.
+        readonly property real freeGap: root.cfg.notchMode ? 0 : root.cfg.islandGap
         readonly property real edgeMargin: root.settingsMode && !root.pillSide
                                            ? Math.max(24, (root.height - targetH) / 2)
-                                           : 0
+                                           : freeGap
         // у боковых положений от кромки отрывает уже горизонтальный отступ
         readonly property real sideMargin: root.settingsMode && root.pillSide
                                            ? Math.max(24, (root.width - width) / 2)
-                                           : 0
+                                           : freeGap
         anchors.topMargin:    root.pillAtTop    ? edgeMargin : 0
         anchors.bottomMargin: root.pillAtBottom ? edgeMargin : 0
         anchors.leftMargin:   root.pillAtLeft   ? sideMargin : 0
@@ -2617,10 +2621,13 @@ PanelWindow {
         // Свёрнутый остров измеряется вдоль своей кромки и поперёк неё: у
         // боковых положений он стоит вертикально, поэтому длина уходит в
         // высоту, а толщина — в ширину.
+        // collapsedW задаёт нижнюю границу, а не саму ширину: содержимое
+        // свёрнутого острова меняется (часы, трек, всплеск громкости), и
+        // жёсткая ширина обрезала бы его.
         readonly property real idleLen: root.toastActive ? 440
                 : root.osdActive ? osdCapsule.implicitWidth + 32
-                : root.pillSide  ? vertCapsule.implicitHeight + 30
-                                 : idleCapsule.implicitWidth + 32
+                : root.pillSide  ? Math.max(vertCapsule.implicitHeight + 30, root.cfg.collapsedW)
+                                 : Math.max(idleCapsule.implicitWidth + 32, root.cfg.collapsedW)
         readonly property real idleThick: root.toastActive
                 ? toastCapsule.implicitHeight + 24 : root.pillH
 
@@ -2659,8 +2666,10 @@ PanelWindow {
             function onImplicitHeightChanged() { capsule.refreshContentH(); }
         }
 
+        // Раскрытая панель не выше expandedH: страницы бывают длинные, но
+        // их высоту ограничивает уже своя прокрутка, а не остров.
         readonly property real targetH: root.expanded
-                ? contentH
+                ? Math.min(contentH, root.settingsMode ? root.height - 48 : root.cfg.expandedH)
                 : root.pillSide ? idleLen
                                 : idleThick
         // Не выше экрана: у боковых кромок вертикальная раскладка страницы
@@ -2703,8 +2712,15 @@ PanelWindow {
         // так остров выглядит выросшим из края, а не приклеенным к нему.
         // В режиме настроек капсула отрывается от кромки, и круглыми
         // становятся все четыре.
-        readonly property real edgeR: root.settingsMode ? 26 : 0
-        readonly property real freeR: root.expanded ? 26 : root.pillH / 2
+        // Оторванная от кромки капсула круглая со всех сторон: срезать ей
+        // углы не от чего, кромка её больше не держит.
+        readonly property real edgeR: (root.settingsMode || !root.cfg.notchMode)
+                                      ? (root.cfg.islandRadius > 0 ? root.cfg.islandRadius : 26)
+                                      : 0
+        readonly property real freeR: root.expanded
+                ? (root.cfg.islandRadius > 0 && !root.cfg.notchMode ? root.cfg.islandRadius : 26)
+                : (root.cfg.islandRadius > 0 && !root.cfg.notchMode
+                   ? root.cfg.islandRadius : root.pillH / 2)
         topLeftRadius:     root.pillAtTop || root.pillAtLeft  ? edgeR : freeR
         topRightRadius:    root.pillAtTop || root.pillAtRight ? edgeR : freeR
         bottomLeftRadius:  root.pillAtBottom || root.pillAtLeft  ? edgeR : freeR
