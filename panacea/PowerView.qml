@@ -22,17 +22,19 @@ Item {
 
     Process { id: pRun }
 
-    // Иконки подобраны из одного семейства Material Design и одной весовой
-    // группы: залитые силуэты читаются на 20 px лучше, чем тонкие контуры.
+    // Иконки из одного семейства Material Design и, что важнее, одной
+    // весовой группы: перезагрузка и выключение существуют только штрихом,
+    // поэтому замок и выход тоже взяты штриховые. Залитые силуэты рядом с
+    // ними выбивались и выглядели наклеенными из другого набора.
     // Блокировка исчезает из меню, если экран блокировки выключен: жать на
     // кнопку, которая ничего не делает, хуже, чем её отсутствие.
     readonly property var actions: view.sys.cfg.featLock ? view.allActions
                                  : view.allActions.filter(a => a.id !== "lock")
     readonly property var allActions: [
         { icon: String.fromCodePoint(0xF0904), label: view.sys.tr("Сон"),          cmd: "systemctl suspend",     accent: "#38bdf8" },  // md-power_sleep
-        { id: "lock", icon: String.fromCodePoint(0xF033E), label: view.sys.tr("Блокировка"), cmd: view.sys.scriptDir + "/lock.sh", accent: "#a78bfa" },  // md-lock
-        { icon: String.fromCodePoint(0xF05FD), label: view.sys.tr("Выйти"),        cmd: "out=$(hyprctl dispatch 'hl.dsp.exit()' 2>&1); "
-              + "case \"$out\" in ok*) ;; *) hyprctl dispatch exit ;; esac", accent: "#fbbf24" },  // md-logout_variant
+        { id: "lock", icon: String.fromCodePoint(0xF0341), label: view.sys.tr("Блокировка"), cmd: view.sys.scriptDir + "/lock.sh", accent: "#a78bfa" },  // md-lock_outline
+        { icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),        cmd: "out=$(hyprctl dispatch 'hl.dsp.exit()' 2>&1); "
+              + "case \"$out\" in ok*) ;; *) hyprctl dispatch exit ;; esac", accent: "#fbbf24" },  // md-logout
         { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",      accent: "#fb923c" },  // md-restart
         { icon: String.fromCodePoint(0xF0425), label: view.sys.tr("Выключить"),    cmd: "systemctl poweroff",    accent: "#ef4444" }   // md-power
     ]
