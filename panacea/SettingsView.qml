@@ -54,7 +54,8 @@ Item {
           keys: "lock screen blur idle блокировка экран размытие" },
         { id: "display", title: "Display",        g: 0xF0379, page: "SetDisplay.qml",
           sub: view.sys.tr("Разрешение, частота и масштаб подключённых экранов."),
-          keys: "display monitor resolution refresh scale экран монитор разрешение герцовка" },
+          keys: "display monitor resolution refresh scale layout placement detect island "
+                + "экран монитор разрешение герцовка раскладка расположение остров" },
         { id: "system",  title: "System",         g: 0xF0493, page: "SetSystem.qml",
           sub: view.sys.tr("Из чего собрана машина и чем она сейчас занята."),
           keys: "about system cpu ram temperature система озу температура процессы" }

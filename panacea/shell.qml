@@ -45,6 +45,10 @@ PanelWindow {
             property int    pillH:  38
             // где живёт остров: top | bottom | left | right
             property string pillPos: "top"
+            // На каком экране живёт остров. "auto" — на том, где сейчас
+            // фокус: остров переезжает за человеком. Иначе имя выхода
+            // ("eDP-1", "DP-2") — остров прибит к нему намертво.
+            property string pillScreen: "auto"
 
             // ---------------------------------------------- Bar & Island
             // Режим выреза: остров примыкает вплотную к кромке экрана и
@@ -219,7 +223,7 @@ PanelWindow {
         fontDisplay: "JetBrainsMono Nerd Font", fontSize: 15, iconSize: 17,
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
-        pillH: 38, pillPos: "top", pillDrag: false, panelW: 540,
+        pillH: 38, pillPos: "top", pillScreen: "auto", pillDrag: false, panelW: 540,
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
         islandGap: 12, islandRadius: 0,
         reduceMotion: false, animMove: 230, animFade: 200, animHover: 150, animBounce: 0,
@@ -407,6 +411,10 @@ PanelWindow {
         "Шрифт значков": "Icon font",
         "Экран блокировки": "Lock screen",
         "Экраны не читаются: hyprctl не ответил.": "Screens cannot be read: hyprctl did not answer.",
+        "Динамический остров": "Dynamic island",
+        "Показывать на экране": "Show on screen",
+        "За фокусом": "Follow focus",
+        "«За фокусом» — остров переезжает на тот экран, где вы сейчас работаете.": "“Follow focus” moves the island to whichever screen you are working on.",
         "Расположение": "Placement",
         "относительно": "relative to",
         "Справа от": "Right of",
@@ -2806,6 +2814,23 @@ PanelWindow {
     }
 
     // ----------------------------------------------------------------- окно
+    // Экран, на котором висит остров. Слой Wayland пересоздаётся при смене,
+    // поэтому вычисляем аккуратно: имя из настроек — только если такой выход
+    // сейчас подключён, иначе (и в режиме "auto") идём за фокусом. Если
+    // Hyprland ещё не ответил, отдаём null — Quickshell возьмёт экран сам.
+    screen: root.pickScreen
+
+    readonly property var pickScreen: {
+        var want = root.cfg.pillScreen;
+        if (want && want !== "auto") {
+            var all = Quickshell.screens;
+            for (var i = 0; i < all.length; i++)
+                if (all[i].name === want) return all[i];
+        }
+        var fm = Hyprland.focusedMonitor;
+        return (fm && fm.screen) ? fm.screen : null;
+    }
+
     // Прижимаемся тремя кромками: свободной остаётся та, в сторону которой
     // раскрывается панель. Иначе слой занял бы весь экран и exclusiveZone
     // (место под остров) считался бы не от той кромки.
@@ -3955,6 +3980,7 @@ LazyLoader {
 
     PanelWindow {
         anchors { top: true; bottom: true; left: true; right: true }
+        screen: root.screen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.layer: WlrLayer.Overlay
@@ -3991,6 +4017,7 @@ LazyLoader {
 
     PanelWindow {
         anchors { top: true; bottom: true; left: true; right: true }
+        screen: root.screen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.layer: WlrLayer.Overlay
@@ -4027,6 +4054,7 @@ LazyLoader {
 
     PanelWindow {
         anchors { top: true; bottom: true; left: true; right: true }
+        screen: root.screen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.layer: WlrLayer.Overlay
@@ -4107,6 +4135,7 @@ LazyLoader {
 PanelWindow {
     visible: root.whatsNewOpen
     anchors { top: true; bottom: true; left: true; right: true }
+    screen: root.screen
     color: "transparent"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.whatsNewOpen ? WlrKeyboardFocus.Exclusive

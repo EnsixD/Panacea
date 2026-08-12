@@ -133,6 +133,39 @@ ColumnLayout {
         return out.sort((a, b) => b - a);
     }
 
+    // ------------------------------------------------------------- остров
+    // На каком экране показывать остров. Один экран — карточка не нужна,
+    // выбора всё равно нет.
+    SetCard {
+        sys: page.sys
+        visible: page.mons.length > 1
+
+        SetLabel {
+            sys: page.sys
+            text: page.sys.tr("Динамический остров")
+        }
+
+        SetPick {
+            sys: page.sys
+            label: page.sys.tr("Показывать на экране")
+            options: [{ id: "auto", text: page.sys.tr("За фокусом") }].concat(
+                page.mons.filter(m => !m.disabled).map(m => ({
+                    id: m.name,
+                    text: m.name + (m.desc.length ? " · " + m.desc : "")
+                })))
+            value: page.sys.cfg.pillScreen
+            onPicked: id => { page.sys.cfg.pillScreen = id; page.sys.saveCfg(); }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            text: page.sys.tr("«За фокусом» — остров переезжает на тот экран, где вы сейчас работаете.")
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+        }
+    }
+
     Text {
         Layout.fillWidth: true
         visible: page.mons.length === 0
