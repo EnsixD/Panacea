@@ -175,8 +175,9 @@ which puts mpv on the background layer; hyprpaper steps aside while a video is
 up. Drop `.mp4`, `.webm`, `.mkv` or `.mov` files into
 `~/.config/hypr/wallpaper/live` — the **Live wallpapers** tab of the carousel has
 a button that opens that folder in the file manager. Posters are pulled from the
-middle of each clip, and mpv is paused whenever the wallpaper is covered, so a
-maximised window costs nothing.
+middle of each clip. One mpv runs per monitor and each pauses on its own when its
+wallpaper is covered, so a fullscreen window on one screen does not freeze the
+others.
 
 Nothing is bundled — bring your own, or take them from here:
 
