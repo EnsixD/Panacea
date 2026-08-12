@@ -57,7 +57,7 @@ ColumnLayout {
             rr: over.rr !== undefined ? over.rr : m.rr,
             scale: over.scale !== undefined ? over.scale : m.scale,
             transform: over.transform !== undefined ? over.transform : m.transform,
-            vrr: over.vrr !== undefined ? over.vrr : m.vrr,
+            vrr: m.vrr,
             // Позицию всегда передаём текущую, а не "auto": иначе смена
             // разрешения пересобирала бы раскладку и монитор уезжал бы.
             pos: over.pos !== undefined ? over.pos : page.placeOf(m)
@@ -252,12 +252,6 @@ ColumnLayout {
                 onPicked: id => page.apply(card.modelData, { transform: +id })
             }
 
-            SetToggle {
-                sys: page.sys
-                label: page.sys.tr("Переменная частота (VRR)")
-                on: card.modelData.vrr
-                onToggled: v => page.apply(card.modelData, { vrr: v })
-            }
         }
     }
 
