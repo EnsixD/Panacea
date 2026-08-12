@@ -134,13 +134,25 @@ restore_user_state() {
 }
 
 # Заголовки коммитов между двумя версиями — по одному в строке.
+# Что человеку показать после обновления. На вход идут заголовки коммитов, и
+# не все из них — новости: поднятие версии, правки README и .gitignore меняют
+# для него ровно ничего. Их отсеиваем, а заодно убираем повторы: после
+# перебазирования один и тот же заголовок попадает в сравнение дважды.
+changelog_filter() {
+    grep -v '^Merge ' \
+        | grep -viE '^(shell: bump version|gitignore|readme|docs|ci)\b' \
+        | grep -viE '^(update|bump) (the )?(readme|docs|version)\b' \
+        | awk '!seen[$0]++' \
+        | head -40
+}
+
 write_changelog() {
     local from="$1" to="$2" out="$CONF/panacea/.whatsnew"
     [ -n "$from" ] || return 0
     if [ "$IS_GITHUB" != "1" ]; then
         {
             printf '%s\n' "$to"
-            git -C "$GIT_URL" log --format=%s "$from..$to" 2>/dev/null | head -40
+            git -C "$GIT_URL" log --format=%s "$from..$to" 2>/dev/null | changelog_filter
         } > "$out"
         return 0
     fi
@@ -155,8 +167,7 @@ write_changelog() {
         printf '%s' "$json" \
             | grep -o '"message": *"[^"]*"' \
             | sed 's/"message": *"//; s/"$//; s/\\n.*//' \
-            | grep -v '^Merge ' \
-            | head -40
+            | changelog_filter
     } > "$out"
 }
 
