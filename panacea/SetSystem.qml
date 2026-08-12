@@ -33,7 +33,8 @@ ColumnLayout {
     property real selfMb: 0       // сколько занимает сама оболочка, МиБ
 
     function stepName(st) {
-        return st === "download" ? page.sys.tr("скачивание")
+        return st === "download"   ? page.sys.tr("скачивание")
+             : st === "selfupdate" ? page.sys.tr("обновление обновлятора")
              : st === "backup"   ? page.sys.tr("сохранение настроек")
              : st === "install"  ? page.sys.tr("установка")
              : st === "restore"  ? page.sys.tr("возврат настроек")

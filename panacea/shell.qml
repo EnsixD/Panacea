@@ -472,6 +472,7 @@ PanelWindow {
         "Динамический остров": "Dynamic island",
         "Автоскрытие": "Auto-hide",
         "Остров уезжает за кромку и не занимает место под себя: окна получают весь экран. Возвращается наведением на край.": "The island slides off the edge and stops reserving space, so windows get the whole screen. Point at the edge to bring it back.",
+        "обновление обновлятора": "updating the updater",
         "Не установлен git": "git is not installed",
         "Нет связи с GitHub": "Cannot reach GitHub",
         "Не удалось скачать обновление": "Could not download the update",

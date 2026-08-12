@@ -188,6 +188,29 @@ cmd_apply() {
         "$GIT_URL" "$tmp/src" >/dev/null 2>&1 \
         || { echo "status=error"; echo "error=download"; exit 1; }
 
+    # Скрипт обновляет сам себя.
+    #
+    # Всё, что дальше — сохранение настроек, список изменений, перезапуск —
+    # делает та копия, которая уже лежит у человека, то есть СТАРАЯ. Значит
+    # любая правка в самом обновлении вступала бы в силу только со следующего
+    # раза, а до тех пор чинилось бы вручную. Поэтому, если в свежем клоне
+    # скрипт другой, передаём работу ему — один раз, по флагу, чтобы не
+    # закольцеваться.
+    if [ "${PANACEA_SELFEXEC:-0}" != "1" ] && [ -f "$0" ] \
+       && [ -f "$tmp/src/panacea/scripts/update.sh" ] \
+       && ! cmp -s "$tmp/src/panacea/scripts/update.sh" "$0"; then
+        echo "step=selfupdate"
+        fresh="$(mktemp)"
+        cp "$tmp/src/panacea/scripts/update.sh" "$fresh"
+        # свой временный каталог убираем сами: свежий скрипт склонирует свой
+        rm -rf "$tmp"
+        trap - EXIT
+        PANACEA_SELFEXEC=1 bash "$fresh" apply
+        rc=$?
+        rm -f "$fresh"
+        return $rc
+    fi
+
     echo "step=backup"
     # Прежнюю версию читаем сейчас: установщик проштампует .version заново,
     # и после него сравнивать будет уже не с чем.
