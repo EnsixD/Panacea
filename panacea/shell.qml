@@ -928,6 +928,7 @@ PanelWindow {
         // переезжала вместе с островом, разъезжаясь на ходу. Так остров сначала
         // спокойно встаёт на место, а панель открывается уже наведением.
         root.hoverExpandArmed = false;
+        capsuleHover.markArmPoint();
         root.collapse();
     }
 
@@ -1699,6 +1700,7 @@ PanelWindow {
         // не раскрываемся под курсором после клика — до тех пор, пока курсор
         // не уйдёт с пилюли
         root.hoverExpandArmed = false;
+        capsuleHover.markArmPoint();
         root.collapse();
     }
 
@@ -2940,7 +2942,33 @@ PanelWindow {
         HoverHandler {
             id: capsuleHover
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+
+            // Где стоял курсор, когда раскрытие по наведению запретили.
+            // Запрет ставится после переноса острова и после клика по
+            // уведомлению, а снимался он только уходом курсора с острова.
+            // Если остров вставал ровно под неподвижным курсором (а после
+            // переноса к кромке так и происходит), уходить было нечему:
+            // запрет оставался навсегда, и панель больше не открывалась.
+            // Поэтому его снимает ещё и осмысленный сдвиг мыши.
+            property point armPos: Qt.point(-9999, -9999)
+            // точку отсчёта ставят те места, что запрещают раскрытие
+            function markArmPoint() {
+                capsuleHover.armPos = capsuleHover.hovered
+                        ? capsuleHover.point.scenePosition : Qt.point(-9999, -9999);
+            }
+            onPointChanged: {
+                if (root.hoverExpandArmed || !capsuleHover.hovered) return;
+                var p = capsuleHover.point.scenePosition;
+                if (Math.abs(p.x - capsuleHover.armPos.x)
+                    + Math.abs(p.y - capsuleHover.armPos.y) < 12) return;
+                root.hoverExpandArmed = true;
+                expandTimer.restart();
+            }
+
             onHoveredChanged: {
+                // курсор снова на острове — считать сдвиг заново от этой точки
+                if (hovered && !root.hoverExpandArmed)
+                    capsuleHover.armPos = capsuleHover.point.scenePosition;
                 if (hovered) {
                     collapseTimer.stop();
                     expandTimer.restart();
