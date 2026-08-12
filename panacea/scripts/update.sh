@@ -161,11 +161,11 @@ write_changelog() {
 }
 
 cmd_apply() {
-    have git || { echo "status=error"; echo "error=git не установлен"; exit 1; }
+    have git || { echo "status=error"; echo "error=nogit"; exit 1; }
 
     local sha subject
     IFS=$'\t' read -r sha subject <<<"$(remote_info)"
-    [ -n "$sha" ] || { echo "status=error"; echo "error=нет связи с GitHub"; exit 1; }
+    [ -n "$sha" ] || { echo "status=error"; echo "error=offline"; exit 1; }
 
     # переменная нарочно не local: trap срабатывает при выходе из скрипта,
     # когда область видимости функции уже закрыта
@@ -175,7 +175,7 @@ cmd_apply() {
     echo "step=download"
     git clone --depth 1 --branch "$BRANCH" \
         "$GIT_URL" "$tmp/src" >/dev/null 2>&1 \
-        || { echo "status=error"; echo "error=не удалось скачать"; exit 1; }
+        || { echo "status=error"; echo "error=download"; exit 1; }
 
     echo "step=backup"
     # Прежнюю версию читаем сейчас: установщик проштампует .version заново,
@@ -199,7 +199,8 @@ cmd_apply() {
             --no-services --no-wallpapers --no-restart --yes >"$tmp/log" 2>&1); then
         restore_user_state
         echo "status=error"
-        echo "error=установщик завершился с ошибкой, подробности в $tmp/log"
+        echo "error=install"
+        echo "log=$tmp/log"
         exit 1
     fi
 

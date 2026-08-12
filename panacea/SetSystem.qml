@@ -213,7 +213,7 @@ ColumnLayout {
                 Text {
                     Layout.fillWidth: true
                     visible: text.length > 0
-                    text: page.sys.updError.length ? page.sys.updError
+                    text: page.sys.updError.length ? page.sys.updErrorText
                         : page.sys.updateAvailable ? page.sys.updSubject
                         : "Panacea " + page.sys.version
                           + (page.sys.updCurrent.length

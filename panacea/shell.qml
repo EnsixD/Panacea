@@ -465,6 +465,10 @@ PanelWindow {
         "Экран блокировки": "Lock screen",
         "Экраны не читаются: hyprctl не ответил.": "Screens cannot be read: hyprctl did not answer.",
         "Динамический остров": "Dynamic island",
+        "Не установлен git": "git is not installed",
+        "Нет связи с GitHub": "Cannot reach GitHub",
+        "Не удалось скачать обновление": "Could not download the update",
+        "Установщик завершился с ошибкой": "The installer failed",
         "Показывать на экране": "Show on screen",
         "За фокусом": "Follow focus",
         "«За фокусом» — остров переезжает на тот экран, где вы сейчас работаете.": "“Follow focus” moves the island to whichever screen you are working on.",
@@ -897,11 +901,24 @@ PanelWindow {
     property string updCurrent: ""     // хеш, с которого ставили
     property bool   updBusy: false
     property string updStep: ""
-    property string updError: ""
+    property string updError: ""      // код ошибки от update.sh, не текст
     // о какой версии уже сообщали: одно уведомление на выпуск, а не на проверку
     property string updNotified: ""
 
     readonly property bool updateAvailable: updStatus === "behind"
+
+    // update.sh печатает код, а не фразу: иначе текст ошибки приходил бы на
+    // языке скрипта и не слушался выбранного языка интерфейса.
+    readonly property string updErrorText: {
+        switch (root.updError) {
+        case "":         return "";
+        case "nogit":    return root.tr("Не установлен git");
+        case "offline":  return root.tr("Нет связи с GitHub");
+        case "download": return root.tr("Не удалось скачать обновление");
+        case "install":  return root.tr("Установщик завершился с ошибкой");
+        default:         return root.tr("Обновление не удалось");
+        }
+    }
 
     function checkUpdate() {
         if (root.updBusy) return;
@@ -953,7 +970,7 @@ PanelWindow {
         onExited: code => {
             root.updBusy = false;
             if (code !== 0 && root.updError.length === 0)
-                root.updError = root.tr("Обновление не удалось");
+                root.updError = "failed";
             if (code === 0) { root.updStatus = "current"; root.updStep = "done"; }
         }
     }
