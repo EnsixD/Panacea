@@ -115,7 +115,26 @@ wallpaper and warms up its thumbnails. It then offers, one prompt at a time: the
 wallpaper pack (about 400 MB, downloaded as plain files), the GRUB boot theme and
 the SDDM login theme.
 
-Flags: `--no-deps`, `--no-sddm`, `--no-grub`, `--yes`.
+Flags: `--no-deps`, `--no-sddm`, `--no-grub`, `--no-services`, `--no-wallpapers`,
+`--no-restart`, `--yes`.
+
+### Updating
+
+Panacea checks GitHub for new commits on its own and offers an **Update** button
+in *Settings → System*. If your copy predates that — it was installed before the
+updater existed, or `~/.config/panacea/.version` is missing — run the updater by
+hand once:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EnsixD/Panacea/main/panacea/scripts/update.sh | bash -s apply
+```
+
+No reinstall, and nothing to do to Hyprland itself. The script clones the repo,
+carries your `settings.json`, your keybindings, your wallpapers and anything you
+put in `panacea/assets` across the install, reinstalls the configs, records the
+version and restarts the shell. Packages, the login theme and the boot theme are
+left alone — those are installed once. From then on updates arrive through the
+button.
 
 Prefer to do it by hand? Copy `panacea hypr foot ghostty kitty fish fastfetch
 nano tofi waybar` into `~/.config`, `nano/nanorc` to `~/.nanorc`, `bin/*` to

@@ -114,10 +114,20 @@ stash_user_state() {
 restore_user_state() {
     [ -n "${STASH:-}" ] && [ -d "$STASH" ] || return 0
     local f
-    for f in "${KEEP[@]}" "${KEEP_DIRS[@]}"; do
-        if [ -e "$STASH/${f#$HOME/}" ]; then
+    for f in "${KEEP[@]}"; do
+        if [ -f "$STASH/${f#$HOME/}" ]; then
             mkdir -p "$(dirname "$f")"
-            cp -r "$STASH/${f#$HOME/}" "$f"
+            cp "$STASH/${f#$HOME/}" "$f"
+        fi
+    done
+    # Каталоги возвращаем содержимым, а не целиком: установщик уже создал
+    # пустой каталог с тем же именем, и `cp -r dir dst` положил бы наши файлы
+    # внутрь него вторым уровнем — обои человека уезжали в wallpaper/wallpaper.
+    # Файлы из свежей установки при этом остаются: своё кладём поверх.
+    for f in "${KEEP_DIRS[@]}"; do
+        if [ -d "$STASH/${f#$HOME/}" ]; then
+            mkdir -p "$f"
+            cp -r "$STASH/${f#$HOME/}/." "$f/"
         fi
     done
     rm -rf "$STASH"
