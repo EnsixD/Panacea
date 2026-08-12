@@ -14,6 +14,36 @@ Item {
     id: view
     property var sys
 
+    // Макет для вкладки настроек: та же панель, только неживая. Показывает
+    // всегда главную страницу и слушается не сохранённой раскладки, а той,
+    // что человек прямо сейчас двигает мышью.
+    property bool preview: false
+    property var ccOrderOverride: null
+
+    // ------------------------------------------------- порядок блоков панели
+    // Пустая настройка — заводской порядок. Неизвестные имена (остались от
+    // прежней версии) отбрасываются, забытые дописываются в конец: раскладка
+    // переживает и обновление оболочки, и правку файла руками.
+    readonly property var ccDefault: ["clock", "toggles", "media", "power", "quick", "tray"]
+    readonly property var ccOrder: {
+        if (view.ccOrderOverride) return view.ccOrderOverride;
+        var saved = String(view.sys.cfg.ccLayout || "").split(",").filter(x => x.length);
+        var out = saved.filter(id => view.ccDefault.indexOf(id) >= 0);
+        view.ccDefault.forEach(id => { if (out.indexOf(id) < 0) out.push(id); });
+        return out;
+    }
+    // прямоугольник блока в координатах панели — по нему макет ставит
+    // накладку для перетаскивания
+    function ccBlock(id) {
+        for (var i = 0; i < mainPage.children.length; i++)
+            if (mainPage.children[i].objectName === "cc-" + id) return mainPage.children[i];
+        return null;
+    }
+    function ccRow(id) {
+        var i = view.ccOrder.indexOf(id);
+        return i < 0 ? view.ccDefault.indexOf(id) : i;
+    }
+
     // «м:сс» для полосы продолжительности; часы появляются только если нужны
     function fmtTime(sec) {
         var t = Math.max(0, Math.floor(sec));
@@ -741,7 +771,7 @@ Item {
     Item {
         id: stack
         width: parent.width
-        implicitHeight: view.sys.page === "main" ? mainPage.implicitHeight
+        implicitHeight: (view.preview || view.sys.page === "main") ? mainPage.implicitHeight
                       : view.sys.page === "wifi" ? wifiPage.implicitHeight
                       : view.sys.page === "traymenu" ? trayPage.implicitHeight
                       : view.sys.page === "battery" ? battPage.implicitHeight
@@ -751,16 +781,25 @@ Item {
         // и панель расширялась заметно дольше, чем нужно.
 
         // ---------------------------------------------------------- главная
-        ColumnLayout {
+        // Сетка в одну колонку, а не столбец: только она умеет явный номер
+        // строки у каждого ребёнка. Порядок блоков задаётся во вкладке
+        // Control Center и приходит сюда строкой из настроек — переносить
+        // сам код блоков ради этого не пришлось.
+        GridLayout {
             id: mainPage
             width: parent.width
-            spacing: 9
-            opacity: view.sys.page === "main" ? 1 : 0
+            columns: 1
+            columnSpacing: 0
+            rowSpacing: 9
+            opacity: (view.preview || view.sys.page === "main") ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: view.sys.animFast } }
 
             // заголовок с шестернёй: быстрый переход в настройки
             RowLayout {
+                objectName: "cc-clock"
+                Layout.row: view.ccRow("clock")
+                Layout.column: 0
                 Layout.fillWidth: true
                 spacing: 10
 
@@ -816,6 +855,9 @@ Item {
             // Три самых частых переключателя занимали три полосы подряд.
             // Теперь это одна строка, а громкость правится прямо в плитке.
             RowLayout {
+                objectName: "cc-toggles"
+                Layout.row: view.ccRow("toggles")
+                Layout.column: 0
                 Layout.fillWidth: true
                 spacing: 8
 
@@ -879,6 +921,9 @@ Item {
             // и эквалайзером во всю ширину заменяет отдельную страницу
             // плеера, которая раньше открывалась по наведению.
             Rectangle {
+                objectName: "cc-media"
+                Layout.row: view.ccRow("media")
+                Layout.column: 0
                 id: mediaCard
                 readonly property var p: view.sys.player
 
@@ -1153,6 +1198,9 @@ Item {
             // сегментов: они уехали на страницу батареи, а сюда встала одна
             // плитка рядом с записью.
             RowLayout {
+                objectName: "cc-power"
+                Layout.row: view.ccRow("power")
+                Layout.column: 0
                 Layout.fillWidth: true
                 spacing: 8
 
@@ -1201,6 +1249,9 @@ Item {
             // Замок, уведомления и настройки уехали сюда из правого верхнего
             // угла: одна нижняя полоса вместо значков, спорящих с часами.
             RowLayout {
+                objectName: "cc-quick"
+                Layout.row: view.ccRow("quick")
+                Layout.column: 0
             Layout.fillWidth: true
             spacing: 8
 
@@ -1296,6 +1347,9 @@ Item {
 
             // ------------------------------------------------ системный трей
             RowLayout {
+                objectName: "cc-tray"
+                Layout.row: view.ccRow("tray")
+                Layout.column: 0
                 Layout.fillWidth: true
                 Layout.topMargin: 2
                 spacing: 8
