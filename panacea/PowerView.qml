@@ -31,7 +31,8 @@ Item {
     readonly property var allActions: [
         { icon: String.fromCodePoint(0xF0904), label: view.sys.tr("Сон"),          cmd: "systemctl suspend",     accent: "#38bdf8" },  // md-power_sleep
         { id: "lock", icon: String.fromCodePoint(0xF033E), label: view.sys.tr("Блокировка"), cmd: view.sys.scriptDir + "/lock.sh", accent: "#a78bfa" },  // md-lock
-        { icon: String.fromCodePoint(0xF05FD), label: view.sys.tr("Выйти"),        cmd: "hyprctl dispatch exit", accent: "#fbbf24" },  // md-logout_variant
+        { icon: String.fromCodePoint(0xF05FD), label: view.sys.tr("Выйти"),        cmd: "out=$(hyprctl dispatch 'hl.dsp.exit()' 2>&1); "
+              + "case \"$out\" in ok*) ;; *) hyprctl dispatch exit ;; esac", accent: "#fbbf24" },  // md-logout_variant
         { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",      accent: "#fb923c" },  // md-restart
         { icon: String.fromCodePoint(0xF0425), label: view.sys.tr("Выключить"),    cmd: "systemctl poweroff",    accent: "#ef4444" }   // md-power
     ]
@@ -45,7 +46,11 @@ Item {
             return;
         }
         disarm.stop();
-        pRun.command = ["sh", "-c", actions[i].cmd];
+        // setsid -f: команда уходит в собственный сеанс и переживает
+        // закрытие панели. Без этого Process умирал вместе со страницей
+        // раньше, чем успевал сделать своё дело, — и блокировка, которой
+        // на запуск нужны сотни миллисекунд, просто не срабатывала.
+        pRun.command = ["setsid", "-f", "sh", "-c", actions[i].cmd];
         pRun.running = true;
         view.sys.collapse();
     }

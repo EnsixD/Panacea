@@ -28,8 +28,16 @@ addr=$(hyprctl -j clients 2>/dev/null | jq -r --arg h "$base" '
     | .[0].address // empty')
 
 if [ -n "$addr" ]; then
-    # focuswindow сам перелистывает на стол, где лежит окно
-    hyprctl dispatch focuswindow "address:$addr" >/dev/null 2>&1
+    # focus сам перелистывает на стол, где лежит окно.
+    #
+    # Новый парсер конфига принимает только Lua-форму диспетчеров, а старый —
+    # только прежнюю; и тот и другой при отказе выходят с нулевым кодом,
+    # поэтому смотрим на сам ответ, а не на код возврата.
+    out=$(hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" 2>&1)
+    case "$out" in
+        ok*) ;;
+        *) hyprctl dispatch focuswindow "address:$addr" >/dev/null 2>&1 ;;
+    esac
     exit 0
 fi
 
