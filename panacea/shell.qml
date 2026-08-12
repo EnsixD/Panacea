@@ -212,6 +212,30 @@ PanelWindow {
     readonly property var cfg: cfgFile.adapter
     function saveCfgNow() { cfgFile.writeAdapter(); }
 
+    // Заводские значения всего, что правится в окне настроек. Сочетания
+    // клавиш сюда не входят: у них свой список и своя кнопка сброса.
+    readonly property var defaultCfg: ({
+        fontFam: "JetBrainsMono Nerd Font", fontBody: "JetBrainsMono Nerd Font",
+        fontDisplay: "JetBrainsMono Nerd Font", fontSize: 15, iconSize: 17,
+        colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
+        spacingUnit: 8, smallRadius: 10,
+        pillH: 38, pillPos: "top", pillDrag: false, panelW: 540,
+        notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
+        islandGap: 12, islandRadius: 0,
+        reduceMotion: false, animMove: 230, animFade: 200, animHover: 150, animBounce: 0,
+        clock12: false, clockSeconds: false, clockWeekday: true,
+        clockTz: "auto", clockDateFmt: "d MMMM",
+        notifDnd: false, notifTimeout: 5000, notifCritTimeout: 0, notifPreview: true,
+        lockBlur: 32, lockHint: "",
+        ccLayout: "", filesWindow: false, vaultCapture: true,
+        recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: ""
+    })
+
+    function resetCfg() {
+        for (var k in root.defaultCfg) cfg[k] = root.defaultCfg[k];
+        root.saveCfg();
+    }
+
     // семейства моноширинных шрифтов для выпадающего списка настроек
     property var fontList: ["JetBrainsMono Nerd Font"]
     Process {
@@ -781,13 +805,24 @@ PanelWindow {
     property real pillRectH: 0
     readonly property int panelW: cfg.panelW    // ширина раскрытой панели
     readonly property int gap: 5                // зазор между пилюлей и окнами
-    readonly property int cornerR: cfg.cornerR  // радиус примыкания к кромке
+    // радиус примыкания к кромке; вне режима выреза примыкать нечему
+    readonly property int cornerR: cfg.notchMode ? cfg.notchFlare : 0
 
     // Единая кривая: панель «перетекает», а не прыгает.
-    readonly property int animMs: cfg.animMs
-    readonly property int animFast: Math.round(cfg.animMs * 0.52)
+    // Длительности задаёт вкладка Motion. «Reduce motion» обнуляет их все
+    // разом: движение исчезает, а не ускоряется.
+    readonly property bool noMotion: cfg.reduceMotion
+    readonly property int animMs:   noMotion ? 0 : cfg.animMove
+    readonly property int animFade: noMotion ? 0 : cfg.animFade
+    readonly property int animHover: noMotion ? 0 : cfg.animHover
+    // перелёт осциллятора в долях: 79 % → 0.79 сверх цели
+    readonly property real animBounce: noMotion ? 0 : cfg.animBounce / 100
+    // перелёт для кривых OutBack: 100 % ползунка — это заметный, но ещё не
+    // резиновый отскок, поэтому доля умножается, а не берётся как есть
+    readonly property real easeOvershoot: animBounce * 1.7
+    readonly property int animFast: Math.round(animMs * 0.52)
     // изменение содержимого (список приложений, новая сеть) — коротко и резко
-    readonly property int animQuick: Math.round(cfg.animMs * 0.48)
+    readonly property int animQuick: Math.round(animMs * 0.48)
 
     // true только пока идёт раскрытие/схлопывание или смена страницы.
     // Нужно, чтобы рост списка не ехал по длинной кривой раскрытия.
@@ -2685,11 +2720,23 @@ PanelWindow {
         // cambiasse all'apertura.
         border.width: 0
 
-        Behavior on width  { NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic } }
+        // Bounce со вкладки Motion живёт здесь: остров меняет размер по
+        // кривой с перелётом, и ползунок задаёт, насколько сильно он
+        // проскакивает цель, прежде чем осесть. На нуле перелёта нет и
+        // кривая обычная — движение просто останавливается.
+        Behavior on width {
+            NumberAnimation {
+                duration: root.animMs
+                easing.type: root.animBounce > 0 ? Easing.OutBack : Easing.InOutCubic
+                easing.overshoot: root.easeOvershoot
+            }
+        }
         Behavior on height {
             NumberAnimation {
                 duration: root.morphing ? root.animMs : root.animQuick
-                easing.type: root.morphing ? Easing.InOutCubic : Easing.OutCubic
+                easing.type: root.animBounce > 0 ? Easing.OutBack
+                           : root.morphing ? Easing.InOutCubic : Easing.OutCubic
+                easing.overshoot: root.easeOvershoot
             }
         }
         Behavior on bottomLeftRadius  { NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic } }
