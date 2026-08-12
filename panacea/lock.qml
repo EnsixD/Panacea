@@ -33,6 +33,22 @@ ShellRoot {
 
     readonly property string fontFam: "JetBrainsMono Nerd Font"
 
+    // Экран блокировки — отдельная программа, у неё нет доступа к состоянию
+    // оболочки. Настройки читаем из того же файла: только те, что нужны здесь.
+    FileView {
+        id: cfgFile
+        path: Quickshell.env("HOME") + "/.config/panacea/settings.json"
+        watchChanges: true
+        onFileChanged: reload()
+        adapter: JsonAdapter {
+            property int  lockBlur: 32
+            property bool lockShowMedia: true
+            property bool lockShowNotif: true
+            property string lockHint: ""
+        }
+    }
+    readonly property var cfg: cfgFile.adapter
+
     // Аварийная разблокировка для отладки: включается только тем,
     // кто запустил процесс с PANACEA_LOCK_TEST=1. В боевом запуске
     // такого канала нет.
@@ -206,7 +222,8 @@ ShellRoot {
                     source: bg
                     visible: bg.status === Image.Ready
                     blurEnabled: true
-                    blurMax: 40
+                    // сила размытия задаётся во вкладке Lock Screen
+                    blurMax: root.cfg ? root.cfg.lockBlur : 32
                     blurMultiplier: 0.85
                     blur: root.authMode ? 1.0 : 0.0
                     Behavior on blur {
@@ -265,6 +282,16 @@ ShellRoot {
                         text: root.dateText
                         color: Qt.rgba(1, 1, 1, 0.55)
                         font { family: root.fontFam; pixelSize: 17 }
+                    }
+
+                    // Своя строка хозяина машины: чей это компьютер, куда
+                    // звонить, если нашли. Пустая — её просто нет.
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        visible: text.length > 0
+                        text: root.cfg ? root.cfg.lockHint : ""
+                        color: Qt.rgba(1, 1, 1, 0.50)
+                        font { family: root.fontFam; pixelSize: 14 }
                     }
 
                     // подсказка мигает, пока не начали вводить
