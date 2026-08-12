@@ -12,7 +12,7 @@ ColumnLayout {
 
     property var sys
 
-    // [{ name, desc, w, h, rr, scale, transform, vrr, disabled, x, y, modes: [] }]
+    // [{ name, desc, w, h, rr, scale, transform, vrr, x, y, modes: [] }]
     property var mons: []
 
     Layout.fillWidth: true
@@ -38,7 +38,6 @@ ColumnLayout {
                         scale: m.scale,
                         transform: m.transform,
                         vrr: !!m.vrr,
-                        disabled: !!m.disabled,
                         x: m.x, y: m.y,
                         modes: m.availableModes || []
                     }));
@@ -69,22 +68,17 @@ ColumnLayout {
         var sc = over.scale !== undefined ? over.scale : m.scale;
         var tr = over.transform !== undefined ? over.transform : m.transform;
         var vrr = over.vrr !== undefined ? over.vrr : m.vrr;
-        var off = over.disabled !== undefined ? over.disabled : m.disabled;
         // Позицию всегда передаём текущую, а не "auto": иначе смена разрешения
         // пересобирала бы раскладку экранов заново и монитор уезжал бы.
         var pos = over.pos !== undefined ? over.pos : page.placeOf(m);
 
         var mode = w + "x" + h + "@" + Number(rr).toFixed(2);
 
-        var lua = off
-            ? "hl.monitor({ output=\"" + m.name + "\", disabled=true })"
-            : "hl.monitor({ output=\"" + m.name + "\", mode=\"" + mode
+        var lua = "hl.monitor({ output=\"" + m.name + "\", mode=\"" + mode
               + "\", position=\"" + pos + "\", scale=" + Number(sc).toFixed(6)
               + ", transform=" + tr + ", vrr=" + (vrr ? 1 : 0) + " })";
 
-        var legacy = off
-            ? m.name + ",disable"
-            : m.name + "," + mode + "," + pos + "," + Number(sc).toFixed(6)
+        var legacy = m.name + "," + mode + "," + pos + "," + Number(sc).toFixed(6)
               + ",transform," + tr + ",vrr," + (vrr ? 1 : 0);
 
         pApply.args = "out=$(hyprctl eval '" + lua + "' 2>&1); "
@@ -149,7 +143,7 @@ ColumnLayout {
             sys: page.sys
             label: page.sys.tr("Показывать на экране")
             options: [{ id: "auto", text: page.sys.tr("За фокусом") }].concat(
-                page.mons.filter(m => !m.disabled).map(m => ({
+                page.mons.map(m => ({
                     id: m.name,
                     text: m.name + (m.desc.length ? " · " + m.desc : "")
                 })))
@@ -208,25 +202,14 @@ ColumnLayout {
                 }
 
                 Text {
-                    text: card.modelData.disabled
-                          ? page.sys.tr("выключен")
-                          : card.res + " · " + Number(card.modelData.rr).toFixed(0) + " Hz"
+                    text: card.res + " · " + Number(card.modelData.rr).toFixed(0) + " Hz"
                     color: page.sys.colMuted
                     font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 3 }
                 }
             }
 
-            SetToggle {
-                sys: page.sys
-                label: page.sys.tr("Экран включён")
-                on: !card.modelData.disabled
-                onToggled: v => page.apply(card.modelData, { disabled: !v })
-            }
-
             SetPick {
                 sys: page.sys
-                enabled: !card.modelData.disabled
-                opacity: enabled ? 1 : 0.4
                 label: page.sys.tr("Разрешение")
                 options: page.resList(card.modelData)
                 value: card.res
@@ -241,8 +224,6 @@ ColumnLayout {
 
             SetPick {
                 sys: page.sys
-                enabled: !card.modelData.disabled
-                opacity: enabled ? 1 : 0.4
                 label: page.sys.tr("Частота обновления")
                 options: page.rrList(card.modelData, card.res).map(hz => ({
                     id: String(hz), text: hz.toFixed(2) + " Hz"
@@ -258,8 +239,6 @@ ColumnLayout {
             SetSelect {
                 sys: page.sys
                 visible: page.mons.length > 1 && card.index > 0
-                enabled: !card.modelData.disabled
-                opacity: enabled ? 1 : 0.4
                 label: page.sys.tr("Расположение") + (page.mons.length > 1
                        ? " — " + page.sys.tr("относительно") + " " + page.mons[0].name : "")
                 options: [
@@ -274,8 +253,6 @@ ColumnLayout {
 
             SetSlider {
                 sys: page.sys
-                enabled: !card.modelData.disabled
-                opacity: enabled ? 1 : 0.4
                 label: page.sys.tr("Масштаб")
                 from: 1; to: 3; step: 0.05
                 decimals: 2
@@ -286,8 +263,6 @@ ColumnLayout {
 
             SetSelect {
                 sys: page.sys
-                enabled: !card.modelData.disabled
-                opacity: enabled ? 1 : 0.4
                 label: page.sys.tr("Поворот")
                 options: [
                     { id: "0", text: "0°" },
@@ -301,8 +276,6 @@ ColumnLayout {
 
             SetToggle {
                 sys: page.sys
-                enabled: !card.modelData.disabled
-                opacity: enabled ? 1 : 0.4
                 label: page.sys.tr("Переменная частота (VRR)")
                 on: card.modelData.vrr
                 onToggled: v => page.apply(card.modelData, { vrr: v })
