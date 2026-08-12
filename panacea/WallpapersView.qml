@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
+import Quickshell
 import Quickshell.Io
 
 // Выбор обоев во весь экран: карусель, где выбранные обои стоят по центру,
@@ -107,10 +108,15 @@ Item {
         }
     }
 
-    // Список читает корень (sys.wallList) — здесь только раскладываем его в
-    // модель. Открытие поэтому мгновенное: данные уже есть.
-    function reload() {
-        var rows = (view.live ? view.sys.liveList : view.sys.wallList) || [];
+    // Список читает корень (sys.wallList / sys.liveList) — здесь только
+    // раскладываем его в модель. Открытие поэтому мгновенное: данные уже есть.
+    //
+    // Режим можно передать явно. Это важно при переключении вкладки: внутри
+    // обработчика onModeChanged привязка live ещё отдаёт ПРЕЖНЕЕ значение, и
+    // список брался от старой вкладки — картинки на «живых» и наоборот.
+    function reload(liveOverride) {
+        var isLive = liveOverride === undefined ? view.live : liveOverride;
+        var rows = (isLive ? view.sys.liveList : view.sys.wallList) || [];
         var act = -1;
         for (var i = 0; i < rows.length; i++) if (rows[i].wActive) act = i;
         view.applyRows(rows, act);
@@ -121,10 +127,11 @@ Item {
         function onLiveListChanged() { if (view.live)  view.reload(); }
     }
     onModeChanged: {
+        var isLive = view.mode === "live";
         view.userScrolled = false;
-        view.reload();
+        view.reload(isLive);
         view.jumpToActive();
-        if (view.live) liveWarmDelay.restart();
+        if (isLive) liveWarmDelay.restart();
     }
 
     // Прогрев миниатюр для новых обоев — уже после того, как карусель
