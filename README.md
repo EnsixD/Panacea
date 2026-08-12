@@ -30,7 +30,11 @@ its text letter under letter, so nothing has to be read with a tilted head.
 
 ## Demo
 
-https://github.com/user-attachments/assets/39f9b55b-6d42-4092-bd4c-c4da9b4f5fc6
+
+
+https://github.com/user-attachments/assets/4eaa0e05-9295-472a-943b-70260d7e5961
+
+
 
 <sub>A short tour recorded with the pill's own screen recorder. The same clip is
 committed as <code>demo.mp4</code>; the link above is GitHub's own upload, since
