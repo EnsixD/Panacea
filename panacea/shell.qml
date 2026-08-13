@@ -3106,7 +3106,16 @@ PanelWindow {
         function refreshContentH() { contentSettle.restart(); }
         function applyContentH() {
             var it = contentLoader.item;
-            if (it && it.implicitHeight > 40) contentH = it.implicitHeight + 30;
+            if (!it || it.implicitHeight <= 40) return;
+            var target = it.implicitHeight + 30;
+            // Мелкие колебания раскладки цель не двигают. Высота идёт через
+            // Behavior, а тот на каждое изменение цели начинает анимацию
+            // заново — с текущей точки и на полную длительность. Пока страница
+            // доразмечается, цель успевает поменяться несколько раз, и вместо
+            // одного плавного роста капсула идёт ступеньками. Разница в
+            // несколько пикселей глазу не видна, а перезапуск — виден.
+            if (Math.abs(target - capsule.contentH) < 8) return;
+            capsule.contentH = target;
         }
         Connections {
             target: contentLoader
