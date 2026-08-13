@@ -336,14 +336,28 @@ PanelWindow {
     // Считает и применяет отдельный скрипт: там же лежит сам шейдер и знание
     // о том, как разговаривать с компоновщиком. Здесь только запоминаем.
     Process { id: pVibrance }
+
+    // Ползунок шлёт значение на каждое движение мыши, а каждый вызов — это
+    // пересборка шейдера и перечитывание его компоновщиком. Без сдерживания
+    // они идут внахлёст, и Hyprland ловит файл на середине записи. Число в
+    // окне меняется сразу, к компоновщику уходит только то, на чём ручка
+    // остановилась.
+    Timer {
+        id: vibranceFlush
+        interval: 160
+        onTriggered: {
+            pVibrance.command = ["sh", "-c",
+                Quickshell.env("HOME") + "/.config/panacea/scripts/vibrance.sh set "
+                + root.cfg.vibrance];
+            pVibrance.running = false;
+            pVibrance.running = true;
+            root.saveCfg();
+        }
+    }
+
     function applyVibrance(pct) {
         root.cfg.vibrance = Math.max(0, Math.min(100, Math.round(pct)));
-        root.saveCfg();
-        pVibrance.command = ["sh", "-c",
-            Quickshell.env("HOME") + "/.config/panacea/scripts/vibrance.sh set "
-            + root.cfg.vibrance];
-        pVibrance.running = false;
-        pVibrance.running = true;
+        vibranceFlush.restart();
     }
 
     // ----------------------------------------------------------- мышь
