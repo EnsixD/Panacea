@@ -134,9 +134,11 @@ Item {
         if (newSection) newSection.focus = false;
     })
 
+    // Разворачивается сразу, как остров: задержка перед открытием читается
+    // как задумчивость, а не как бережность.
     Timer {
         id: openTimer
-        interval: 90
+        interval: 0
         onTriggered: if (todoHover.hovered) todo.expanded = true
     }
     Timer {
@@ -155,10 +157,12 @@ Item {
         }
     }
 
-    implicitWidth:  todo.expanded ? todo.sys.cfg.todoW  : collapsed.implicitWidth + 26
+    // Ширина одна на оба состояния — та, что задана в настройках: капсула,
+    // меняющая ширину под курсором, ездила бы вбок вместе с островом, к
+    // которому прижата. Разворот меняет только высоту.
+    implicitWidth:  todo.sys.cfg.todoW
     implicitHeight: todo.expanded ? todo.sys.cfg.todoH : todo.sys.pillH
 
-    Behavior on implicitWidth  { NumberAnimation { duration: todo.sys.animMs; easing.type: Easing.InOutCubic } }
     Behavior on implicitHeight { NumberAnimation { duration: todo.sys.animMs; easing.type: Easing.InOutCubic } }
 
     // Форма островная: у прижатой кромки углы срезаны, у смотрящей в экран —
@@ -168,8 +172,8 @@ Item {
     readonly property bool atBottom: todo.sys.cfg.todoPos === "bottom"
     readonly property bool atLeft:   todo.sys.cfg.todoPos === "left"
     readonly property bool atRight:  todo.sys.cfg.todoPos === "right"
-    readonly property real edgeR: todo.sys.cfg.notchMode ? 0
-                                : (todo.expanded ? 18 : todo.height / 2)
+    // у кромки углов нет вовсе: блокнот прижат к ней вплотную
+    readonly property real edgeR: 0
 
     Rectangle {
         anchors.fill: parent
@@ -184,27 +188,51 @@ Item {
         Behavior on topRightRadius    { NumberAnimation { duration: todo.sys.animMs } }
         Behavior on bottomLeftRadius  { NumberAnimation { duration: todo.sys.animMs } }
         Behavior on bottomRightRadius { NumberAnimation { duration: todo.sys.animMs } }
-        color: Qt.rgba(todo.sys.colBg.r, todo.sys.colBg.g, todo.sys.colBg.b, 0.92)
-        border.width: 1
-        border.color: Qt.rgba(todo.sys.colFg.r, todo.sys.colFg.g, todo.sys.colFg.b, 0.12)
+        // Ни рамки, ни полупрозрачности: остров рисуется сплошным и без
+        // границы, а рамка в один пиксель у прижатой кромки читалась как
+        // щель между капсулой и краем экрана.
+        color: todo.sys.colBg
 
         // --------------------------------------------------- свёрнутый вид
+        // Разложено по ширине, как в свёрнутом острове: значок и подпись
+        // слева, счёт справа. По центру два знака на всю капсулу смотрелись
+        // бы потерянными.
         RowLayout {
             id: collapsed
-            anchors.centerIn: parent
-            spacing: 7
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 14
+            spacing: 8
             visible: !todo.expanded
             opacity: todo.expanded ? 0 : 1
             Behavior on opacity { NumberAnimation { duration: todo.sys.animFast } }
 
             Text {
+                Layout.alignment: Qt.AlignVCenter
                 text: "󰄲"
                 color: todo.sys.colOn
                 font { family: todo.sys.fontFam; pixelSize: todo.sys.fontSize - 2 }
             }
+
             Text {
-                // Ноль показываем как галочку: «0» рядом со значком читается
-                // как «ноль задач заведено», а не «всё сделано».
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                text: todo.sys.tr("Задачи")
+                color: todo.sys.colMuted
+                elide: Text.ElideRight
+                font {
+                    family: todo.sys.fontBody
+                    pixelSize: todo.sys.fontSize - 3
+                    bold: true
+                    capitalization: Font.AllUppercase
+                    letterSpacing: 1
+                }
+            }
+
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                // Ноль показываем галочкой: «0» рядом со значком читается как
+                // «ноль задач заведено», а не «всё сделано».
                 text: todo.leftToDo > 0 ? String(todo.leftToDo) : "󰄬"
                 color: todo.leftToDo > 0 ? todo.sys.colFg : todo.sys.colOk
                 font { family: todo.sys.fontFam; pixelSize: todo.sys.fontSize - 1; bold: true }

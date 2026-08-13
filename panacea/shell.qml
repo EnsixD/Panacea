@@ -3992,8 +3992,15 @@ LazyLoader {
             readonly property bool atRight:  root.cfg.todoPos === "right"
             // на одной кромке с островом — встаём рядом, а не поверх
             readonly property bool besideIsland: root.cfg.todoPos === root.cfg.pillPos
-            readonly property real edgeGap: root.cfg.notchMode ? 0 : root.cfg.islandGap
-            readonly property real sideGap: 10   // между блокнотом и островом
+            // К кромке вплотную, без зазора: блокнот — её продолжение, а не
+            // отдельная плашка рядом. Отступ острова (islandGap) здесь не
+            // повторяем — он про сам остров.
+            readonly property real edgeGap: 0
+            // Небольшой просвет до острова: вплотную они сливались в одну
+            // капсулу, и было не разобрать, где кончается одна и начинается
+            // другая. Курсор в такой просвет попасть не должен — потому он
+            // и мал.
+            readonly property real sideGap: 8
 
             x: {
                 if (todoBody.atLeft)  return todoBody.edgeGap;
