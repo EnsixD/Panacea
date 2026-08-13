@@ -567,6 +567,36 @@ QtObject {
         "Частота": "Refresh rate",
         "родное": "native",
         "Масштаб": "Scale",
+        "Яркость": "Brightness",
+        "Громкость и яркость": "Volume and brightness",
+        "Скрытые": "Hidden",
+        "Проводная сеть": "Wired",
+        "Язык": "Language",
+        "Язык системы": "System language",
+        "Меняем язык системы…": "Changing the system language…",
+        "Оболочка переключается сразу. Приложения и меню — после перезахода: язык они читают при входе.":
+            "The shell switches right away. Apps and menus follow after you log back in — they read the language at login.",
+        "Оболочка уже на новом языке. Приложения и меню читают язык при входе — они переключатся после перезахода.":
+            "The shell is already in the new language. Apps and menus read it at login, so they switch after you log back in.",
+        "Цвет": "Colour",
+        "Цифровая интенсивность": "Digital vibrance",
+        "Насыщенность всей картинки. На Wayland ручка из nvidia-settings не действует, поэтому цвет правит сам компоновщик — одинаково на любой видеокарте.":
+            "Saturation of the whole picture. The nvidia-settings knob does nothing on Wayland, so the compositor handles colour itself — the same way on any GPU.",
+        "Указатель": "Pointer",
+        "Скорость указателя": "Pointer speed",
+        "0 — скорость как её отдаёт мышь. Влево медленнее, вправо быстрее.":
+            "0 keeps the speed the mouse reports. Left is slower, right is faster.",
+        "Прямой ввод": "Raw input",
+        "Без разгона: одно и то же движение по столу всегда даёт одно и то же расстояние по экрану. То, ради чего в играх выключают повышенную точность указателя.":
+            "No acceleration: the same movement on the desk always travels the same distance on screen — what turning off enhanced pointer precision is for.",
+        "Скорость указателя и разгон.": "Pointer speed and acceleration.",
+        "Вернуть заводские": "Reset to defaults",
+        "Wi-Fi · Bluetooth": "Wi-Fi · Bluetooth",
+        "Без звука": "Muted",
+        "Яркостью монитора управляет ddcutil — его нет в системе. Поставьте пакет ddcutil, и ползунок появится здесь.":
+            "Monitor brightness goes through ddcutil, which isn't installed. Install the ddcutil package and the slider shows up here.",
+        "Монитор не отвечает на запрос яркости по DDC/CI. Обычно это включается в его меню пунктом DDC/CI.":
+            "The monitor doesn't answer brightness requests over DDC/CI. It usually has a DDC/CI switch in its own on-screen menu.",
         "Ориентация": "Orientation",
         "Обычная": "Landscape",
         "Повёрнут вправо": "Rotated right",
