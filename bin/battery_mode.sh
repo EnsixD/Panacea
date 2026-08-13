@@ -6,9 +6,13 @@
 # Оболочку поднимает Hyprland (exec-once в programs.lua), службы у неё нет —
 # поэтому останавливаем и запускаем сам процесс.
 
-CONFIG="$HOME/.config/hypr/modules/look_and_feel.conf"
-START="### BEST BATTERY LIFE ###"
-END="### MONITORS ###"
+# Включён режим или нет, помнит этот файл. Раньше признаком служила
+# закомментированная секция в hypr/modules/look_and_feel.conf — но конфиг
+# Hyprland давно лежит в lua/, а .conf никто не читает, так что скрипт
+# комментировал строки, которые ни на что не влияли, и хранил в них флаг.
+# В runtime-каталоге ему не место: режим должен пережить перезагрузку.
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/panacea"
+STATE="$STATE_DIR/battery-mode"
 LOG="${XDG_RUNTIME_DIR:-/tmp}/battery_mode.log"
 SHELL_CMD="qs -c $HOME/.config/panacea"
 FIFO="${XDG_RUNTIME_DIR:-/tmp}/wob.fifo"
@@ -26,7 +30,7 @@ SCALE=$(echo "$MONITOR_INFO" | jq -r '.scale')
 
 enable_battery() {
     echo "Enabling Battery Savings (120Hz VRR + No Effects)..."
-    sed -i "/$START/,/$END/ { /$START/! { /$END/! s/^#[[:space:]]*// } }" "$CONFIG"
+    mkdir -p "$STATE_DIR" && : > "$STATE"
     hyprctl keyword monitor "$MONITOR,$RES@120,$POS,$SCALE,vrr,1"
     "$HOME/.config/hypr/scripts/switch_theme.sh" black
     sleep 0.5
@@ -34,6 +38,9 @@ enable_battery() {
     hyprctl eval 'hl.config({ animations = { enabled = false }, decoration = { rounding = 0, shadow = { enabled = false }, blur = { enabled = false } } })'
 
     pkill -x qs; pkill -x quickshell
+    # на случай, если режим включают повторно: без этого рядом встал бы
+    # второй waybar, а первый остался бы висеть
+    pkill waybar
     waybar &
 
     # Уровень громкости и яркости: пилюля погашена, показывает wob.
@@ -46,7 +53,7 @@ enable_battery() {
 
 disable_battery() {
     echo "Restoring Performance Mode (120Hz VRR + Animations)..."
-    sed -i "/$START/,/$END/ { /$START/! { /$END/! { /^[[:space:]]*#/! s/^/#/ } } }" "$CONFIG"
+    rm -f "$STATE"
     hyprctl keyword monitor "$MONITOR,$RES@120,$POS,$SCALE,vrr,1"
 
     "$HOME/.config/hypr/scripts/switch_theme.sh" minimal
@@ -73,11 +80,11 @@ disable_battery() {
 
 {
     echo "Running toggle check..."
-    if sed -n "/$START/,/$END/p" "$CONFIG" | grep -q "^#animations"; then
-        echo "Enabling battery"
-        enable_battery
-    else
+    if [ -e "$STATE" ]; then
         echo "Disabling battery"
         disable_battery
+    else
+        echo "Enabling battery"
+        enable_battery
     fi
 } >> "$LOG" 2>&1

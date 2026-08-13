@@ -51,6 +51,8 @@ Item {
             "Скрипты: проверка синтаксиса QML до запуска оболочки",
         "hypr: drop program entries nothing points at":
             "Hyprland: убраны записи о программах, которые никто не вызывает",
+        "hypr: delete the config Hyprland does not read":
+            "Hyprland: удалён конфиг, который не читается",
         "settings: one SetButton for Apply and Reset":
             "Настройки: общая кнопка для «Применить» и «Сбросить»",
         "whatsnew: say what changed in the language of the interface":
