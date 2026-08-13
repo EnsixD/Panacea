@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "install: kernel headers, or the Nvidia module never gets built":
+            "Установщик: заголовки ядра, без которых модуль Nvidia не собирается",
         "install: open modules for Turing and newer, vendors by PCI id":
             "Установщик: открытые модули Nvidia для Turing и новее, вендор по PCI-идентификатору",
         "hypr: bring back a fallback config for Hyprland without Lua":

@@ -200,6 +200,16 @@ detect_drivers() {
         # и -zen, и переживает обновление ядра без чёрного экрана на следующем
         # старте. egl-wayland обязателен — без него Hyprland на Nvidia не
         # запускается совсем.
+        # Заголовки установленного ядра: без них dkms собрать модуль не может,
+        # и вместо драйвера получается «Failed to find module nvidia_uvm» в
+        # журнале, nouveau на карте и монитор без EDID. Ядер может быть
+        # несколько (linux, -lts, -zen) — заголовки нужны каждому.
+        local k
+        for k in linux linux-lts linux-zen linux-hardened; do
+            pacman -Qq "$k" >/dev/null 2>&1 && DRIVERS+=("$k-headers")
+        done
+        DRIVER_NOTES+=("kernel headers — needed to build the driver module")
+
         if printf '%s' "$gpus" | grep -qiE 'rtx|gtx 16'; then
             DRIVERS+=(nvidia-open-dkms nvidia-utils egl-wayland)
             DRIVER_NOTES+=("nvidia-open-dkms, nvidia-utils, egl-wayland — Nvidia graphics (Turing and newer)")
@@ -229,7 +239,18 @@ install_drivers() {
     # дотфайлам, и переустановка их не затрёт.
     if printf '%s' "${uniq[*]}" | grep -q nvidia; then
         printf 'options nvidia_drm modeset=1\n' | sudo tee /etc/modprobe.d/nvidia-panacea.conf >/dev/null
-        warn "Nvidia: reboot needed, and check that nvidia_drm.modeset=1 took effect"
+
+        # Собрать модуль и переложить его в initramfs. pacman этого не делает
+        # сам: свежепоставленный dkms-пакет собирается хуком, но если хук не
+        # отработал (или заголовки приехали позже), модуля не будет, и карта
+        # останется на nouveau без единой ошибки при установке.
+        sudo dkms autoinstall >/dev/null 2>&1
+        sudo mkinitcpio -P >/dev/null 2>&1
+        if lsmod | grep -q '^nvidia' || modinfo nvidia >/dev/null 2>&1; then
+            ok "Nvidia module built — reboot to load it"
+        else
+            warn "Nvidia module still missing — check 'dkms status' after reboot"
+        fi
     fi
 }
 
