@@ -606,6 +606,20 @@ PanelWindow {
     }
     // страховка, если сигнала о записи почему-то не будет
     Timer { id: bindsFallback; interval: 700; onTriggered: root.runGenBinds() }
+
+    // Сочетания живут в settings.json, но Hyprland читает только производный
+    // от него binds_data.lua. Файл лежит внутри ~/.config/hypr, который
+    // установщик заменяет целиком, — и пропадал вместе с ним. Настройки при
+    // этом оставались на месте, поэтому со стороны это выглядело так, будто
+    // сочетания «не сохраняются»: окно Super+/ показывает своё, а нажатия
+    // работают заводские. Собираем файл заново, если его нет.
+    Process {
+        id: pBindsHeal
+        running: true
+        command: ["sh", "-c",
+            "[ -f \"$HOME/.config/hypr/lua/binds_data.lua\" ] "
+            + "|| \"$HOME/.config/panacea/scripts/genbinds.sh\""]
+    }
     Connections {
         target: cfgFile
         function onSaved() { root.runGenBinds(); }

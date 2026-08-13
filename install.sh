@@ -310,6 +310,58 @@ backup() {
     warn "existing $(basename "$1") saved as $(basename "$1").bak-$STAMP"
 }
 
+# ------------------------------------------------------------- своё состояние
+# Что принадлежит человеку, а не репозиторию. Установщик уносит каталоги
+# целиком и кладёт свежие — вместе со старым каталогом уезжали настройки из
+# окна Super+I, сочетания клавиш и обои, и после каждой переустановки человек
+# получал заводскую оболочку. Уносим своё в сторону до копирования и
+# возвращаем после. Список тот же, что в scripts/update.sh.
+KEEP_FILES=(
+    "panacea/settings.json"
+    "hypr/lua/binds_data.lua"
+)
+KEEP_DIRS=(
+    "hypr/wallpaper"
+    "panacea/assets"
+)
+KEEP_STASH=""
+
+keep_stash() {
+    KEEP_STASH="$(mktemp -d)" || { KEEP_STASH=""; return 0; }
+    local f
+    for f in "${KEEP_FILES[@]}"; do
+        [ -f "$CONF/$f" ] || continue
+        mkdir -p "$KEEP_STASH/$(dirname "$f")"
+        cp "$CONF/$f" "$KEEP_STASH/$f"
+    done
+    for f in "${KEEP_DIRS[@]}"; do
+        [ -d "$CONF/$f" ] || continue
+        mkdir -p "$KEEP_STASH/$(dirname "$f")"
+        cp -r "$CONF/$f" "$KEEP_STASH/$f"
+    done
+}
+
+keep_restore() {
+    [ -n "$KEEP_STASH" ] && [ -d "$KEEP_STASH" ] || return 0
+    local f restored=0
+    for f in "${KEEP_FILES[@]}"; do
+        [ -f "$KEEP_STASH/$f" ] || continue
+        mkdir -p "$CONF/$(dirname "$f")"
+        cp "$KEEP_STASH/$f" "$CONF/$f" && restored=1
+    done
+    # Каталоги вливаем в свежий, а не заменяем им: в repo-версии лежат свои
+    # файлы (логотипы, обои по умолчанию), и `cp -r dir dst` на существующем
+    # каталоге положил бы наши внутрь него вложенной копией.
+    for f in "${KEEP_DIRS[@]}"; do
+        [ -d "$KEEP_STASH/$f" ] || continue
+        mkdir -p "$CONF/$f"
+        cp -r "$KEEP_STASH/$f/." "$CONF/$f/" && restored=1
+    done
+    rm -rf "$KEEP_STASH"; KEEP_STASH=""
+    [ "$restored" = "1" ] && ok "your settings, shortcuts and wallpapers kept"
+    return 0
+}
+
 copy_into_config() {   # copy_into_config <dir-in-repo>
     local name="$1" dst="$CONF/$1"
     [ -d "$SRC/$name" ] || { warn "no $name in this checkout — skipping"; return; }
@@ -320,9 +372,11 @@ copy_into_config() {   # copy_into_config <dir-in-repo>
 
 install_configs() {
     mkdir -p "$CONF" "$HOME/.local/bin"
+    keep_stash
     for d in panacea hypr foot ghostty kitty fish fastfetch nano; do
         [ -d "$SRC/$d" ] && copy_into_config "$d"
     done
+    keep_restore
     # nanorc lives at ~/.nanorc, not in a directory
     if [ -f "$SRC/nano/nanorc" ]; then
         backup "$HOME/.nanorc"; cp "$SRC/nano/nanorc" "$HOME/.nanorc"; ok "nanorc → ~/.nanorc"
@@ -348,6 +402,19 @@ install_configs() {
     # каталог живых обоев: карусель открывает его кнопкой, и он должен
     # существовать ещё до того, как туда что-то положат
     mkdir -p "$CONF/hypr/wallpaper/live"
+
+    # Сочетания клавиш Hyprland читает только из lua/binds_data.lua, а окно
+    # Super+/ пишет их в settings.json и пересобирает этот файл. Если файла
+    # нет, а в настройках сочетания есть — они молча не работают, и человек
+    # видит заводские. Собираем его из settings.json, чтобы источником правды
+    # остался один файл, а этот был всего лишь производным от него.
+    if [ ! -f "$CONF/hypr/lua/binds_data.lua" ] && [ -f "$CONF/panacea/settings.json" ]; then
+        if [ -x "$CONF/panacea/scripts/genbinds.sh" ]; then
+            "$CONF/panacea/scripts/genbinds.sh" >/dev/null 2>&1 \
+                && ok "keyboard shortcuts rebuilt from your settings"
+        fi
+    fi
+
     stamp_version
     personalize_paths
 }
