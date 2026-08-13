@@ -88,7 +88,7 @@ and never touches a file that Hyprland sources, so your windows are left alone.
 | **Shell** | [Quickshell](https://quickshell.org) — the pill, in QML |
 | **CLI** | Fish + eza + zoxide |
 | **Terminals** | foot, Ghostty, Kitty |
-| **Lock / wallpaper** | hyprlock, hyprpaper, hyprsunset |
+| **Lock / wallpaper** | the pill's own lock screen, hyprpaper, hyprsunset |
 | **Boot / login** | GRUB theme, SDDM theme — both matching the palette |
 
 The pill is also the notification daemon and the polkit agent, so don't run
@@ -232,7 +232,7 @@ cutouts is the shell's own silhouette. Same licence as the code.
 
 [Hyprland](https://hyprland.org) · [Quickshell](https://quickshell.org) ·
 [cava](https://github.com/karlstav/cava) · [cliphist](https://github.com/sentriz/cliphist) ·
-[hyprpaper / hyprlock / hyprsunset](https://github.com/hyprwm) ·
+[hyprpaper / hyprsunset](https://github.com/hyprwm) ·
 [wf-recorder](https://github.com/ammen99/wf-recorder) · [fish](https://fishshell.com)
 
 ## Licence

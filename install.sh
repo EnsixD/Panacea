@@ -75,9 +75,10 @@ DEPS=(
     "foot|foot|terminal"
     "hyprpaper|hyprpaper|wallpaper"
     "hyprsunset|hyprsunset|night colour temperature"
-    # Не ради самой программы: пакет кладёт /etc/pam.d/swaylock, а это
-    # профиль, которым проверяют пароль экран блокировки и хранилище
-    # паролей. Без него ни то, ни другое не открывается.
+    # Не ради самой программы — она даже не запускается, и её конфига здесь
+    # нет. Пакет кладёт /etc/pam.d/swaylock, а это профиль, которым проверяют
+    # пароль экран блокировки и хранилище паролей: без него ни то, ни другое
+    # не открывается.
     "swaylock|swaylock|the PAM profile the lock screen and the vault use"
     "jq|jq|JSON in the scripts"
     "wl-copy|wl-clipboard|clipboard access"
@@ -199,7 +200,7 @@ copy_into_config() {   # copy_into_config <dir-in-repo>
 
 install_configs() {
     mkdir -p "$CONF" "$HOME/.local/bin"
-    for d in panacea hypr foot ghostty kitty fish fastfetch nano swaylock; do
+    for d in panacea hypr foot ghostty kitty fish fastfetch nano; do
         [ -d "$SRC/$d" ] && copy_into_config "$d"
     done
     # nanorc lives at ~/.nanorc, not in a directory

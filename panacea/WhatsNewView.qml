@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "install: drop configs for programs that never run":
+            "Установщик: убраны конфиги программ, которые не запускаются",
         "island: with auto-hide on, hovering shows the pill and a click opens it":
             "Остров: при автопрятании наведение показывает пилюлю, а раскрывает клик",
         "battery mode: keep the pill, drop the second set of panels":
