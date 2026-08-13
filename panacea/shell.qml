@@ -4248,33 +4248,19 @@ LazyLoader {
             Behavior on height { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
             Behavior on radius { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
 
-            // Список сочетаний длиннее любого экрана, поэтому он в прокрутке:
-            // раньше нижние разделы просто обрезались краем карточки.
-            Flickable {
+            // Прокрутки нет: список разложен в три колонки и целиком
+            // помещается в карточку, а сама она занимает почти весь экран.
+            // За сочетанием заглядывают на секунду, посреди другой работы —
+            // искать его колесом дольше, чем вспоминать самому.
+            SetKeys {
+                id: keysBody
                 anchors.fill: parent
-                anchors.margins: 22
-                clip: true
-                contentWidth: width
-                contentHeight: keysBody.implicitHeight
-                boundsBehavior: Flickable.StopAtBounds
-                flickDeceleration: 3000
+                anchors.margins: 26
+                sys: root
                 // содержимое проявляется вслед за карточкой: на первых кадрах
                 // она ещё размером с пилюлю, и список в неё не влезает
                 opacity: root.keysWindowOpen ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animMs } }
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                    contentItem: Rectangle { radius: 2; color: Qt.rgba(1, 1, 1, 0.22) }
-                }
-
-                SettingsView {
-                    id: keysBody
-                    width: parent.width
-                    sys: root
-                    keysOnly: true
-                    tab: 3
-                }
             }
         }
     }

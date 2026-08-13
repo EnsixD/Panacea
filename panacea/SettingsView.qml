@@ -14,8 +14,6 @@ Item {
     property var sys
     // индекс раздела в view.sections
     property int tab: 0
-    // режим отдельного окна быстрых клавиш: список сочетаний без сайдбара
-    property bool keysOnly: false
 
     implicitWidth: 980
     implicitHeight: 620
@@ -89,23 +87,9 @@ Item {
         return s.title.toLowerCase().indexOf(q) >= 0 || s.keys.toLowerCase().indexOf(q) >= 0;
     }
 
-    // ========================================================== окно клавиш
-    // Отдельное окно быстрых клавиш осталось прежним: это не раздел настроек,
-    // а самостоятельный список, и сайдбар ему не нужен.
-    Loader {
-        anchors.fill: parent
-        active: view.keysOnly
-        sourceComponent: SettingsLegacy {
-            sys: view.sys
-            keysOnly: true
-            tab: 3
-        }
-    }
-
     // ========================================================== само окно
     RowLayout {
         anchors.fill: parent
-        visible: !view.keysOnly
         spacing: 0
 
         // ----------------------------------------------------- сайдбар
