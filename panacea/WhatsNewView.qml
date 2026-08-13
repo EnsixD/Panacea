@@ -51,6 +51,8 @@ Item {
             "Скрипты: проверка синтаксиса QML до запуска оболочки",
         "hypr: drop program entries nothing points at":
             "Hyprland: убраны записи о программах, которые никто не вызывает",
+        "settings: one SetButton for Apply and Reset":
+            "Настройки: общая кнопка для «Применить» и «Сбросить»",
         "whatsnew: say what changed in the language of the interface":
             "Что нового: список изменений на языке интерфейса",
         "wallpaper: write hyprpaper's new config format":

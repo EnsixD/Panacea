@@ -186,64 +186,25 @@ ColumnLayout {
 
         Item { Layout.fillWidth: true }
 
-        Rectangle {
-            Layout.preferredWidth: 96
-            Layout.preferredHeight: 32
-            radius: 10
-            color: resetMa.containsMouse
-                   ? Qt.rgba(page.sys.colFg.r, page.sys.colFg.g, page.sys.colFg.b, 0.14)
-                   : Qt.rgba(page.sys.colFg.r, page.sys.colFg.g, page.sys.colFg.b, 0.06)
-            Behavior on color { ColorAnimation { duration: page.sys.animFade } }
-
-            Text {
-                anchors.centerIn: parent
-                text: page.sys.tr("Сбросить")
-                color: page.sys.colMuted
-                font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 3 }
-            }
-            MouseArea {
-                id: resetMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    page.sys.cfg.ccLayout = "";
-                    page.sys.saveCfg();
-                    page.load();
-                }
+        SetButton {
+            sys: page.sys
+            text: page.sys.tr("Сбросить")
+            onClicked: {
+                page.sys.cfg.ccLayout = "";
+                page.sys.saveCfg();
+                page.load();
             }
         }
 
-        Rectangle {
-            Layout.preferredWidth: 112
-            Layout.preferredHeight: 32
-            radius: 10
-            opacity: page.dirty ? 1 : 0.4
-            color: applyMa.containsMouse
-                   ? Qt.rgba(page.sys.colOn.r, page.sys.colOn.g, page.sys.colOn.b, 0.34)
-                   : Qt.rgba(page.sys.colOn.r, page.sys.colOn.g, page.sys.colOn.b, 0.22)
-            border.width: 1
-            border.color: page.sys.colOn
-            Behavior on color { ColorAnimation { duration: page.sys.animFade } }
-            Behavior on opacity { NumberAnimation { duration: page.sys.animFade } }
-
-            Text {
-                anchors.centerIn: parent
-                text: page.sys.tr("Применить")
-                color: page.sys.colFg
-                font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 3; bold: true }
-            }
-            MouseArea {
-                id: applyMa
-                anchors.fill: parent
-                hoverEnabled: true
-                enabled: page.dirty
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    page.sys.cfg.ccLayout = page.order.join(",");
-                    page.sys.saveCfg();
-                    page.dirty = false;
-                }
+        SetButton {
+            sys: page.sys
+            text: page.sys.tr("Применить")
+            primary: true
+            enabled: page.dirty
+            onClicked: {
+                page.sys.cfg.ccLayout = page.order.join(",");
+                page.sys.saveCfg();
+                page.dirty = false;
             }
         }
     }

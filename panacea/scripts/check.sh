@@ -90,6 +90,27 @@ if [ -d .git ] && command -v git >/dev/null && [ -f panacea/WhatsNewView.qml ]; 
     else
         echo "✓ у всех невыпущенных коммитов есть перевод"
     fi
+
+    # Обратная сторона: словарь не должен копить перевод к тому, что уже
+    # никогда не покажут. Дальше сорока значимых коммитов не заглянет никто —
+    # ровно на них update.sh обрезает список (changelog_filter, head -40),
+    # сколько бы версий человек ни пропустил.
+    stale=0
+    window="$(git log --format=%s -300 \
+              | grep -v '^Merge ' \
+              | grep -viE '^(shell: bump version|gitignore|readme|docs|ci)\b' \
+              | grep -viE '^(update|bump) (the )?(readme|docs|version)\b' \
+              | head -40)"
+    while IFS= read -r entry; do
+        [ -n "$entry" ] || continue
+        printf '%s\n' "$window" | grep -qxF "$entry" || {
+            [ "$stale" -eq 0 ] && echo "устарело в WhatsNewView.qml (можно убрать):"
+            echo "    $entry"
+            stale=$((stale + 1))
+        }
+    done < <(grep -oP '^\s+"\K[^"]+(?=":$)' panacea/WhatsNewView.qml)
+
+    [ "$stale" -eq 0 ] && echo "✓ в словаре нет устаревших записей"
 fi
 
 exit "$fail"
