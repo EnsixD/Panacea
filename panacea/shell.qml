@@ -141,6 +141,26 @@ PanelWindow {
             property bool   vaultCapture: true
             // проводник отдельным окном Hyprland, а не страницей пилюли
             property bool   filesWindow: false
+            // Показывать файлы с точки. По умолчанию да: в домашнем каталоге
+            // почти всё, за чем в него заходят, начинается именно с неё —
+            // .config, .local, .ssh.
+            property bool   filesHidden: true
+
+            // Цифровая интенсивность, шкала как в панели NVIDIA: 50 — как
+            // есть, 100 — максимум. На Wayland ручка из nvidia-settings не
+            // работает вовсе, поэтому цвет правит шейдер компоновщика.
+            property int    vibrance: 50
+
+            // ------------------------------------------------------- мышь
+            // Скорость указателя в понимании libinput: -1 — самая медленная,
+            // 0 — как есть, 1 — самая быстрая. Это не «умножение на два», а
+            // сдвиг кривой, поэтому шаг мелкий.
+            property real   mouseSens: 0
+            // Прямой ввод: libinput перестаёт разгонять указатель за резкое
+            // движение, и одно и то же расстояние по столу всегда даёт одно
+            // и то же расстояние по экрану. То, ради чего в играх выключают
+            // «повышенную точность установки указателя».
+            property bool   mouseRaw: false
 
             // Включённые функции. При установке дотфайлов целиком доступно всё
             // (по умолчанию true); установщик острова выключает то, что человек
@@ -255,7 +275,8 @@ PanelWindow {
         clockTz: "auto", clockDateFmt: "d MMMM",
         notifDnd: false, notifTimeout: 5000, notifCritTimeout: 0, notifPreview: true,
         lockBlur: 32, lockHint: "",
-        ccLayout: "", filesWindow: false, vaultCapture: true,
+        ccLayout: "", filesWindow: false, filesHidden: true, vaultCapture: true,
+        vibrance: 50, mouseSens: 0, mouseRaw: false,
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: ""
     })
 
