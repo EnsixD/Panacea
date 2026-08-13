@@ -258,7 +258,8 @@ Item {
         entries.clear();
         view.listOpacity = 0;
         view.listShift = 22 * view.navDir;
-        pList.command = ["sh", "-c", view.scripts + " list \"$1\"", "_", view.dir];
+        pList.command = ["sh", "-c", view.scripts + " list \"$1\" \"$2\"", "_", view.dir,
+                         view.sys.cfg.filesHidden ? "hidden" : ""];
         pList.running = false;
         pList.running = true;
         view.sys.filesDir = view.dir;
@@ -821,6 +822,12 @@ Item {
     ColumnLayout {
         id: col
         width: parent.width
+        // В отдельном окне колонка обязана занять его целиком: список внутри
+        // тянется на всю оставшуюся высоту. Без этого окно любого размера
+        // показывало список одной и той же высоты, а под ним оставалась
+        // чёрная полоса в треть экрана — файлы приходилось прокручивать в
+        // окне, где на них хватало места с запасом.
+        height: view.windowMode ? view.height : col.implicitHeight
         spacing: 12
 
         // ------------------------------------------------------- шапка
@@ -1079,6 +1086,48 @@ Item {
 
                     Item { Layout.fillWidth: true }
 
+                    // Скрытые файлы. Выбор запоминается в настройках, а не
+                    // живёт до закрытия окна: человек решает это один раз и
+                    // не любит возвращаться к решению каждое утро.
+                    Rectangle {
+                        Layout.preferredHeight: 26
+                        Layout.preferredWidth: hidTxt.implicitWidth + 26
+                        radius: 9
+                        color: view.sys.cfg.filesHidden
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                         view.sys.colOn.b, 0.18)
+                             : (hidMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent")
+                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 5
+                            Text {
+                                text: String.fromCodePoint(
+                                          view.sys.cfg.filesHidden ? 0xF06D0 : 0xF06D1)
+                                color: view.sys.cfg.filesHidden ? view.sys.colOn : view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                            }
+                            Text {
+                                id: hidTxt
+                                text: view.sys.tr("Скрытые")
+                                color: view.sys.cfg.filesHidden ? view.sys.colFg : view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                            }
+                        }
+                        MouseArea {
+                            id: hidMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                view.sys.cfg.filesHidden = !view.sys.cfg.filesHidden;
+                                view.sys.saveCfg();
+                                view.reload();
+                            }
+                        }
+                    }
+
                     // папки сверху — отдельным переключателем, а не частью
                     // порядка: он нужен при любой сортировке
                     Rectangle {
@@ -1129,9 +1178,13 @@ Item {
                 ListView {
                     id: list
                     Layout.fillWidth: true
-                    // высоту держим постоянной: список не должен «дышать»
-                    // при переходе между папками с разным числом файлов
-                    Layout.preferredHeight: view.sys.filesListH
+                    // В пилюле высоту держим постоянной: список не должен
+                    // «дышать» при переходе между папками с разным числом
+                    // файлов. В отдельном окне наоборот — он занимает всё,
+                    // что окно даёт, иначе часть окна пропадает впустую.
+                    Layout.fillHeight: view.windowMode
+                    Layout.preferredHeight: view.windowMode ? 0 : view.sys.filesListH
+                    Layout.minimumHeight: view.windowMode ? 120 : 0
                     clip: true
                     model: entries
                     currentIndex: view.current

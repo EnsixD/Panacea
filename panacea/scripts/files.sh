@@ -76,13 +76,18 @@ uniq_target() {   # $1 — каталог назначения, $2 — имя
 }
 
 case "$1" in
+    # list <каталог> [hidden]
+    # hidden — показывать файлы с точки. В домашнем каталоге почти всё
+    # интересное начинается именно с неё (.config, .local), и прятать их
+    # значит прятать ровно то, ради чего сюда и заходят.
     list)
         DIR="${2:-$HOME}"
         DIR="${DIR/#\~/$HOME}"
-        py - "$DIR" <<'EOF'
+        py - "$DIR" "${3:-}" <<'EOF'
 import os, sys, mimetypes
 
 d = sys.argv[1]
+show_hidden = len(sys.argv) > 2 and sys.argv[2] == 'hidden'
 try:
     entries = list(os.scandir(d))
 except OSError:
@@ -90,7 +95,7 @@ except OSError:
 
 dirs, files = [], []
 for e in entries:
-    if e.name.startswith('.'):
+    if e.name.startswith('.') and not show_hidden:
         continue
     try:
         st = e.stat()
