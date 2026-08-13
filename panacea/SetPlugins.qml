@@ -14,11 +14,11 @@ ColumnLayout {
     SetCard {
         sys: page.sys
 
-        SetLabel { sys: page.sys; text: page.sys.tr("Задачи на рабочем столе") }
+        SetLabel { sys: page.sys; text: page.sys.tr("Задачи") }
 
         Text {
             Layout.fillWidth: true
-            text: page.sys.tr("Маленький блокнот на обоях: разделы, а в них задачи по номерам. "
+            text: page.sys.tr("Вторая капсула у кромки: разделы, а в них задачи по номерам. "
                               + "Раздел считается сделанным, когда отмечены все его задачи.")
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
@@ -32,23 +32,27 @@ ColumnLayout {
             onToggled: value => { page.sys.cfg.todoEnabled = value; page.sys.saveCfg(); }
         }
 
-        SetToggle {
+        SetSelect {
             sys: page.sys
-            label: page.sys.tr("Поверх окон")
-            sub: page.sys.tr("Иначе лежит на обоях и виден только на пустом столе.")
+            label: page.sys.tr("Кромка")
             enabled: page.sys.cfg.todoEnabled
-            on: page.sys.cfg.todoOnTop
-            onToggled: value => { page.sys.cfg.todoOnTop = value; page.sys.saveCfg(); }
+            value: page.sys.cfg.todoPos
+            options: [
+                { id: "top",    text: page.sys.tr("Сверху") },
+                { id: "bottom", text: page.sys.tr("Снизу") },
+                { id: "left",   text: page.sys.tr("Слева") },
+                { id: "right",  text: page.sys.tr("Справа") }
+            ]
+            onPicked: id => { page.sys.cfg.todoPos = id; page.sys.saveCfg(); }
         }
 
-        SetToggle {
-            sys: page.sys
-            label: page.sys.tr("Закрепить на месте")
-            sub: page.sys.tr("То же, что пипетка на самом блокноте: пока закреплён, "
-                             + "его не сдвинуть мышью.")
-            enabled: page.sys.cfg.todoEnabled
-            on: page.sys.cfg.todoPinned
-            onToggled: value => { page.sys.cfg.todoPinned = value; page.sys.saveCfg(); }
+        Text {
+            Layout.fillWidth: true
+            text: page.sys.tr("На одной кромке с островом блокнот встаёт рядом с ним, "
+                              + "на своей — держится середины.")
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
 
         SetSlider {

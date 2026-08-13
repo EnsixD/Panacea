@@ -51,18 +51,14 @@ PanelWindow {
             property bool   pillAutoHide: false
 
             // ------------------------------------------------------ плагины
-            // Задачи на рабочем столе: маленький блокнот, который лежит на
-            // обоях и не мешает окнам. Выключен по умолчанию — плагин ставят,
-            // когда он нужен, а не получают вместе с оболочкой.
+            // Задачи: вторая капсула у кромки, рядом с островом. Выключена
+            // по умолчанию — плагин ставят, когда он нужен, а не получают
+            // вместе с оболочкой.
             property bool   todoEnabled: false
-            // Приколот ли он к месту. Пока нет — заголовок таскается мышью;
-            // пипетка на нём прибивает блокнот там, где он оказался.
-            property bool   todoPinned: false
-            // Поверх окон, а не на обоях: иначе список видно только на
-            // пустом столе, а нужен он как раз поверх работы.
-            property bool   todoOnTop: false
-            property int    todoX: 60
-            property int    todoY: 60
+            // Своя кромка, как у острова. Совпала с его — встают рядом,
+            // блокнот левее (а на боковых кромках выше); разошлись — каждый
+            // держится середины своей.
+            property string todoPos: "top"
             property int    todoW: 300
             property int    todoH: 380
             // Настройки мониторов из вкладки Display, JSON вида
@@ -249,8 +245,7 @@ PanelWindow {
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
         pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false,
-        todoEnabled: false, todoPinned: false, todoOnTop: false,
-        todoX: 60, todoY: 60, todoW: 300, todoH: 380,
+        todoEnabled: false, todoPos: "top", todoW: 300, todoH: 380,
         pillDrag: false, panelW: 540,
         monOverrides: "",
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
@@ -3957,14 +3952,15 @@ LazyLoader {
     }
 }
 
-// Плагин «Задачи»: блокнот на рабочем столе.
+// Плагин «Задачи»: вторая капсула у кромки экрана.
 //
-// Слой выбирается настройкой. По умолчанию Bottom — блокнот лежит на обоях
-// и не мешает окнам; с «поверх окон» уходит в Overlay, иначе список видно
-// только на пустом столе, а нужен он как раз поверх работы.
+// Живёт по тем же правилам, что остров: прижимается к своей кромке, у самой
+// кромки углы срезаны, у смотрящей в экран — скруглены. Если кромка та же,
+// что у острова, блокнот встаёт рядом с ним; если своя — держится середины.
 //
-// Окно во весь экран, а сам блокнот двигается внутри него: layer-shell не
-// умеет произвольных координат, зато внутри слоя они свои.
+// Слой Top, а не Overlay: остров всегда сверху, потому что он и есть шелл, а
+// блокнот — заметка на полях, и спорить с панелями оболочки ему незачем.
+// Места под себя не резервирует: окна раскладываются так, будто его нет.
 LazyLoader {
     activeAsync: root.cfg.todoEnabled
 
@@ -3972,9 +3968,9 @@ LazyLoader {
         anchors { top: true; bottom: true; left: true; right: true }
         screen: root.screen
         color: "transparent"
-        visible: root.cfg.todoEnabled
+        visible: root.cfg.todoEnabled && !root.fullscreenActive
         exclusionMode: ExclusionMode.Ignore
-        WlrLayershell.layer: root.cfg.todoOnTop ? WlrLayer.Overlay : WlrLayer.Bottom
+        WlrLayershell.layer: WlrLayer.Top
         // Клавиатура нужна для ввода задач, но забирать её насовсем нельзя:
         // блокнот висит всё время, и с Exclusive печатать было бы негде.
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
@@ -3985,10 +3981,39 @@ LazyLoader {
         TodoWidget {
             id: todoBody
             sys: root
-            x: root.cfg.todoX
-            y: root.cfg.todoY
-            width: root.cfg.todoW
-            height: root.cfg.todoH
+            // размер задаёт сам блокнот: свёрнутый — короткая капсула,
+            // развёрнутый — список во всю заданную высоту
+            width: implicitWidth
+            height: implicitHeight
+
+            readonly property bool atTop:    root.cfg.todoPos === "top"
+            readonly property bool atBottom: root.cfg.todoPos === "bottom"
+            readonly property bool atLeft:   root.cfg.todoPos === "left"
+            readonly property bool atRight:  root.cfg.todoPos === "right"
+            // на одной кромке с островом — встаём рядом, а не поверх
+            readonly property bool besideIsland: root.cfg.todoPos === root.cfg.pillPos
+            readonly property real edgeGap: root.cfg.notchMode ? 0 : root.cfg.islandGap
+            readonly property real sideGap: 10   // между блокнотом и островом
+
+            x: {
+                if (todoBody.atLeft)  return todoBody.edgeGap;
+                if (todoBody.atRight) return parent.width - todoBody.width - todoBody.edgeGap;
+                if (!todoBody.besideIsland) return (parent.width - todoBody.width) / 2;
+                // левее острова, но не за краем экрана
+                return Math.max(todoBody.edgeGap,
+                                root.pillRectX - todoBody.width - todoBody.sideGap);
+            }
+            y: {
+                if (todoBody.atTop)    return todoBody.edgeGap;
+                if (todoBody.atBottom) return parent.height - todoBody.height - todoBody.edgeGap;
+                if (!todoBody.besideIsland) return (parent.height - todoBody.height) / 2;
+                // выше острова: на боковых кромках он вытянут по вертикали
+                return Math.max(todoBody.edgeGap,
+                                root.pillRectY - todoBody.height - todoBody.sideGap);
+            }
+
+            Behavior on x { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
+            Behavior on y { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
         }
     }
 }

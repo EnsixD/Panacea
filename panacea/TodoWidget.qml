@@ -4,13 +4,16 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 
-// Задачи на рабочем столе — первый плагин.
+// Задачи — первый плагин. Вторая капсула у кромки экрана, рядом с островом.
 //
-// Маленький блокнот, который лежит на обоях: задачи собраны в разделы
-// («Fix», «Дом», что угодно), внутри раздела нумеруются по порядку. Когда
-// отмечены все задачи раздела, он и сам считается сделанным — но удалить его
-// можно в любой момент, доделанным или нет: список дел, который нельзя
-// вычеркнуть, быстро перестают вести.
+// Задачи собраны в разделы («Fix», «Дом», что угодно), внутри раздела
+// нумеруются по порядку. Когда отмечены все задачи раздела, он и сам
+// считается сделанным — но удалить его можно в любой момент, доделанным или
+// нет: список дел, который нельзя вычеркнуть, быстро перестают вести.
+//
+// Куда его поставить, решает настройка кромки, а не мышь: таскать окно по
+// столу и потом искать, где оно осталось, — не то, чего ждут от оболочки,
+// которая сама держит всё по краям.
 //
 // Записи лежат в ~/.local/share/panacea/todo.json, рядом с хранилищем
 // паролей, а не в ~/.config: это то, что человек написал сам, и обновление
@@ -107,107 +110,138 @@ Item {
         return true;
     }
 
+    // Сколько задач ещё не сделано — это всё, что видно в свёрнутом виде.
+    readonly property int leftToDo: {
+        var n = 0;
+        for (var i = 0; i < todo.sections.length; i++) {
+            var t = todo.sections[i].tasks || [];
+            for (var j = 0; j < t.length; j++) if (!t[j].done) n++;
+        }
+        return n;
+    }
+
     // ------------------------------------------------------------- вид
-    implicitWidth: todo.sys.cfg.todoW
-    implicitHeight: todo.sys.cfg.todoH
+    // Ведёт себя как остров: свёрнут — короткая капсула со счётчиком, под
+    // курсором разворачивается в список и складывается обратно, когда курсор
+    // ушёл. Пока в поле ввода стоит курсор, не сворачивается: иначе строка
+    // исчезала бы из-под рук на полуслове.
+    property bool expanded: false
+
+    HoverHandler { id: todoHover }
+    onExpandedChanged: if (!todo.expanded) Qt.callLater(function () {
+        // фокус уходит вместе со списком, иначе клавиатура остаётся у
+        // невидимого поля и следующий набор улетает в никуда
+        if (newSection) newSection.focus = false;
+    })
+
+    Timer {
+        id: openTimer
+        interval: 90
+        onTriggered: if (todoHover.hovered) todo.expanded = true
+    }
+    Timer {
+        id: closeTimer
+        interval: 260
+        onTriggered: {
+            if (todoHover.hovered || todo.activeFocus) return;
+            todo.expanded = false;
+        }
+    }
+    Connections {
+        target: todoHover
+        function onHoveredChanged() {
+            if (todoHover.hovered) { closeTimer.stop(); openTimer.restart(); }
+            else                   { openTimer.stop(); closeTimer.restart(); }
+        }
+    }
+
+    implicitWidth:  todo.expanded ? todo.sys.cfg.todoW  : collapsed.implicitWidth + 26
+    implicitHeight: todo.expanded ? todo.sys.cfg.todoH : todo.sys.pillH
+
+    Behavior on implicitWidth  { NumberAnimation { duration: todo.sys.animMs; easing.type: Easing.InOutCubic } }
+    Behavior on implicitHeight { NumberAnimation { duration: todo.sys.animMs; easing.type: Easing.InOutCubic } }
+
+    // Форма островная: у прижатой кромки углы срезаны, у смотрящей в экран —
+    // скруглены. Так блокнот выглядит выросшим из края, а не положенным
+    // сверху. Оторванный от кромки (islandGap) круглый со всех сторон.
+    readonly property bool atTop:    todo.sys.cfg.todoPos === "top"
+    readonly property bool atBottom: todo.sys.cfg.todoPos === "bottom"
+    readonly property bool atLeft:   todo.sys.cfg.todoPos === "left"
+    readonly property bool atRight:  todo.sys.cfg.todoPos === "right"
+    readonly property real edgeR: todo.sys.cfg.notchMode ? 0
+                                : (todo.expanded ? 18 : todo.height / 2)
 
     Rectangle {
         anchors.fill: parent
-        radius: 18
+        clip: true
+        // свободные от кромки углы у свёрнутой капсулы круглые целиком
+        readonly property real freeR: todo.expanded ? 18 : todo.height / 2
+        topLeftRadius:     todo.atTop || todo.atLeft  ? todo.edgeR : freeR
+        topRightRadius:    todo.atTop || todo.atRight ? todo.edgeR : freeR
+        bottomLeftRadius:  todo.atBottom || todo.atLeft  ? todo.edgeR : freeR
+        bottomRightRadius: todo.atBottom || todo.atRight ? todo.edgeR : freeR
+        Behavior on topLeftRadius     { NumberAnimation { duration: todo.sys.animMs } }
+        Behavior on topRightRadius    { NumberAnimation { duration: todo.sys.animMs } }
+        Behavior on bottomLeftRadius  { NumberAnimation { duration: todo.sys.animMs } }
+        Behavior on bottomRightRadius { NumberAnimation { duration: todo.sys.animMs } }
         color: Qt.rgba(todo.sys.colBg.r, todo.sys.colBg.g, todo.sys.colBg.b, 0.92)
         border.width: 1
         border.color: Qt.rgba(todo.sys.colFg.r, todo.sys.colFg.g, todo.sys.colFg.b, 0.12)
+
+        // --------------------------------------------------- свёрнутый вид
+        RowLayout {
+            id: collapsed
+            anchors.centerIn: parent
+            spacing: 7
+            visible: !todo.expanded
+            opacity: todo.expanded ? 0 : 1
+            Behavior on opacity { NumberAnimation { duration: todo.sys.animFast } }
+
+            Text {
+                text: "󰄲"
+                color: todo.sys.colOn
+                font { family: todo.sys.fontFam; pixelSize: todo.sys.fontSize - 2 }
+            }
+            Text {
+                // Ноль показываем как галочку: «0» рядом со значком читается
+                // как «ноль задач заведено», а не «всё сделано».
+                text: todo.leftToDo > 0 ? String(todo.leftToDo) : "󰄬"
+                color: todo.leftToDo > 0 ? todo.sys.colFg : todo.sys.colOk
+                font { family: todo.sys.fontFam; pixelSize: todo.sys.fontSize - 1; bold: true }
+            }
+        }
 
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 12
             spacing: 8
+            visible: todo.expanded
+            opacity: todo.expanded ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: todo.sys.animFast } }
 
-            // --------------------------------------------- панель переноса
-            // Пока блокнот не приколот, за эту полосу его таскают. Пипетка
-            // прибивает его там, где он оказался, и полоса гаснет — но
-            // остаётся на месте, чтобы открепить было чем.
-            Item {
-                id: dragBar
+            // ------------------------------------------------- заголовок
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 18
+                spacing: 6
 
-                RowLayout {
-                    anchors.fill: parent
-                    spacing: 6
-
-                    Rectangle {
-                        Layout.preferredWidth: 34
-                        Layout.preferredHeight: 3
-                        Layout.alignment: Qt.AlignVCenter
-                        radius: 2
-                        color: todo.sys.cfg.todoPinned
-                               ? Qt.rgba(1, 1, 1, 0.10)
-                               : (dragMa.containsMouse || dragMa.pressed
-                                  ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(1, 1, 1, 0.20))
-                        Behavior on color { ColorAnimation { duration: 140 } }
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: todo.sys.tr("Задачи")
-                        color: todo.sys.colMuted
-                        elide: Text.ElideRight
-                        font { family: todo.sys.fontBody; pixelSize: todo.sys.fontSize - 4 }
-                    }
-
-                    // пипетка: прикалывает блокнот к месту и отпускает обратно
-                    Text {
-                        text: "󰐷"
-                        color: todo.sys.cfg.todoPinned ? todo.sys.colOn
-                             : (pinMa.containsMouse ? todo.sys.colFg : todo.sys.colMuted)
-                        font { family: todo.sys.fontFam; pixelSize: todo.sys.fontSize - 2 }
-                        Behavior on color { ColorAnimation { duration: 140 } }
-
-                        MouseArea {
-                            id: pinMa
-                            anchors.fill: parent
-                            anchors.margins: -5
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                todo.sys.cfg.todoPinned = !todo.sys.cfg.todoPinned;
-                                todo.sys.saveCfg();
-                            }
-                        }
-                    }
+                Text {
+                    text: "󰄲"
+                    color: todo.sys.colOn
+                    font { family: todo.sys.fontFam; pixelSize: todo.sys.fontSize - 3 }
                 }
 
-                MouseArea {
-                    id: dragMa
-                    anchors.fill: parent
-                    // пипетка сверху, ей нажатие нужнее
-                    anchors.rightMargin: 22
-                    enabled: !todo.sys.cfg.todoPinned
-                    hoverEnabled: true
-                    cursorShape: enabled ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
-                                         : Qt.ArrowCursor
-
-                    property real grabX: 0
-                    property real grabY: 0
-
-                    onPressed: mouse => {
-                        dragMa.grabX = mouse.x;
-                        dragMa.grabY = mouse.y;
+                Text {
+                    Layout.fillWidth: true
+                    text: todo.sys.tr("Задачи")
+                    color: todo.sys.colMuted
+                    elide: Text.ElideRight
+                    font {
+                        family: todo.sys.fontBody
+                        pixelSize: todo.sys.fontSize - 4
+                        bold: true
+                        capitalization: Font.AllUppercase
+                        letterSpacing: 1
                     }
-                    onPositionChanged: mouse => {
-                        if (!dragMa.pressed) return;
-                        var p = todo.mapToItem(null, mouse.x, mouse.y);
-                        // Держим блокнот в пределах экрана: утащенный за край
-                        // он остался бы там навсегда — вернуть его нечем.
-                        var w = todo.parent ? todo.parent.width : 0;
-                        var h = todo.parent ? todo.parent.height : 0;
-                        var nx = p.x - dragMa.grabX;
-                        var ny = p.y - dragMa.grabY;
-                        todo.sys.cfg.todoX = Math.max(0, Math.min(w - todo.width, nx));
-                        todo.sys.cfg.todoY = Math.max(0, Math.min(h - todo.height, ny));
-                    }
-                    onReleased: todo.sys.saveCfg()
                 }
             }
 
@@ -321,10 +355,15 @@ Item {
                                         }
                                     }
 
+                                    // Место под крестик держим всегда, а
+                                    // показываем по наведению: пока он то
+                                    // появлялся, то исчезал, строка каждый раз
+                                    // пересчитывала ширину и текст дёргался.
                                     Text {
                                         Layout.alignment: Qt.AlignTop
                                         text: "×"
-                                        visible: rowHover.hovered
+                                        opacity: rowHover.hovered ? 1 : 0
+                                        Behavior on opacity { NumberAnimation { duration: 120 } }
                                         color: taskKillMa.containsMouse ? todo.sys.colCrit
                                                                         : todo.sys.colMuted
                                         font { family: todo.sys.fontFam; pixelSize: todo.sys.fontSize - 3 }
