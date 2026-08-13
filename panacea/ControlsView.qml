@@ -1410,8 +1410,11 @@ Item {
                     onBodyClicked: view.sys.togglePage("record")
                 }
 
+                // Плитка батареи. На ПК её нет совсем: заряда не существует, а
+                // профили питания без батареи показывают одно и то же — плитка
+                // с вечной надписью «От сети» занимала место зря.
                 MiniTile {
-                    visible: view.sys.cfg.featPowerProfiles || view.sys.batteryPresent
+                    visible: view.sys.showBattery || view.sys.showPowerProfiles
                     Layout.fillWidth: true
                     Layout.preferredHeight: 56
                     icon: view.sys.batteryPresent ? view.sys.batteryLevelIcon
@@ -1749,7 +1752,7 @@ Item {
 
             // режимы питания — те самые три сегмента, теперь живут здесь
             RowLayout {
-                visible: view.sys.cfg.featPowerProfiles
+                visible: view.sys.showPowerProfiles
                 Layout.fillWidth: true
                 spacing: 8
 
