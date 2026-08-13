@@ -54,6 +54,9 @@ Item {
           sub: view.sys.tr("Разрешение, частота и масштаб подключённых экранов."),
           keys: "display monitor resolution refresh scale layout placement detect island "
                 + "экран монитор разрешение герцовка раскладка расположение остров" },
+        { id: "plugins", title: "Plugins",        g: 0xF0431, page: "SetPlugins.qml",
+          sub: view.sys.tr("То, что оболочка умеет, но не навязывает."),
+          keys: "plugins todo tasks notes desktop плагины задачи заметки список дела" },
         { id: "system",  title: "System",         g: 0xF0493, page: "SetSystem.qml",
           sub: view.sys.tr("Из чего собрана машина и чем она сейчас занята."),
           keys: "about system cpu ram temperature система озу температура процессы" }

@@ -111,6 +111,28 @@ if [ -d .git ] && command -v git >/dev/null && [ -f panacea/WhatsNewView.qml ]; 
     done < <(grep -oP '^\s+"\K[^"]+(?=":$)' panacea/WhatsNewView.qml)
 
     [ "$stale" -eq 0 ] && echo "✓ в словаре нет устаревших записей"
+
+    # Список ненужных пакетов держат ради тех, кто ставил оболочку до того,
+    # как они перестали быть нужны. Через несколько версий таких копий не
+    # остаётся, и список сам становится тем мусором, ради уборки которого
+    # заведён. Напоминаем — удалять за автора не наше дело.
+    ver="$(grep -oP 'property string version: "\K[^"]+' panacea/shell.qml)"
+    if [ -n "$ver" ] && [ -f install.sh ]; then
+        cur_patch="${ver##*.}"
+        rot=0
+        while IFS='|' read -r pkg since; do
+            [ -n "$since" ] || continue
+            # сравниваем только последнюю цифру: версия растёт на 0.0.1
+            age=$(( cur_patch - ${since##*.} ))
+            if [ "$age" -ge 5 ]; then
+                [ "$rot" -eq 0 ] && echo "устарел список ненужных пакетов в install.sh:"
+                echo "    $pkg (не нужен с $since, сейчас $ver — прошло $age выпусков)"
+                rot=$((rot + 1))
+            fi
+        done < <(sed -n '/^OBSOLETE_PKGS=(/,/^)/p' install.sh \
+                 | grep -oP '^\s+"\K[^"]+')
+        [ "$rot" -eq 0 ] && echo "✓ список ненужных пакетов ещё в силе"
+    fi
 fi
 
 exit "$fail"

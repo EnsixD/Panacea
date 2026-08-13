@@ -49,6 +49,22 @@ PanelWindow {
             // себя, окна получают весь экран. Возвращается наведением на
             // узкую полоску у самого края.
             property bool   pillAutoHide: false
+
+            // ------------------------------------------------------ плагины
+            // Задачи на рабочем столе: маленький блокнот, который лежит на
+            // обоях и не мешает окнам. Выключен по умолчанию — плагин ставят,
+            // когда он нужен, а не получают вместе с оболочкой.
+            property bool   todoEnabled: false
+            // Приколот ли он к месту. Пока нет — заголовок таскается мышью;
+            // пипетка на нём прибивает блокнот там, где он оказался.
+            property bool   todoPinned: false
+            // Поверх окон, а не на обоях: иначе список видно только на
+            // пустом столе, а нужен он как раз поверх работы.
+            property bool   todoOnTop: false
+            property int    todoX: 60
+            property int    todoY: 60
+            property int    todoW: 300
+            property int    todoH: 380
             // Настройки мониторов из вкладки Display, JSON вида
             // {"eDP-1":{w,h,rr,scale,transform,vrr,pos}}. Hyprland их не
             // запоминает: hyprctl правит живое состояние, и после перезагрузки
@@ -233,6 +249,8 @@ PanelWindow {
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
         pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false,
+        todoEnabled: false, todoPinned: false, todoOnTop: false,
+        todoX: 60, todoY: 60, todoW: 300, todoH: 380,
         pillDrag: false, panelW: 540,
         monOverrides: "",
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
@@ -3935,6 +3953,42 @@ LazyLoader {
                 opacity: root.keysWindowOpen ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animMs } }
             }
+        }
+    }
+}
+
+// Плагин «Задачи»: блокнот на рабочем столе.
+//
+// Слой выбирается настройкой. По умолчанию Bottom — блокнот лежит на обоях
+// и не мешает окнам; с «поверх окон» уходит в Overlay, иначе список видно
+// только на пустом столе, а нужен он как раз поверх работы.
+//
+// Окно во весь экран, а сам блокнот двигается внутри него: layer-shell не
+// умеет произвольных координат, зато внутри слоя они свои.
+LazyLoader {
+    activeAsync: root.cfg.todoEnabled
+
+    PanelWindow {
+        anchors { top: true; bottom: true; left: true; right: true }
+        screen: root.screen
+        color: "transparent"
+        visible: root.cfg.todoEnabled
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: root.cfg.todoOnTop ? WlrLayer.Overlay : WlrLayer.Bottom
+        // Клавиатура нужна для ввода задач, но забирать её насовсем нельзя:
+        // блокнот висит всё время, и с Exclusive печатать было бы негде.
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+        // Ввод ловим только там, где нарисован сам блокнот: остальной экран
+        // сквозной, иначе окна под ним перестали бы нажиматься.
+        mask: Region { item: todoBody }
+
+        TodoWidget {
+            id: todoBody
+            sys: root
+            x: root.cfg.todoX
+            y: root.cfg.todoY
+            width: root.cfg.todoW
+            height: root.cfg.todoH
         }
     }
 }

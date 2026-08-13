@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "plugins: a tab of its own, and a task pad for the desktop":
+            "Плагины: своя вкладка и блокнот задач на рабочем столе",
         "update: name the packages that are no longer needed":
             "Обновление: называет пакеты, которые больше не нужны",
         "install: drop configs for programs that never run":
