@@ -305,6 +305,7 @@ install_deps() {
     fi
     if [ ${#aur[@]} -gt 0 ]; then
         local h; h=$(aur_helper)
+        [ -z "$h" ] && { install_aur_helper && h=$(aur_helper); }
         [ -z "$h" ] && { warn "these are in the AUR — install yay or paru first: ${aur[*]}"; return 1; }
         printf '  installing from the AUR via %s: %s\n' "$h" "${aur[*]}"
         "$h" -S --needed "${aur[@]}" || return 1
