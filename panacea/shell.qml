@@ -940,8 +940,21 @@ PanelWindow {
         root.updBusy = true;
         root.updError = "";
         root.updStep = "download";
+        // Обновление идёт минуты и переживает закрытие настроек: показываем
+        // его в острове, иначе о нём знало бы только открытое окно.
+        root.beginBusy(root.tr("Обновление…"), "󰚰", root.updStepPercent);
         pUpdApply.running = true;
     }
+
+    // Проценты у обновления считаются по этапам, которые печатает update.sh:
+    // байтов и файлов оно не считает, а этапы известны наперёд.
+    readonly property var updSteps: ["download", "selfupdate", "backup",
+                                     "install", "restore", "restart", "done"]
+    readonly property int updStepPercent: {
+        var i = root.updSteps.indexOf(root.updStep);
+        return i < 0 ? 0 : Math.round(i * 100 / (root.updSteps.length - 1));
+    }
+    onUpdStepChanged: if (root.updBusy) root.busyProgress = root.updStepPercent;
 
     function updParse(text, done) {
         var lines = String(text).trim().split("\n");
@@ -978,6 +991,7 @@ PanelWindow {
         stdout: StdioCollector { onStreamFinished: root.updParse(text, false) }
         onExited: code => {
             root.updBusy = false;
+            root.endBusy();
             if (code !== 0 && root.updError.length === 0)
                 root.updError = "failed";
             if (code === 0) { root.updStatus = "current"; root.updStep = "done"; }
@@ -2718,19 +2732,36 @@ PanelWindow {
 
     readonly property string recScript: root.scriptDir + "/record.sh"
 
-    // ------------------------------------------ длительная файловая операция
-    // Копирование папки в несколько гигабайт идёт минутами, и всё это время
-    // проводник молчал: файл не появлялся, ничего не двигалось, и понять,
-    // работает оно или зависло, было нельзя. Теперь свёрнутый остров держит
-    // полоску — как во время записи экрана, только с процентами.
+    // ------------------------------------------------- длительная работа
+    // Всё, что идёт дольше пары секунд, показывает свёрнутый остров: копирование
+    // папки в несколько гигабайт, обновление оболочки, прогрев миниатюр. Раньше
+    // они шли молча, и отличить работу от зависания было нельзя.
     //
+    // Проценты знает не всякая работа, поэтому busyProgress < 0 означает
+    // «идёт, сколько осталось — неизвестно»: там, где считать нечего, полоска
+    // просто ходит из стороны в сторону.
+    property string busyLabel: ""
+    property int    busyProgress: -1
+    // значок слева от подписи: у копирования свой, у обновления свой
+    property string busyGlyph: ""
+
+    function beginBusy(label, glyph, progress) {
+        root.busyLabel = label;
+        root.busyGlyph = glyph;
+        root.busyProgress = progress === undefined ? -1 : progress;
+    }
+    function endBusy() {
+        root.busyLabel = "";
+        root.busyGlyph = "";
+        root.busyProgress = -1;
+    }
+
+    // ------------------------------------------ длительная файловая операция
     // Процесс живёт здесь, а не в проводнике, нарочно: панель закрывают сразу
     // после того, как перетащили файлы, и вместе с ней умирал бы и Loader, и
     // копирование на середине. Теперь оно доживает до конца само, а остров
     // показывает, сколько осталось.
-    property string fileOpLabel: ""
-    property int    fileOpProgress: 0
-    property var    fileOpQueue: []
+    property var fileOpQueue: []
 
     // Вторая операция, начатая пока идёт первая, раньше затирала бы команду
     // работающего процесса и молча пропадала.
@@ -2741,8 +2772,7 @@ PanelWindow {
             root.fileOpQueue = q;
             return;
         }
-        root.fileOpProgress = 0;
-        root.fileOpLabel = label;
+        root.beginBusy(label, "󰆏", 0);
         pFileOp.command = args;
         pFileOp.running = true;
     }
@@ -2752,7 +2782,7 @@ PanelWindow {
         stdout: SplitParser {
             onRead: line => {
                 var m = /^PROGRESS (\d+)$/.exec(String(line).trim());
-                if (m) root.fileOpProgress = parseInt(m[1], 10);
+                if (m) root.busyProgress = parseInt(m[1], 10);
             }
         }
         onRunningChanged: {
@@ -2764,14 +2794,12 @@ PanelWindow {
                 var q = root.fileOpQueue.slice();
                 var next = q.shift();
                 root.fileOpQueue = q;
-                root.fileOpProgress = 0;
-                root.fileOpLabel = next.label;
+                root.beginBusy(next.label, "󰆏", 0);
                 pFileOp.command = next.args;
                 pFileOp.running = true;
                 return;
             }
-            root.fileOpLabel = "";
-            root.fileOpProgress = 0;
+            root.endBusy();
         }
     }
 
@@ -3689,14 +3717,14 @@ PanelWindow {
                 }
             }
 
-            // идёт копирование или перенос — имя и полоска слева от даты
+            // идёт долгая работа — значок, подпись и полоска слева от даты
             RowLayout {
                 spacing: 7
-                visible: root.fileOpLabel.length > 0
+                visible: root.busyLabel.length > 0
 
                 Text {
                     Layout.alignment: Qt.AlignVCenter
-                    text: "󰆏"
+                    text: root.busyGlyph
                     color: root.colOn
                     font { family: root.fontFam; pixelSize: root.fontSize - 2 }
                 }
@@ -3704,7 +3732,7 @@ PanelWindow {
                 Text {
                     Layout.maximumWidth: 130
                     Layout.alignment: Qt.AlignVCenter
-                    text: root.fileOpLabel
+                    text: root.busyLabel
                     color: root.colFg
                     elide: Text.ElideMiddle
                     font { family: root.fontFam; pixelSize: root.fontSize - 2 }
@@ -3713,22 +3741,41 @@ PanelWindow {
                 // Полоска, а не проценты цифрами: остров и так узкий, а точное
                 // число тут никому не нужно — важно, что дело движется.
                 Rectangle {
+                    id: busyTrack
                     Layout.preferredWidth: 34
                     Layout.preferredHeight: 4
                     Layout.alignment: Qt.AlignVCenter
                     radius: 2
                     color: Qt.rgba(1, 1, 1, 0.16)
+                    clip: true
+
+                    readonly property bool unknown: root.busyProgress < 0
 
                     Rectangle {
-                        width: parent.width * Math.max(0, Math.min(100, root.fileOpProgress)) / 100
+                        id: busyFill
+                        // Пока проценты неизвестны, короткий отрезок ходит
+                        // туда-обратно: полоса в ноль читалась бы как «ничего
+                        // не происходит», а полная — как «уже готово».
+                        width: busyTrack.unknown ? parent.width * 0.4
+                             : parent.width * Math.min(100, root.busyProgress) / 100
                         height: parent.height
                         radius: parent.radius
                         color: root.colOn
                         Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+
+                        SequentialAnimation on x {
+                            running: busyTrack.unknown && busyTrack.visible
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 0; to: busyTrack.width - busyFill.width
+                                              duration: 900; easing.type: Easing.InOutSine }
+                            NumberAnimation { from: busyTrack.width - busyFill.width; to: 0
+                                              duration: 900; easing.type: Easing.InOutSine }
+                        }
+                        onXChanged: if (!busyTrack.unknown) x = 0
                     }
                 }
 
-                // разделитель — чтобы операция читалась отдельно от часов
+                // разделитель — чтобы работа читалась отдельно от часов
                 Rectangle {
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: 14

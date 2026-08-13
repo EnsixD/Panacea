@@ -51,6 +51,8 @@ Item {
             "Скрипты: проверка синтаксиса QML до запуска оболочки",
         "hypr: drop program entries nothing points at":
             "Hyprland: убраны записи о программах, которые никто не вызывает",
+        "island: show any long job, not just copying":
+            "Остров: показывает любую долгую работу, не только копирование",
         "hypr: delete the config Hyprland does not read":
             "Hyprland: удалён конфиг, который не читается",
         "settings: one SetButton for Apply and Reset":
