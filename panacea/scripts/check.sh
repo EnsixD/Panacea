@@ -51,4 +51,45 @@ fi
 if [ "$fail" -eq 0 ]; then
     echo "✓ синтаксис в порядке"
 fi
+
+# ------------------------------------------------------------- переводы
+# Экран «что нового» показывает заголовки коммитов, а история ведётся
+# по-английски: без строки в словаре WhatsNewView заголовок покажется не на
+# языке интерфейса. Забыть её легко — коммит и словарь лежат в разных местах,
+# поэтому сверяем здесь, пока не запушено.
+#
+# Проверяется только запуск из клона: в ~/.config/panacea истории нет.
+if [ -d .git ] && command -v git >/dev/null && [ -f panacea/WhatsNewView.qml ]; then
+    # Только то, что ещё не уехало: у выпущенных коммитов экран уже показан,
+    # и переводить их задним числом незачем. Без upstream берём всё после
+    # последнего поднятия версии — это и есть последний выпуск.
+    range="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)"
+    if [ -n "$range" ]; then
+        range="$range..HEAD"
+    else
+        last_rel="$(git log --format='%H %s' -200 \
+                    | grep -im1 '^[0-9a-f]* shell: bump version' | cut -d' ' -f1)"
+        range="${last_rel:+$last_rel..HEAD}"
+    fi
+
+    missing=0
+    while IFS= read -r subject; do
+        [ -n "$subject" ] || continue
+        grep -qF "\"$subject\":" panacea/WhatsNewView.qml || {
+            [ "$missing" -eq 0 ] && echo "нет перевода в WhatsNewView.qml:"
+            echo "    $subject"
+            missing=$((missing + 1))
+        }
+    done < <(git log --format=%s $range 2>/dev/null \
+             | grep -v '^Merge ' \
+             | grep -viE '^(shell: bump version|gitignore|readme|docs|ci)\b' \
+             | grep -viE '^(update|bump) (the )?(readme|docs|version)\b')
+
+    if [ "$missing" -gt 0 ]; then
+        fail=1
+    else
+        echo "✓ у всех невыпущенных коммитов есть перевод"
+    fi
+fi
+
 exit "$fail"

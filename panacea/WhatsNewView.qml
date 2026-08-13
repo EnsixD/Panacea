@@ -25,6 +25,54 @@ Item {
     readonly property var shown: view.changes.slice(0, view.maxRows)
     readonly property int hidden: Math.max(0, view.changes.length - view.maxRows)
 
+    // ------------------------------------------------------------ переводы
+    // История репозитория ведётся по-английски, а экран должен говорить на
+    // языке системы. Поэтому здесь лежат заголовки коммитов и их перевод:
+    // ключ — ровно та строка, что уходит в .whatsnew (первая строка
+    // сообщения), значение — как её прочитает человек.
+    //
+    // Это работает и для коммитов, о которых экран рассказывает впервые:
+    // update.sh пишет .whatsnew уже после того, как install.sh положил новую
+    // версию оболочки, так что словарь приезжает вместе с изменениями,
+    // которые он описывает.
+    //
+    // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
+    // по-английски: не сломается, но выпадет из языка интерфейса.
+    readonly property var dictRu: ({
+        "wob: colour it from the palette and stop leaking readers":
+            "wob: цвета из палитры, и он больше не плодит процессы",
+        "settings: finish the move off the legacy panel":
+            "Настройки: старая панель убрана, клавиши переехали на новую",
+        "shell: one FocusGrabber instead of six copies of it":
+            "Оболочка: фокус в полях ввода — один общий механизм вместо шести",
+        "files: show copying in the island, and queue what waits":
+            "Проводник: копирование видно в острове, операции встают в очередь",
+        "scripts: check QML syntax without starting the shell":
+            "Скрипты: проверка синтаксиса QML до запуска оболочки",
+        "hypr: drop program entries nothing points at":
+            "Hyprland: убраны записи о программах, которые никто не вызывает",
+        "whatsnew: say what changed in the language of the interface":
+            "Что нового: список изменений на языке интерфейса",
+        "wallpaper: write hyprpaper's new config format":
+            "Обои: новый формат конфигурации hyprpaper",
+        "install: leave the shell alone while an update is running":
+            "Установщик: не трогает оболочку, пока идёт обновление",
+        "update: hand the job to the freshly cloned script":
+            "Обновление: работу доводит свежескачанный скрипт",
+        "update: keep housekeeping commits out of the changelog":
+            "Обновление: служебные коммиты не попадают в список изменений",
+        "island: don't expand just because auto-hide revealed it":
+            "Остров: не разворачивается только оттого, что выехал из-под края",
+        "power menu: one icon weight for the whole row":
+            "Меню питания: одинаковая толщина значков в ряду"
+    })
+
+    function changeText(subject) {
+        if (view.sys.isEn) return subject;
+        var t = view.dictRu[subject];
+        return t !== undefined ? t : subject;
+    }
+
     anchors.fill: parent
 
     // клик мимо карточки не закрывает: человек должен увидеть, что изменилось,
@@ -125,7 +173,7 @@ Item {
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: modelData
+                                text: view.changeText(modelData)
                                 color: view.sys.colFg
                                 wrapMode: Text.WordWrap
                                 font { family: view.sys.fontBody; pixelSize: view.fontPx }
