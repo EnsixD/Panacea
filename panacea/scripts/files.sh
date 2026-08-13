@@ -10,8 +10,70 @@
 #   rename PATH NEWNAME   -> переименовать
 #   trash PATH            -> в корзину (обратимо, в отличие от rm)
 #   places                -> закладки: ключ|путь|подпись
+#   copy DST SRC...       -> копировать в каталог
+#   move DST SRC...       -> перенести в каталог
+#
+# copy и move печатают в stdout строки «PROGRESS <проценты>»: пилюля рисует
+# по ним полоску. Копирование гигабайтов иначе выглядит как зависание —
+# файл не появляется, и понять, идёт работа или нет, нельзя.
 
 py() { python3 "$@"; }
+
+# ---------------------------------------------------------------- прогресс
+# Ни cp, ни mv не умеют сообщать, сколько уже сделано, поэтому смотрим со
+# стороны: раз в четверть секунды меряем, насколько выросли цели. rsync
+# показал бы то же самое сам, но он не входит в base, а тянуть зависимость
+# ради полоски не хочется.
+#
+# Меряем именно цели, а не каталог назначения целиком: назначением может
+# быть домашняя папка, и du по ней каждые 250 мс стоил бы дороже самого
+# копирования.
+PROGRESS_PID=""
+
+progress_start() {   # $1 — суммарный размер источников, дальше пути целей
+    local total=$1; shift
+    [ "$total" -gt 0 ] 2>/dev/null || return 0
+    local targets=("$@")
+    (
+        while :; do
+            local cur
+            cur=$(du -sbc "${targets[@]}" 2>/dev/null | tail -1 | cut -f1)
+            if [ -n "$cur" ]; then
+                local pct=$(( cur * 100 / total ))
+                [ "$pct" -gt 99 ] && pct=99   # 100 печатает уже сам вызов
+                printf 'PROGRESS %d\n' "$pct"
+            fi
+            sleep 0.25
+        done
+    ) &
+    PROGRESS_PID=$!
+}
+
+progress_kill() {
+    [ -n "$PROGRESS_PID" ] && kill "$PROGRESS_PID" 2>/dev/null
+    PROGRESS_PID=""
+}
+
+progress_stop() {
+    progress_kill
+    printf 'PROGRESS 100\n'
+}
+
+# Имя, свободное в каталоге назначения: не затираем существующее молча,
+# а дописываем номер. Слова тут нарочно нет — скрипт не знает язык
+# интерфейса.
+uniq_target() {   # $1 — каталог назначения, $2 — имя
+    local dst=$1 name=$2
+    local target="$dst/$name"
+    [ -e "$target" ] || { printf '%s' "$target"; return; }
+    local base="${name%.*}" ext="${name##*.}" n=2
+    while [ -e "$target" ]; do
+        if [ "$base" = "$name" ]; then target="$dst/$name-$n"
+        else                           target="$dst/$base-$n.$ext"; fi
+        n=$((n + 1))
+    done
+    printf '%s' "$target"
+}
 
 case "$1" in
     list)
@@ -144,29 +206,40 @@ EOF
         gio trash "$P"
         ;;
 
-    copy)
-        SRC="${2:?}"; DST="${3:?}"
-        SRC="${SRC/#\~/$HOME}"; DST="${DST/#\~/$HOME}"
-        name=$(basename "$SRC")
-        target="$DST/$name"
-        # не затираем существующее молча: дописываем номер.
-        # Слова тут нарочно нет — скрипт не знает язык интерфейса.
-        if [ -e "$target" ]; then
-            base="${name%.*}"; ext="${name##*.}"
-            n=2
-            while [ -e "$target" ]; do
-                if [ "$base" = "$name" ]; then target="$DST/$name-$n"
-                else target="$DST/$base-$n.$ext"; fi
-                n=$((n + 1))
-            done
-        fi
-        cp -r --no-clobber "$SRC" "$target"
-        ;;
+    # Каталог назначения идёт первым, источники — списком: так один вызов
+    # переносит хоть один файл, хоть выделение целиком, и полоска считает
+    # общий объём, а не каждый файл заново.
+    copy|move)
+        op="$1"
+        DST="${2:?}"; shift 2
+        DST="${DST/#\~/$HOME}"
+        [ "$#" -gt 0 ] || exit 0
 
-    move)
-        SRC="${2:?}"; DST="${3:?}"
-        SRC="${SRC/#\~/$HOME}"; DST="${DST/#\~/$HOME}"
-        mv -n "$SRC" "$DST/"
+        srcs=(); targets=()
+        for src; do
+            src="${src/#\~/$HOME}"
+            [ -e "$src" ] || continue
+            srcs+=("$src")
+            targets+=("$(uniq_target "$DST" "$(basename "$src")")")
+        done
+        [ "${#srcs[@]}" -gt 0 ] || exit 0
+
+        # Оболочку могут убить вместе с панелью, и без этого счётчик остался бы
+        # сиротой: крутиться вечно, раз в четверть секунды обходя каталог.
+        trap progress_kill EXIT INT TERM
+
+        total=$(du -sbc "${srcs[@]}" 2>/dev/null | tail -1 | cut -f1)
+        progress_start "${total:-0}" "${targets[@]}"
+
+        for i in "${!srcs[@]}"; do
+            if [ "$op" = "copy" ]; then
+                cp -r --no-clobber "${srcs[$i]}" "${targets[$i]}"
+            else
+                mv -n "${srcs[$i]}" "${targets[$i]}"
+            fi
+        done
+
+        progress_stop
         ;;
 
     copypath)

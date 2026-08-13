@@ -125,10 +125,25 @@ Item {
         }
     }
 
+    // Очередь коротких операций. pAction здесь один на всех, и вторая
+    // операция, начатая пока идёт первая, затирала её команду и молча
+    // пропадала. Копирование и перенос сюда не попадают — они уходят в
+    // пилюлю, к своей очереди: см. runLong().
+    property var opQueue: []
+
     Process {
         id: pAction
         onRunningChanged: {
             if (running) return;
+            // следующая из очереди — до перечитывания списка: перечитывать
+            // между операциями значит дважды проиграть анимацию появления
+            if (view.opQueue.length > 0) {
+                var q = view.opQueue.slice();
+                var next = q.shift();
+                view.opQueue = q;
+                view.startOp(next.args, next.note);
+                return;
+            }
             view.reload();
             view.countTrash();
             // Соседние окна проводника про наши правки не знают: после
@@ -398,9 +413,27 @@ Item {
         return fallback;
     }
 
-    function run(args, note) {
+    function startOp(args, note) {
         pAction.command = args;
         pAction.running = true;
+        if (note !== undefined) view.say(note);
+    }
+    function run(args, note) {
+        if (pAction.running) {
+            var q = view.opQueue.slice();
+            q.push({ args: args, note: note });
+            view.opQueue = q;
+            if (note !== undefined) view.say(note);
+            return;
+        }
+        view.startOp(args, note);
+    }
+
+    // Копирование и перенос уходят в пилюлю: они длятся минутами, а панель
+    // закрывают сразу после того, как перетащили файлы. Здесь их процесс
+    // умер бы вместе с Loader'ом, на середине.
+    function runLong(args, note, label) {
+        view.sys.runFileOp(args, label);
         if (note !== undefined) view.say(note);
     }
 
@@ -445,11 +478,12 @@ Item {
     }
     function doPaste() {
         if (!view.clipPath.length) return;
-        var cmd = view.clipMode === "cut" ? " move " : " copy ";
+        var op = view.clipMode === "cut" ? "move" : "copy";
         closeMenu();
-        run(["sh", "-c", view.scripts + cmd + "\"$1\" \"$2\"", "_", view.clipPath, view.dir],
-            (view.clipMode === "cut" ? view.sys.tr("Перемещено: ")
-                                     : view.sys.tr("Вставлено: ")) + view.baseName(view.clipPath));
+        runLong(["sh", "-c", view.scripts + " " + op + " \"$1\" \"$2\"", "_", view.dir, view.clipPath],
+                (view.clipMode === "cut" ? view.sys.tr("Перемещено: ")
+                                         : view.sys.tr("Вставлено: ")) + view.baseName(view.clipPath),
+                view.baseName(view.clipPath));
         if (view.clipMode === "cut") { view.clipPath = ""; view.clipMode = ""; }
     }
     function doCopyPath(path) {
@@ -1394,17 +1428,15 @@ Item {
     function dropRun(move) {
         var paths = view.pathsOf(view.dropUrls);
         if (paths.length === 0) { view.dropMenu = false; return; }
-        // Все файлы одним процессом: pAction здесь один на всех, и цикл с
-        // повторным running = true просто затирал бы предыдущий запуск.
-        // Имена уходят отдельными аргументами, поэтому пробелы и кавычки
-        // внутри них ничего не ломают.
-        var op = move ? " move " : " copy ";
+        // Все файлы одним вызовом: скрипт сам обходит список и считает по
+        // нему общий прогресс. Имена уходят отдельными аргументами, поэтому
+        // пробелы и кавычки внутри них ничего не ломают.
+        var op = move ? "move" : "copy";
         var dest = view.dropDir.length ? view.dropDir : view.dir;
-        var args = ["sh", "-c",
-                    'd="$1"; shift; for f in "$@"; do ' + view.scripts + op
-                    + '"$f" "$d"; done', "_", dest];
-        pAction.command = args.concat(paths);
-        pAction.running = true;
+        var args = ["sh", "-c", view.scripts + " " + op + ' "$@"', "_", dest].concat(paths);
+        view.runLong(args, undefined,
+                     paths.length === 1 ? view.baseName(paths[0])
+                                        : view.sys.tr("Файлов: ") + paths.length);
         view.dropMenu = false;
         view.dropUrls = [];
         view.dropDir = "";

@@ -592,6 +592,7 @@ PanelWindow {
         "Скопировано: ": "Copied: ",
         "Вырезано: ": "Cut: ",
         "Вставлено: ": "Pasted: ",
+        "Файлов: ": "Files: ",
         "Перемещено: ": "Moved: ",
         "Путь скопирован": "Path copied",
         "Переименовано": "Renamed",
@@ -2717,6 +2718,63 @@ PanelWindow {
 
     readonly property string recScript: root.scriptDir + "/record.sh"
 
+    // ------------------------------------------ длительная файловая операция
+    // Копирование папки в несколько гигабайт идёт минутами, и всё это время
+    // проводник молчал: файл не появлялся, ничего не двигалось, и понять,
+    // работает оно или зависло, было нельзя. Теперь свёрнутый остров держит
+    // полоску — как во время записи экрана, только с процентами.
+    //
+    // Процесс живёт здесь, а не в проводнике, нарочно: панель закрывают сразу
+    // после того, как перетащили файлы, и вместе с ней умирал бы и Loader, и
+    // копирование на середине. Теперь оно доживает до конца само, а остров
+    // показывает, сколько осталось.
+    property string fileOpLabel: ""
+    property int    fileOpProgress: 0
+    property var    fileOpQueue: []
+
+    // Вторая операция, начатая пока идёт первая, раньше затирала бы команду
+    // работающего процесса и молча пропадала.
+    function runFileOp(args, label) {
+        if (pFileOp.running) {
+            var q = root.fileOpQueue.slice();
+            q.push({ args: args, label: label });
+            root.fileOpQueue = q;
+            return;
+        }
+        root.fileOpProgress = 0;
+        root.fileOpLabel = label;
+        pFileOp.command = args;
+        pFileOp.running = true;
+    }
+
+    Process {
+        id: pFileOp
+        stdout: SplitParser {
+            onRead: line => {
+                var m = /^PROGRESS (\d+)$/.exec(String(line).trim());
+                if (m) root.fileOpProgress = parseInt(m[1], 10);
+            }
+        }
+        onRunningChanged: {
+            if (running) return;
+            // все открытые проводники перечитывают списки: файл появился
+            // (или исчез) не у того окна, что затеяло операцию
+            root.filesChanged();
+            if (root.fileOpQueue.length > 0) {
+                var q = root.fileOpQueue.slice();
+                var next = q.shift();
+                root.fileOpQueue = q;
+                root.fileOpProgress = 0;
+                root.fileOpLabel = next.label;
+                pFileOp.command = next.args;
+                pFileOp.running = true;
+                return;
+            }
+            root.fileOpLabel = "";
+            root.fileOpProgress = 0;
+        }
+    }
+
     Process {
         id: pRecStatus
         command: ["sh", "-c", root.recScript + " status"]
@@ -3622,6 +3680,55 @@ PanelWindow {
                 }
 
                 // разделитель — чтобы трек читался отдельно от часов
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 14
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.leftMargin: 2
+                    color: Qt.rgba(1, 1, 1, 0.14)
+                }
+            }
+
+            // идёт копирование или перенос — имя и полоска слева от даты
+            RowLayout {
+                spacing: 7
+                visible: root.fileOpLabel.length > 0
+
+                Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: "󰆏"
+                    color: root.colOn
+                    font { family: root.fontFam; pixelSize: root.fontSize - 2 }
+                }
+
+                Text {
+                    Layout.maximumWidth: 130
+                    Layout.alignment: Qt.AlignVCenter
+                    text: root.fileOpLabel
+                    color: root.colFg
+                    elide: Text.ElideMiddle
+                    font { family: root.fontFam; pixelSize: root.fontSize - 2 }
+                }
+
+                // Полоска, а не проценты цифрами: остров и так узкий, а точное
+                // число тут никому не нужно — важно, что дело движется.
+                Rectangle {
+                    Layout.preferredWidth: 34
+                    Layout.preferredHeight: 4
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: 2
+                    color: Qt.rgba(1, 1, 1, 0.16)
+
+                    Rectangle {
+                        width: parent.width * Math.max(0, Math.min(100, root.fileOpProgress)) / 100
+                        height: parent.height
+                        radius: parent.radius
+                        color: root.colOn
+                        Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+                    }
+                }
+
+                // разделитель — чтобы операция читалась отдельно от часов
                 Rectangle {
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: 14
