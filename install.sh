@@ -928,7 +928,12 @@ elif command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-
     [ -x "$CONF/hypr/scripts/switch_theme.sh" ] \
         && "$CONF/hypr/scripts/switch_theme.sh" --restore >/dev/null 2>&1
     pkill -x qs >/dev/null 2>&1; sleep 1
-    (setsid qs -c "$CONF/panacea" >/dev/null 2>&1 &)
+    # Та же переменная, что и в автозапуске (hypr/lua/programs.lua): без неё
+    # Qt на драйвере NVIDIA берёт «basic render loop» и крутит анимации от
+    # таймера в 16 мс — 60 кадров на любом мониторе. Здесь она нужна отдельно:
+    # оболочку после установки запускает этот скрипт, а не автозапуск, и до
+    # следующего входа остров шёл бы рывками.
+    (setsid env QSG_RENDER_LOOP=threaded qs -c "$CONF/panacea" >/dev/null 2>&1 &)
     ok "reloaded Hyprland and started the pill"
 else
     warn "Hyprland isn't running here — everything comes up at next login"
