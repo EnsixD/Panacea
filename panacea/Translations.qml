@@ -13,6 +13,7 @@ QtObject {
         // строки нового окна настроек
         "и ещё": "and",
         "Не хватает пакетов": "Some packages are missing",
+        "Больше не нужны": "No longer needed",
         "Скопировать команду": "Copy the command",
         "Нажмите, чтобы скопировать": "Click to copy",
         "Panacea обновлена": "Panacea has been updated",

@@ -415,7 +415,8 @@ PanelWindow {
             else if (k === "current") root.updCurrent = v;
             else if (k === "step")    root.updStep = v;
             else if (k === "error")   root.updError = v;
-            else if (k === "missing") root.missingDeps = v;
+            else if (k === "missing")  root.missingDeps = v;
+            else if (k === "obsolete") root.obsoleteDeps = v;
             else if (k === "version") root.updCurrent = v;
         }
         if (!done) return;
@@ -515,15 +516,29 @@ PanelWindow {
         onLoadFailed: root.missingDeps = ""
     }
 
+    // Обратная сторона: что оболочка ставила раньше и больше не использует.
+    // Удалять сами не будем — это пакеты в системе человека, а не наши.
+    property string obsoleteDeps: ""
+    FileView {
+        id: obsoleteDepsFile
+        path: Quickshell.env("HOME") + "/.config/panacea/.obsoletedeps"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: root.obsoleteDeps = String(obsoleteDepsFile.text()).trim()
+        onLoadFailed: root.obsoleteDeps = ""
+    }
+
     function dismissWhatsNew() {
         root.whatsNew = [];
         root.missingDeps = "";
+        root.obsoleteDeps = "";
         pWhatsNewClear.running = true;
     }
     Process {
         id: pWhatsNewClear
         command: ["sh", "-c",
-                  "rm -f \"$1/.whatsnew\" \"$1/.missingdeps\"", "_",
+                  "rm -f \"$1/.whatsnew\" \"$1/.missingdeps\" \"$1/.obsoletedeps\"", "_",
                   Quickshell.env("HOME") + "/.config/panacea"]
     }
 

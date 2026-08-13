@@ -10,4 +10,5 @@ fish/fish_history
 # Список изменений последнего обновления: пишется на машине пользователя
 .whatsnew
 .missingdeps
+.obsoletedeps
 panacea/.version

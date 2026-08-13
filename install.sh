@@ -11,6 +11,7 @@
 #   ./install.sh --no-grub    don't touch the GRUB boot theme
 #   ./install.sh --yes        answer yes to every prompt
 #   ./install.sh --print-missing   only name the packages that are absent
+#   ./install.sh --print-obsolete  only name the ones no longer used
 #
 # Whatever already sits at a destination is moved to <name>.bak-<timestamp>
 # beside it — nothing is deleted.
@@ -26,6 +27,7 @@ DO_DEPS=1
 # Этим пользуется update.sh: список зависимостей должен жить в одном месте,
 # а не расходиться двумя копиями.
 PRINT_MISSING=0
+PRINT_OBSOLETE=0
 DO_SDDM=1
 DO_GRUB=1
 # Обновлению и проверкам это не нужно: службы уже включены, обои уже скачаны,
@@ -44,6 +46,7 @@ for arg in "$@"; do
         --no-restart) DO_RESTART=0 ;;
         --yes|-y)  ASSUME_YES=1 ;;
         --print-missing) PRINT_MISSING=1 ;;
+        --print-obsolete) PRINT_OBSOLETE=1 ;;
         --help|-h) sed -n '2,13p' "$0"; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 1 ;;
     esac
@@ -133,6 +136,20 @@ EXTRA_PKGS=(power-profiles-daemon bluez bluez-utils iwd cava pipewire-audio
             # пропускает соответствующее семейство, всё остальное работает
             python-secretstorage python-cryptography)
 FONT_PKG="ttf-jetbrains-mono-nerd"
+
+# Пакеты, которые Panacea ставила раньше и больше не использует. Установщик
+# их не трогает: человек мог поставить waybar или tofi для себя, и удалять
+# чужое за него — не дело обновления. Оно только называет их, а решает он.
+#
+# Список чистят, когда обновиться успели все: смысл он имеет ровно до тех
+# пор, пока есть копии, поставленные до 1.0.7.
+OBSOLETE_PKGS=(
+    # режим энергосбережения больше не подменяет оболочку вторым набором
+    # панелей — пилюля остаётся и просто гасит эффекты
+    waybar wob tofi
+    # экран блокировки давно свой, на quickshell (lock.qml)
+    hyprlock
+)
 
 MISSING=()
 check_deps() {
@@ -401,6 +418,16 @@ for e in tree:
 #
 # EXTRA_PKGS сюда не идут: у них нет бинарника, который можно проверить, и в
 # MISSING они попадают всегда — для отчёта это был бы шум.
+# То же для пакетов, которые больше не нужны: называем только те, что
+# действительно стоят в системе.
+if [ "$PRINT_OBSOLETE" = "1" ]; then
+    command -v pacman >/dev/null 2>&1 || exit 0
+    for p in "${OBSOLETE_PKGS[@]}"; do
+        pacman -Qq "$p" >/dev/null 2>&1 && printf '%s\n' "$p"
+    done
+    exit 0
+fi
+
 if [ "$PRINT_MISSING" = "1" ]; then
     for row in "${DEPS[@]}"; do
         IFS='|' read -r bin pkg why <<<"$row"

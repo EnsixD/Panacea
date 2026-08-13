@@ -259,6 +259,18 @@ cmd_apply() {
         rm -f "$CONF/panacea/.missingdeps"
     fi
 
+    # И обратное: что оболочка ставила раньше, а теперь не использует. Удалять
+    # сами не будем — человек мог поставить waybar или tofi для себя, и чужое
+    # за него не трогают. Просто называем.
+    obsolete="$(cd "$tmp/src" && bash ./install.sh --print-obsolete 2>/dev/null | tr '\n' ' ')"
+    obsolete="${obsolete% }"
+    if [ -n "$obsolete" ]; then
+        printf '%s\n' "$obsolete" > "$CONF/panacea/.obsoletedeps"
+        echo "obsolete=$obsolete"
+    else
+        rm -f "$CONF/panacea/.obsoletedeps"
+    fi
+
     # Список изменений между тем, что стояло, и тем, что встало. Оболочка
     # покажет его один раз после перезапуска и файл сотрёт. История берётся
     # с GitHub: клон делается мелкий, в нём её нет.
