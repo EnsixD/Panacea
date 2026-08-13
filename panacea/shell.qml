@@ -1301,9 +1301,22 @@ PanelWindow {
         String.fromCodePoint(battIcons[Math.max(0, Math.min(10, Math.round(batteryPct / 10)))])
 
     // Есть ли вообще батарея — на десктопе блок заряда прятать целиком.
-    // По ready сводного устройства, а не по isLaptopBattery: у displayDevice
-    // это составной агрегат, и признак ноутбучной батареи на нём не выставлен.
-    readonly property bool batteryPresent: battDev !== null && battDev.ready
+    //
+    // По списку устройств, а не по сводному displayDevice: на настольной
+    // машине оно тоже «готово», просто отдаёт ноль, и остров честно рисовал
+    // «0%» там, где батареи нет вовсе.
+    //
+    // Ищем именно системную батарею (isLaptopBattery). Тип Battery носят и
+    // мышь с клавиатурой — их заряд не имеет отношения к питанию машины, и
+    // показывать его в острове как заряд компьютера было бы неверно.
+    readonly property bool batteryPresent: {
+        var list = UPower.devices ? UPower.devices.values : [];
+        for (var i = 0; i < list.length; i++) {
+            var d = list[i];
+            if (d && d.ready && d.isLaptopBattery) return true;
+        }
+        return false;
+    }
 
     // Подробности для страницы «Батарея»: ёмкость, износ и текущий расход.
     // Прогнозов «сколько осталось» здесь намеренно нет — UPower пересчитывает
@@ -3408,7 +3421,11 @@ PanelWindow {
             // иконкой и цифрами — на «48%» там зияла дыра. Теперь ширину
             // держит контейнер, а пара внутри стоит по центру вплотную.
             Item {
-                Layout.preferredWidth: mBattIcon.width + battPair.spacing + mBatt.width
+                // без батареи блока нет совсем: на настольной машине это не
+                // «ноль процентов», а «нечему показываться»
+                visible: root.batteryPresent
+                Layout.preferredWidth: root.batteryPresent
+                                       ? mBattIcon.width + battPair.spacing + mBatt.width : 0
                 Layout.preferredHeight: root.pillH
                 Layout.alignment: Qt.AlignVCenter
 
@@ -3620,6 +3637,7 @@ PanelWindow {
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
+                    visible: root.batteryPresent
                     text: root.batteryIcon
                     color: root.batteryCharging || root.acOnline ? root.colOk
                          : root.batteryPct <= 15 ? root.colCrit : root.colMuted
@@ -3627,6 +3645,7 @@ PanelWindow {
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
+                    visible: root.batteryPresent
                     text: root.batteryPct
                     color: root.colMuted
                     font { family: root.fontFam; pixelSize: root.fontSize - 4 }
