@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "install: fix the dependency list, and name what an update still needs":
+            "Установщик: список зависимостей исправлен, обновление называет недостающие пакеты",
         "wob: colour it from the palette and stop leaking readers":
             "wob: цвета из палитры, и он больше не плодит процессы",
         "settings: finish the move off the legacy panel":
@@ -207,6 +209,64 @@ Item {
                         color: view.sys.colMuted
                         font { family: view.sys.fontBody; pixelSize: view.fontPx }
                     }
+                }
+            }
+
+            // --------------------------------------- недостающие пакеты
+            // Новая версия могла попросить пакет, которого на машине нет:
+            // обновление ставит только конфиги, а пакеты — дело человека.
+            // Молчать нельзя — иначе часть оболочки просто не работала бы,
+            // и было бы непонятно, почему.
+            Rectangle {
+                Layout.fillWidth: true
+                visible: view.sys.missingDeps.length > 0
+                implicitHeight: depsCol.implicitHeight + 24
+                radius: 14
+                color: Qt.rgba(view.sys.colCrit.r, view.sys.colCrit.g, view.sys.colCrit.b, 0.10)
+                border.width: 1
+                border.color: Qt.rgba(view.sys.colCrit.r, view.sys.colCrit.g, view.sys.colCrit.b, 0.35)
+
+                ColumnLayout {
+                    id: depsCol
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 12
+                    spacing: 5
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: view.sys.tr("Не хватает пакетов")
+                        color: view.sys.colFg
+                        wrapMode: Text.WordWrap
+                        font { family: view.sys.fontBody; pixelSize: view.fontPx; bold: true }
+                    }
+
+                    // Готовая команда, а не перечисление: её остаётся скопировать
+                    Text {
+                        Layout.fillWidth: true
+                        text: "sudo pacman -S --needed " + view.sys.missingDeps
+                        color: view.sys.colMuted
+                        wrapMode: Text.WrapAnywhere
+                        font { family: view.sys.fontFam; pixelSize: view.fontPx - 1 }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: copyMa.containsMouse
+                              ? view.sys.tr("Нажмите, чтобы скопировать")
+                              : view.sys.tr("Скопировать команду")
+                        color: view.sys.colOn
+                        font { family: view.sys.fontBody; pixelSize: view.fontPx - 2 }
+                    }
+                }
+
+                MouseArea {
+                    id: copyMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.sys.copyText("sudo pacman -S --needed " + view.sys.missingDeps)
                 }
             }
 

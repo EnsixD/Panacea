@@ -12,6 +12,9 @@ QtObject {
     readonly property var en: ({
         // строки нового окна настроек
         "и ещё": "and",
+        "Не хватает пакетов": "Some packages are missing",
+        "Скопировать команду": "Copy the command",
+        "Нажмите, чтобы скопировать": "Click to copy",
         "Panacea обновлена": "Panacea has been updated",
         "Список изменений недоступен": "The change list is unavailable",
         "Хорошо": "OK",

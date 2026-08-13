@@ -415,6 +415,7 @@ PanelWindow {
             else if (k === "current") root.updCurrent = v;
             else if (k === "step")    root.updStep = v;
             else if (k === "error")   root.updError = v;
+            else if (k === "missing") root.missingDeps = v;
             else if (k === "version") root.updCurrent = v;
         }
         if (!done) return;
@@ -490,13 +491,40 @@ PanelWindow {
         }
     }
 
+    // Пакеты, которых не хватает после обновления. Ставим не мы: обновление
+    // идёт с --no-deps, а хватать пакеты через sudo из-под кнопки в настройках
+    // — не то, чего от него ждут. Поэтому просто называем их на том же экране.
+    property string missingDeps: ""
+
+    // Простое копирование в буфер. Пароли идут своим путём — им нужен
+    // --sensitive-data и очистка по таймеру, см. vaultCopy().
+    Process { id: pCopyText }
+    function copyText(t) {
+        pCopyText.running = false;
+        pCopyText.command = ["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", String(t)];
+        pCopyText.running = true;
+    }
+
+    FileView {
+        id: missingDepsFile
+        path: Quickshell.env("HOME") + "/.config/panacea/.missingdeps"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: root.missingDeps = String(missingDepsFile.text()).trim()
+        onLoadFailed: root.missingDeps = ""
+    }
+
     function dismissWhatsNew() {
         root.whatsNew = [];
+        root.missingDeps = "";
         pWhatsNewClear.running = true;
     }
     Process {
         id: pWhatsNewClear
-        command: ["rm", "-f", Quickshell.env("HOME") + "/.config/panacea/.whatsnew"]
+        command: ["sh", "-c",
+                  "rm -f \"$1/.whatsnew\" \"$1/.missingdeps\"", "_",
+                  Quickshell.env("HOME") + "/.config/panacea"]
     }
 
     // Первая проверка не на старте: при входе в систему сеть ещё поднимается,

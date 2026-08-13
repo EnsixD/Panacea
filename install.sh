@@ -10,6 +10,7 @@
 #   ./install.sh --no-sddm    don't touch the SDDM login theme
 #   ./install.sh --no-grub    don't touch the GRUB boot theme
 #   ./install.sh --yes        answer yes to every prompt
+#   ./install.sh --print-missing   only name the packages that are absent
 #
 # Whatever already sits at a destination is moved to <name>.bak-<timestamp>
 # beside it — nothing is deleted.
@@ -21,6 +22,10 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 DO_DEPS=1
+# Только назвать, чего не хватает, и выйти — ничего не ставя и не копируя.
+# Этим пользуется update.sh: список зависимостей должен жить в одном месте,
+# а не расходиться двумя копиями.
+PRINT_MISSING=0
 DO_SDDM=1
 DO_GRUB=1
 # Обновлению и проверкам это не нужно: службы уже включены, обои уже скачаны,
@@ -38,6 +43,7 @@ for arg in "$@"; do
         --no-wallpapers) DO_WALLS=0 ;;
         --no-restart) DO_RESTART=0 ;;
         --yes|-y)  ASSUME_YES=1 ;;
+        --print-missing) PRINT_MISSING=1 ;;
         --help|-h) sed -n '2,13p' "$0"; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 1 ;;
     esac
@@ -68,8 +74,11 @@ DEPS=(
     "fish|fish|the shell"
     "foot|foot|terminal"
     "hyprpaper|hyprpaper|wallpaper"
-    "hyprlock|hyprlock|lock screen"
     "hyprsunset|hyprsunset|night colour temperature"
+    # Не ради самой программы: пакет кладёт /etc/pam.d/swaylock, а это
+    # профиль, которым проверяют пароль экран блокировки и хранилище
+    # паролей. Без него ни то, ни другое не открывается.
+    "swaylock|swaylock|the PAM profile the lock screen and the vault use"
     "jq|jq|JSON in the scripts"
     "wl-copy|wl-clipboard|clipboard access"
     "cliphist|cliphist|clipboard history"
@@ -140,7 +149,10 @@ check_deps() {
         if [ -e "$path" ]; then ok "$pkg"
         else warn "missing $pkg — $why"; MISSING+=("$pkg"); fi
     done
-    if fc-list 2>/dev/null | grep -qi "JetBrainsMono.*Nerd"; then ok "JetBrainsMono Nerd Font"
+    # grep -q закрыл бы пайп на первом совпадении, fc-list получил бы SIGPIPE,
+    # и pipefail засчитал бы всей проверке провал: шрифт «отсутствовал» даже
+    # когда стоял на месте. Дочитываем вывод до конца.
+    if fc-list 2>/dev/null | grep -i "JetBrainsMono.*Nerd" >/dev/null; then ok "JetBrainsMono Nerd Font"
     else warn "missing the Nerd Font — every icon is a glyph"; MISSING+=("$FONT_PKG"); fi
     # these have no simple binary to probe — let pacman skip what's present
     MISSING+=("${EXTRA_PKGS[@]}")
@@ -384,6 +396,27 @@ for e in tree:
 }
 
 # ------------------------------------------------------------------------ run
+
+# Список для машины: по одному имени пакета в строке, без украшений и без
+# единого вопроса — этим пользуется update.sh, чтобы сказать, чего не хватает
+# после обновления. Список зависимостей должен жить в одном месте, а не
+# расходиться двумя копиями, поэтому отчёт берётся отсюда же.
+#
+# EXTRA_PKGS сюда не идут: у них нет бинарника, который можно проверить, и в
+# MISSING они попадают всегда — для отчёта это был бы шум.
+if [ "$PRINT_MISSING" = "1" ]; then
+    for row in "${DEPS[@]}"; do
+        IFS='|' read -r bin pkg why <<<"$row"
+        command -v "$bin" >/dev/null 2>&1 || printf '%s\n' "$pkg"
+    done
+    for row in "${FILE_DEPS[@]}"; do
+        IFS='|' read -r path pkg why <<<"$row"
+        [ -e "$path" ] || printf '%s\n' "$pkg"
+    done
+    fc-list 2>/dev/null | grep -i "JetBrainsMono.*Nerd" >/dev/null || printf '%s\n' "$FONT_PKG"
+    exit 0
+fi
+
 printf '\n%sPanacea%s — dotfiles installer\n' "$B" "$N"
 printf '%sfrom %s%s\n' "$DIM" "$SRC" "$N"
 [ -d "$SRC/panacea" ] || die "run this from inside the cloned repo"
