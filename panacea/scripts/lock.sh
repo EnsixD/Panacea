@@ -19,4 +19,10 @@ if [ -n "$wallpaper" ] && [ "$wallpaper" != "black" ] && [ -f "$wallpaper" ]; th
     [ -n "$bg" ] && export PANACEA_LOCK_BG="$bg"
 fi
 
+# Тот же threaded-цикл, что и у пилюли: с драйвером NVIDIA Qt сам выбирает
+# «basic», а он крутит анимации от таймера в 16 мс — 60 кадров на любом
+# мониторе. На экране блокировки это особенно заметно: там всё держится на
+# плавности появления.
+export QSG_RENDER_LOOP="${QSG_RENDER_LOOP:-threaded}"
+
 exec quickshell --path "$QML"
