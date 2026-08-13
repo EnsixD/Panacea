@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "install: show the wallpaper pack downloading":
+            "Установщик: видно, как скачивается пак обоев",
         "plugins: a tab of its own, and a task pad for the desktop":
             "Плагины: своя вкладка и блокнот задач",
         "settings: the update notice opens System":

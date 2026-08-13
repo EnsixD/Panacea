@@ -390,7 +390,39 @@ for e in tree:
     local n; n=$(wc -l < "$list")
     [ "$n" -gt 0 ] || { warn "the wallpaper list came back empty"; rm -f "$list"; return; }
     printf '  downloading %s wallpapers (about 400 MB)\n' "$n"
+
+    # Прогресс считаем со стороны: curl'ов восемь штук разом, и их собственные
+    # полоски перебивали бы друг друга. Раз в секунду смотрим, сколько файлов
+    # уже лежит в каталоге и сколько это мегабайт, и переписываем одну строку.
+    #
+    # Без этого 400 МБ выглядели как зависший установщик: он молчал минутами,
+    # и понять, идёт закачка или встала, было нельзя.
+    # Строку переписываем через \r, поэтому в файл её лить нельзя: в логе
+    # установки получилась бы каша из сотни строк. Не терминал — молчим.
+    local mon=""
+    if [ -t 1 ]; then
+        local done_before; done_before=$(find "$dst" -type f 2>/dev/null | wc -l)
+        (
+            while :; do
+                have=$(find "$dst" -type f 2>/dev/null | wc -l)
+                mb=$(du -sm "$dst" 2>/dev/null | cut -f1)
+                printf '\r  %s/%s files · %s MB   ' \
+                       "$((have - done_before))" "$n" "${mb:-0}"
+                sleep 1
+            done
+        ) &
+        mon=$!
+        # Счётчик не должен пережить установщик, если тот прервали
+        trap 'kill "$mon" 2>/dev/null' EXIT INT TERM
+    fi
+
     (cd "$dst" && xargs -P 8 -n 1 curl -sfLO --retry 2 --max-time 180 < "$list")
+
+    if [ -n "$mon" ]; then
+        kill "$mon" 2>/dev/null
+        trap - EXIT INT TERM
+        printf '\r%*s\r' 44 ''   # стираем строку прогресса за собой
+    fi
     rm -f "$list"
 
     # Битые и не-картинки выбрасываем: одна такая ломала бы карусель
