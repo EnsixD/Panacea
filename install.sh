@@ -290,6 +290,35 @@ aur_helper() {
     for h in yay paru pikaur; do command -v "$h" >/dev/null 2>&1 && { echo "$h"; return; }; done
 }
 
+# Часть оболочки живёт в AUR (сам quickshell, mpvpaper), и без помощника
+# установка останавливалась на полпути с советом «поставьте yay сначала».
+# Совет верный, но человек пришёл ставить оболочку, а не собирать помощник
+# руками, — поэтому предлагаем собрать его тут же. yay-bin, а не yay: это
+# готовый бинарник, его не надо компилировать и тянуть ради этого Go.
+install_aur_helper() {
+    ask "quickshell и ещё пара пакетов живут в AUR, а помощника в системе нет. Собрать yay?" || return 1
+
+    sudo pacman -S --needed --noconfirm base-devel git >/dev/null 2>&1 || {
+        warn "could not install base-devel and git — yay needs both"; return 1; }
+
+    local tmp; tmp="$(mktemp -d)" || return 1
+    (
+        cd "$tmp" || exit 1
+        git clone -q --depth 1 https://aur.archlinux.org/yay-bin.git || exit 1
+        cd yay-bin || exit 1
+        # makepkg отказывается работать от root и сам зовёт sudo на установку
+        makepkg -si --noconfirm
+    ) >/dev/null 2>&1
+    local rc=$?
+    rm -rf "$tmp"
+
+    if [ $rc -eq 0 ] && command -v yay >/dev/null 2>&1; then
+        ok "yay built and installed"; return 0
+    fi
+    warn "could not build yay — install it by hand, then rerun"
+    return 1
+}
+
 install_deps() {
     command -v pacman >/dev/null 2>&1 || {
         warn "not an Arch system — install these yourself, then rerun with --no-deps:"
@@ -908,6 +937,10 @@ fi
 printf '\n%s✓ Done.%s\n' "$OK" "$N"
 printf '%sSUPER+A launcher · SUPER+Z quick settings · SUPER+Tab workspaces · SUPER+E files%s\n' "$DIM" "$N"
 printf '%sSUPER+I settings · SUPER+/ shortcuts · or hover the pill.%s\n' "$DIM" "$N"
+# Алиасы живут в fish и появляются в новой сессии, а не в том окне, из
+# которого шла установка: оболочка, уже запущенная, свой конфиг не
+# перечитывает. После перезагрузки ниже это перестаёт быть вопросом.
+printf '%sls · ll · lt · c (clear) · upd (pacman -Syu) · ins (pacman -S) · ff — in a new terminal.%s\n' "$DIM" "$N"
 
 # ------------------------------------------------------------------- reboot
 # Половина установленного подхватывается только при новом входе: сессия видит
