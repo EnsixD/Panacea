@@ -24,7 +24,7 @@ Item {
     // Пустая настройка — заводской порядок. Неизвестные имена (остались от
     // прежней версии) отбрасываются, забытые дописываются в конец: раскладка
     // переживает и обновление оболочки, и правку файла руками.
-    readonly property var ccDefault: ["clock", "toggles", "media", "power", "quick", "tray"]
+    readonly property var ccDefault: ["clock", "toggles", "sliders", "media", "power", "quick", "tray"]
     readonly property var ccOrder: {
         if (view.ccOrderOverride) return view.ccOrderOverride;
         var saved = String(view.sys.cfg.ccLayout || "").split(",").filter(x => x.length);
@@ -541,6 +541,127 @@ Item {
 
     // Карточка звука той же высоты: название устройства сверху, под ним
     // ползунок прямо в плитке — громкость правится не уходя на страницу.
+    // Дорожка-ползунок: заполнение и есть ручка, как в iOS — отдельный кружок
+    // на такой высоте некуда было бы поставить. Одна на громкость и яркость:
+    // они стоят рядом в одной строке, и любое расхождение в поведении между
+    // соседними ползунками читается как поломка одного из них.
+    component Track: Item {
+        id: trk
+
+        property real pos: 0                  // 0..1 — что показывать
+        property string icon: ""              // значок слева, поверх заливки
+        property string valueText: ""         // цифра справа
+        property real wheelStep: 0.05
+        property bool dim: false              // выключено (без звука)
+
+        signal setFrac(real frac)
+        signal iconClicked()
+
+        implicitHeight: 22
+
+        readonly property real padL: trk.icon.length ? 22 : 0
+        function fracAt(x) {
+            return Math.max(0, Math.min(1, (x + trk.padL) / Math.max(1, trk.width)));
+        }
+
+        // Заливка не анимируется в двух случаях: пока её тянут — она обязана
+        // стоять точно под курсором, иначе догон читается как задержка ввода;
+        // и в первые мгновения после создания — значение приходит уже после
+        // него, и полоска каждый раз разъезжалась бы от нуля до своего места
+        // на глазах у человека, открывшего панель.
+        property bool live: false
+        Component.onCompleted: liveTimer.start()
+        Timer { id: liveTimer; interval: 260; onTriggered: trk.live = true }
+
+        // Своя отметка на время серии прокруток колесом, см. onWheel ниже.
+        property real wheelFrom: -1
+        Timer { id: wheelIdle; interval: 260; onTriggered: trk.wheelFrom = -1 }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: height / 2
+            color: Qt.rgba(1, 1, 1, 0.12)
+            clip: true
+
+            Rectangle {
+                width: Math.max(parent.height, parent.width * trk.pos)
+                height: parent.height
+                radius: height / 2
+                color: view.sys.colFg
+                opacity: trk.dim ? 0.45 : 1
+                Behavior on width {
+                    enabled: trk.live && !trkMa.pressed
+                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                }
+                Behavior on opacity { NumberAnimation { duration: 130 } }
+            }
+        }
+
+        Text {
+            x: 6
+            anchors.verticalCenter: parent.verticalCenter
+            visible: trk.icon.length > 0
+            text: trk.icon
+            color: view.sys.colBg
+            font { family: view.sys.fontFam; pixelSize: 15 }
+        }
+
+        Text {
+            id: trkVal
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            text: trk.valueText
+            // Заливка и есть ручка, поэтому цифра оказывается то на светлом,
+            // то на тёмном: перекрашиваем на границе, иначе она пропадает.
+            color: (trk.width * trk.pos) > (trk.width - trkVal.width - 12)
+                   ? view.sys.colBg : view.sys.colFg
+            font { family: view.sys.fontFam; pixelSize: 11; bold: true }
+        }
+
+        MouseArea {
+            id: trkMa
+            anchors.fill: parent
+            // клик по самому значку — не тянуть, а нажать на него
+            anchors.leftMargin: trk.padL
+            preventStealing: true
+            cursorShape: Qt.PointingHandCursor
+            onPressed: mouse => trk.setFrac(trk.fracAt(mouse.x))
+            onPositionChanged: mouse => { if (pressed) trk.setFrac(trk.fracAt(mouse.x)); }
+            // Колесо поверх дорожки. На клавиатуре без мультимедийных клавиш
+            // это единственный способ подправить значение, не целясь мышью в
+            // тонкую полоску, — и привычка из любой другой оболочки.
+            //
+            // Считаем от собственной отметки, а не от pos: и громкость, и
+            // яркость подтверждаются не сразу — Pipewire отвечает сигналом,
+            // монитор по I2C и вовсе через десятки миллисекунд. При быстрой
+            // прокрутке следующее деление успевало прочитать ещё не
+            // обновившееся значение, и число прыгало туда-сюда вместо того,
+            // чтобы расти. Отметка живёт до паузы в прокрутке, дальше снова
+            // берём настоящее значение.
+            onWheel: wheel => {
+                var d = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x;
+                if (d === 0) return;
+                var base = trk.wheelFrom >= 0 ? trk.wheelFrom : trk.pos;
+                // Ровно по делениям: иначе от дробного начала вся дальнейшая
+                // прокрутка идёт мимо круглых чисел.
+                var steps = Math.round(base / trk.wheelStep) + (d > 0 ? 1 : -1);
+                var next = Math.max(0, Math.min(1, steps * trk.wheelStep));
+                trk.wheelFrom = next;
+                wheelIdle.restart();
+                trk.setFrac(next);
+            }
+        }
+
+        MouseArea {
+            width: 22
+            height: parent.height
+            visible: trk.icon.length > 0
+            cursorShape: Qt.PointingHandCursor
+            onClicked: trk.iconClicked()
+        }
+    }
+
     component VolCard: Rectangle {
         implicitWidth: 190
         implicitHeight: 56
@@ -587,68 +708,88 @@ Item {
                 }
             }
 
-            // Ползунок-дорожка: заполнение и есть «ручка», как в iOS —
-            // отдельный кружок на такой высоте некуда было бы поставить.
-            Item {
+            // Уровень цифрой: полоска показывает громкость лишь примерно, а
+            // точное число до сих пор было только в накладке от клавиш
+            // громкости — на клавиатуре без мультимедийных кнопок вызвать её
+            // нечем, и точного значения негде было взять.
+            Track {
                 id: vol
                 Layout.fillWidth: true
                 Layout.preferredHeight: 22
 
                 readonly property var a: view.sys.sinkAudio
-                readonly property real pos: vol.a ? vol.a.volume : 0
-                function setFromX(x) {
-                    if (!vol.a) return;
-                    var r = Math.max(0, Math.min(1, x / Math.max(1, width)));
-                    // шаг 5%, как у мультимедийных клавиш
-                    vol.a.volume = Math.round(r * 20) / 20;
-                }
 
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: Qt.rgba(1, 1, 1, 0.12)
-                    clip: true
+                pos: vol.a ? vol.a.volume : 0
+                dim: vol.a ? vol.a.muted : true
+                icon: !vol.a ? String.fromCodePoint(0xF075F)
+                    : vol.a.muted ? String.fromCodePoint(0xF075F)
+                    : vol.a.volume < 0.34 ? String.fromCodePoint(0xF057F)
+                    : vol.a.volume < 0.67 ? String.fromCodePoint(0xF0580)
+                                          : String.fromCodePoint(0xF057E)
+                valueText: !vol.a ? "—"
+                    : vol.a.muted ? view.sys.tr("Без звука")
+                                  : Math.round(vol.pos * 100) + "%"
+                // шаг 5%, как у мультимедийных клавиш
+                onSetFrac: f => { if (vol.a) vol.a.volume = Math.round(f * 20) / 20; }
+                onIconClicked: if (vol.a) vol.a.muted = !vol.a.muted
+            }
+        }
+    }
 
-                    Rectangle {
-                        width: Math.max(parent.height, parent.width * vol.pos)
-                        height: parent.height
-                        radius: height / 2
-                        color: view.sys.colFg
-                        Behavior on width {
-                            NumberAnimation { duration: volMa.pressed ? 0 : 120 }
-                        }
-                    }
-                }
+    // Яркость — карточка ровно того же сложения, что и звук: они стоят рядом
+    // в одной строке. Значение держим своё, а не спрашиваем монитор на каждый
+    // кадр: DDC отвечает десятки миллисекунд, и ползунок, ждущий шину, дёргался
+    // бы под рукой.
+    component BrightCard: Rectangle {
+        id: brCard
+        property string bid: ""
+        property int    bpct: 0
+        property string bname: ""
 
-                // значок слева — он же кнопка «без звука»
+        implicitWidth: 190
+        implicitHeight: 56
+        radius: 14
+        color: Qt.rgba(1, 1, 1, 0.05)
+        border.color: view.sys.colLine
+        border.width: 1
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 11
+            anchors.rightMargin: 11
+            anchors.topMargin: 7
+            anchors.bottomMargin: 8
+            spacing: 5
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
                 Text {
-                    x: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: !vol.a ? String.fromCodePoint(0xF075F)
-                        : vol.a.muted ? String.fromCodePoint(0xF075F)
-                        : vol.a.volume < 0.34 ? String.fromCodePoint(0xF057F)
-                        : vol.a.volume < 0.67 ? String.fromCodePoint(0xF0580)
-                                              : String.fromCodePoint(0xF057E)
-                    color: view.sys.colBg
-                    font { family: view.sys.fontFam; pixelSize: 15 }
+                    text: view.sys.tr("Яркость")
+                    color: view.sys.colFg
+                    font { family: view.sys.fontFam; pixelSize: 12; bold: true }
                 }
+                Item { Layout.fillWidth: true }
+                Text {
+                    Layout.maximumWidth: 130
+                    // Имя экрана нужно, только когда их несколько: на одном
+                    // мониторе подписывать нечего.
+                    visible: brCard.bname.length > 0
+                    text: brCard.bname
+                    color: view.sys.colMuted
+                    elide: Text.ElideRight
+                    font { family: view.sys.fontFam; pixelSize: 10 }
+                }
+            }
 
-                MouseArea {
-                    id: volMa
-                    anchors.fill: parent
-                    // клик по самому значку — не тянуть, а заглушить
-                    anchors.leftMargin: 22
-                    preventStealing: true
-                    cursorShape: Qt.PointingHandCursor
-                    onPressed: mouse => vol.setFromX(mouse.x + 22)
-                    onPositionChanged: mouse => { if (pressed) vol.setFromX(mouse.x + 22); }
-                }
-                MouseArea {
-                    width: 22
-                    height: parent.height
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: if (vol.a) vol.a.muted = !vol.a.muted
-                }
+            Track {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 22
+                pos: Math.max(0, Math.min(1, brCard.bpct / 100))
+                icon: String.fromCodePoint(0xF00DD)   // солнце
+                valueText: brCard.bpct + "%"
+                // шаг 5%, как у клавиш яркости
+                onSetFrac: f => view.sys.brightSet(brCard.bid, Math.round(f * 20) * 5)
             }
         }
     }

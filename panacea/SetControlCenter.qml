@@ -15,7 +15,8 @@ ColumnLayout {
 
     readonly property var blocks: [
         { id: "clock",   name: page.sys.tr("Часы и дата") },
-        { id: "toggles", name: page.sys.tr("Wi-Fi · Bluetooth · звук") },
+        { id: "toggles", name: page.sys.tr("Wi-Fi · Bluetooth") },
+        { id: "sliders", name: page.sys.tr("Громкость и яркость") },
         { id: "media",   name: page.sys.tr("Что играет") },
         { id: "power",   name: page.sys.tr("Запись и режим батареи") },
         { id: "quick",   name: page.sys.tr("Не спать и кнопки") },
