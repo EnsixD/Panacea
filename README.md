@@ -141,6 +141,12 @@ nano` into `~/.config`, `nano/nanorc` to `~/.nanorc`, `bin/*` to
 `~/.local/bin`, then run `hypr/scripts/palette.sh`, `hypr/scripts/switch_theme.sh
 --restore` and `hyprctl reload`.
 
+The real config is `hypr/hyprland.lua` with the modules under `hypr/lua/`.
+`hypr/hyprland.conf` beside it is a fallback for Hyprland versions that cannot
+read Lua configs: they would otherwise come up bare — no bindings, no pill, no
+way to open a terminal. It carries only the essentials and makes no attempt to
+mirror `lua/`; if something is missing there, the answer is to update Hyprland.
+
 Networking assumes **iwd** (the Wi‑Fi page drives `iwctl` directly — no
 NetworkManager). Power profiles go through `power-profiles-daemon` over D‑Bus.
 Everything resolves `$HOME` at runtime — no hardcoded paths.
