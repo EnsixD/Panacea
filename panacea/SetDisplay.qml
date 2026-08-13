@@ -289,6 +289,22 @@ ColumnLayout {
                 font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
             }
 
+            // Цифровая интенсивность стоит сразу под яркостью: обе про то,
+            // как выглядит картинка, и крутят их подряд. Шкала намеренно та
+            // же, что в панели NVIDIA на Windows: 50 — как есть, 100 —
+            // максимум. Настройка одна на всю картинку, а не на экран:
+            // считает её компоновщик на готовом кадре, а не видеокарта на
+            // выходе, — поэтому у второго монитора ползунка нет.
+            SetSlider {
+                sys: page.sys
+                visible: card.index === 0
+                label: page.sys.tr("Цифровая интенсивность")
+                from: 0; to: 100; step: 5
+                value: page.sys.cfg.vibrance
+                suffix: "%"
+                onMoved: v => page.sys.applyVibrance(v)
+            }
+
             SetSlider {
                 sys: page.sys
                 label: page.sys.tr("Масштаб")

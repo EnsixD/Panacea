@@ -332,6 +332,20 @@ PanelWindow {
         pMon.running = true;
     }
 
+    // ------------------------------------------- цифровая интенсивность
+    // Считает и применяет отдельный скрипт: там же лежит сам шейдер и знание
+    // о том, как разговаривать с компоновщиком. Здесь только запоминаем.
+    Process { id: pVibrance }
+    function applyVibrance(pct) {
+        root.cfg.vibrance = Math.max(0, Math.min(100, Math.round(pct)));
+        root.saveCfg();
+        pVibrance.command = ["sh", "-c",
+            Quickshell.env("HOME") + "/.config/panacea/scripts/vibrance.sh set "
+            + root.cfg.vibrance];
+        pVibrance.running = false;
+        pVibrance.running = true;
+    }
+
     // семейства моноширинных шрифтов для выпадающего списка настроек
     property var fontList: ["JetBrainsMono Nerd Font"]
     Process {
