@@ -12,6 +12,8 @@ QtObject {
     readonly property var en: ({
         // строки нового окна настроек
         "и ещё": "and",
+        "Монитор не сообщил свои режимы — обычно это значит, что не установлен драйвер видеокарты.":
+            "The monitor did not report its modes — usually that means the graphics driver is missing.",
         "То, что оболочка умеет, но не навязывает.": "What the shell can do, without insisting on it.",
         "Вторая капсула у кромки: разделы, а в них задачи по номерам. Раздел считается сделанным, когда отмечены все его задачи.": "A second capsule at the edge: sections, and numbered tasks inside them. A section counts as done once all of its tasks are ticked.",
         "Кромка": "Edge",

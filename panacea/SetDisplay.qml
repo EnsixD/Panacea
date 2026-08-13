@@ -212,6 +212,21 @@ ColumnLayout {
                 onPicked: id => page.apply(card.modelData, { rr: parseFloat(id) })
             }
 
+            // Пустой список режимов означает, что EDID монитора не прочитан:
+            // видеокарта работает на обобщённом драйвере, и система знает
+            // только тот режим, в котором уже сидит. Обычно это 60 Гц на
+            // мониторе, который умеет больше, — и без объяснения выглядит
+            // как поломка настроек, а не как отсутствующий драйвер.
+            Text {
+                Layout.fillWidth: true
+                visible: (card.modelData.modes || []).length === 0
+                text: page.sys.tr("Монитор не сообщил свои режимы — обычно это значит, "
+                                  + "что не установлен драйвер видеокарты.")
+                color: page.sys.colCrit
+                wrapMode: Text.WordWrap
+                font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+            }
+
             // Раскладка. Первый экран — точка отсчёта, остальные встают
             // относительно него; поэтому у самого первого выбора нет.
             SetSelect {

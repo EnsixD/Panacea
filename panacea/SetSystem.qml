@@ -85,9 +85,17 @@ ColumnLayout {
             "for h in /sys/class/hwmon/hwmon*; do n=$(cat $h/name 2>/dev/null); " +
             "case $n in k10temp|coretemp|zenpower|cpu_thermal|acpitz_cpu) " +
             "cat $h/temp1_input 2>/dev/null | tr -d '\\n'; break;; esac; done; printf '|'; " +
-            "for h in /sys/class/hwmon/hwmon*; do n=$(cat $h/name 2>/dev/null); " +
+            // Видео: сперва hwmon, как у процессора. Проприетарный драйвер
+            // Nvidia датчик туда не всегда выставляет, поэтому если пусто —
+            // спрашиваем nvidia-smi. Он отдаёт градусы целым числом, а hwmon
+            // — тысячные доли, поэтому домножаем.
+            "gpu=''; for h in /sys/class/hwmon/hwmon*; do n=$(cat $h/name 2>/dev/null); " +
             "case $n in amdgpu|nouveau|radeon|i915|nvidia) " +
-            "cat $h/temp1_input 2>/dev/null | tr -d '\\n'; break;; esac; done; printf '|'; " +
+            "gpu=$(cat $h/temp1_input 2>/dev/null); break;; esac; done; " +
+            "if [ -z \"$gpu\" ] && command -v nvidia-smi >/dev/null 2>&1; then " +
+            "c=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -1); " +
+            "[ -n \"$c\" ] && gpu=$((c * 1000)); fi; " +
+            "printf '%s|' \"$gpu\"; " +
             "df -k --output=used,size / | tail -1 | tr -s ' ' | sed 's/^ //' | tr -d '\\n'; printf '|'; " +
             "uptime -p | tr -d '\\n'; printf '|'; " +
             // сама оболочка: sh запущен из неё, поэтому её PID — это PPID

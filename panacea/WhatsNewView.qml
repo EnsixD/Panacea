@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "system: read the GPU temperature where hwmon has none":
+            "Система: температура видеокарты читается и там, где hwmon её не даёт",
         "island: no battery block on a machine without a battery":
             "Остров: на машине без батареи блок заряда не показывается",
         "install: count finished downloads, not created files":
