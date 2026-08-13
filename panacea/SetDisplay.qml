@@ -18,7 +18,19 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: 12
 
-    Component.onCompleted: pMons.running = true
+    Component.onCompleted: { pMons.running = true; page.sys.brightRefresh(false); }
+
+    // Яркость экрана. На ноутбуке это внутренняя матрица, на ПК — сам монитор
+    // по DDC/CI; сводим строку из brightness.sh с карточкой по имени разъёма.
+    // У встроенной матрицы разъём в списке один и совпадать ему не с чем,
+    // поэтому единственную строку отдаём единственному экрану как есть.
+    function brightOf(name) {
+        var l = page.sys.brightList || [];
+        for (var i = 0; i < l.length; i++)
+            if (l[i].name === name) return l[i];
+        if (l.length === 1 && page.sys.brightBackend === "backlight") return l[0];
+        return null;
+    }
 
     Process {
         id: pMons
@@ -242,6 +254,39 @@ ColumnLayout {
                 ]
                 value: page.placeOf(card.modelData)
                 onPicked: id => page.apply(card.modelData, { pos: id })
+            }
+
+            // Яркость. На ПК клавиш яркости на клавиатуре обычно нет, и до
+            // сегодняшнего дня крутить её можно было только кнопками на самом
+            // мониторе — поэтому ползунок стоит здесь, а не только на клавишах.
+            SetSlider {
+                id: brightSl
+                readonly property var b: page.brightOf(card.modelData.name)
+                sys: page.sys
+                visible: brightSl.b !== null
+                label: page.sys.tr("Яркость")
+                from: 1; to: 100; step: 1
+                value: brightSl.b ? brightSl.b.pct : 0
+                suffix: "%"
+                onMoved: v => { if (brightSl.b) page.sys.brightSet(brightSl.b.id, v); }
+            }
+
+            // Монитор на шине виден, но на запрос яркости не отвечает, либо
+            // ddcutil вовсе не установлен. Молча прятать ползунок нельзя:
+            // человек будет искать настройку, которой нет по причине, о
+            // которой ему никто не сказал.
+            Text {
+                Layout.fillWidth: true
+                visible: page.brightOf(card.modelData.name) === null
+                         && !page.sys.batteryPresent
+                text: !page.sys.ddcutilPresent
+                      ? page.sys.tr("Яркостью монитора управляет ddcutil — его нет в системе. "
+                                    + "Поставьте пакет ddcutil, и ползунок появится здесь.")
+                      : page.sys.tr("Монитор не отвечает на запрос яркости по DDC/CI. "
+                                    + "Обычно это включается в его меню пунктом DDC/CI.")
+                color: page.sys.colMuted
+                wrapMode: Text.WordWrap
+                font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
             }
 
             SetSlider {

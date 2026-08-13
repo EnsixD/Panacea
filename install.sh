@@ -91,10 +91,19 @@ DEPS=(
     "ffmpeg|ffmpeg|media player, trimming, thumbnails"
     "wf-recorder|wf-recorder|screen recording"
     "brightnessctl|brightnessctl|brightness keys"
+    # На настольной машине внутренней матрицы нет, и яркость монитора идёт по
+    # DDC/CI поверх I2C — без ddcutil ползунок яркости показать не из чего.
+    "ddcutil|ddcutil|monitor brightness on a desktop"
     "playerctl|playerctl|media keys"
     "wpctl|wireplumber|audio control"
+    # Всё, на что опирается config.fish. Без них оболочка запустится, но
+    # человек получит голый fish вместо описанного в конфиге: алиасы там
+    # стоят под `type -q`, и молча пропускаются вместе с недостающей
+    # программой — со стороны это выглядит как «алиасы не поставились».
     "eza|eza|ls replacement"
     "zoxide|zoxide|smarter cd"
+    "bat|bat|cat with syntax highlighting"
+    "fastfetch|fastfetch|system summary, its config ships with the shell"
     # Super + Shift + E из списка сочетаний: без него биндинг открывал бы
     # пустой терминал. Браузер и заметки сюда не входят нарочно — это выбор
     # человека, а не часть оболочки
@@ -717,6 +726,137 @@ if [ "$DO_SDDM" = "1" ] && command -v sddm >/dev/null 2>&1; then
     if ask "Also install the Panacea SDDM login theme? (replaces your current login screen, needs root)"; then
         step "Installing the login theme"; install_sddm
     fi
+fi
+
+# Яркость монитора на настольной машине. Внутренней матрицы тут нет, и
+# единственный путь к подсветке — DDC/CI поверх шины I2C: ядру нужен модуль
+# i2c-dev, а пользователю — доступ к /dev/i2c-*. Свежий ddcutil кладёт своё
+# udev-правило и выдаёт доступ владельцу сеанса сам, поэтому в группу i2c
+# добавляемся только как запасной путь, если правило почему-то не сработало.
+#
+# На ноутбуке шаг пропускается целиком: там яркость идёт через backlight,
+# и трогать модули ядра незачем.
+setup_ddc() {
+    ls /sys/class/backlight/* >/dev/null 2>&1 && { ok "internal backlight — DDC/CI not needed"; return; }
+    command -v ddcutil >/dev/null 2>&1 || { warn "ddcutil missing — no brightness control for the monitor"; return; }
+
+    if ! lsmod 2>/dev/null | grep -q '^i2c_dev'; then
+        sudo modprobe i2c-dev 2>/dev/null \
+            && ok "i2c-dev loaded" \
+            || warn "could not load i2c-dev — brightness over DDC/CI stays unavailable"
+    fi
+    # чтобы модуль был и после перезагрузки
+    if [ ! -f /etc/modules-load.d/i2c-dev.conf ]; then
+        echo i2c-dev | sudo tee /etc/modules-load.d/i2c-dev.conf >/dev/null 2>&1 \
+            && ok "i2c-dev enabled at boot"
+    fi
+    if getent group i2c >/dev/null 2>&1 && ! id -nG "$USER" | grep -qw i2c; then
+        sudo usermod -aG i2c "$USER" 2>/dev/null \
+            && warn "added you to the i2c group — takes effect at next login"
+    fi
+
+    # Отвечает ли монитор вообще. Ответ важен человеку сразу: DDC/CI на многих
+    # мониторах выключен в аппаратном меню, и без этой строки ползунок просто
+    # не появился бы без объяснений.
+    if ddcutil detect --brief 2>/dev/null | grep -q "I2C bus"; then
+        ok "monitor answers over DDC/CI — the brightness slider is in Display"
+    else
+        warn "no monitor answered over DDC/CI — check that it is enabled in the monitor's own menu"
+    fi
+}
+
+step "Monitor brightness"
+setup_ddc
+
+# Часы в 24 часах. Свои часы оболочка рисует сама, а вот Telegram, календари
+# и всё остальное берут формат из LC_TIME — и при en_US показывают 12:02 AM
+# вместо 00:02. Меняем ровно формат времени, оставляя язык интерфейса как был:
+# en_GB — тот же английский, но 24 часа.
+#
+# Сессия получает переменную из hypr/lua/env.lua, здесь — системная часть:
+# сгенерировать локаль (иначе переменная указывает в никуда) и записать её в
+# locale.conf для TTY и входа мимо Hyprland.
+setup_time_format() {
+    local loc="en_GB.UTF-8"
+
+    if ! locale -a 2>/dev/null | grep -qiE "^en_GB\.?utf-?8$"; then
+        if [ -f /etc/locale.gen ]; then
+            sudo sed -i "s/^#\s*${loc} UTF-8/${loc} UTF-8/" /etc/locale.gen 2>/dev/null
+            grep -q "^${loc} UTF-8" /etc/locale.gen 2>/dev/null \
+                || echo "${loc} UTF-8" | sudo tee -a /etc/locale.gen >/dev/null 2>&1
+            sudo locale-gen >/dev/null 2>&1
+        fi
+    fi
+
+    if locale -a 2>/dev/null | grep -qiE "^en_GB\.?utf-?8$"; then
+        if ! grep -q "^LC_TIME=" /etc/locale.conf 2>/dev/null; then
+            echo "LC_TIME=${loc}" | sudo tee -a /etc/locale.conf >/dev/null 2>&1
+        fi
+        ok "clocks in 24-hour format (LC_TIME=${loc})"
+    else
+        warn "could not generate ${loc} — clocks stay in the 12-hour format"
+    fi
+}
+
+step "Clock format"
+setup_time_format
+
+# Курсор. Тему знают три разных места, и пропустить любое — значит получить
+# разный курсор в разных окнах: Hyprland рисует его сам (переменные из
+# hypr/lua/env.lua), программы на GTK спрашивают gsettings, а всё остальное
+# читает ~/.icons/default/index.theme. Ставим во все три.
+setup_cursor() {
+    local theme="Bibata-Modern-Classic" size=24
+
+    if [ ! -d "/usr/share/icons/$theme" ] && [ ! -d "$HOME/.icons/$theme" ]; then
+        warn "cursor theme $theme is missing — the default cursor stays"
+        return
+    fi
+
+    if command -v gsettings >/dev/null 2>&1; then
+        gsettings set org.gnome.desktop.interface cursor-theme "$theme" 2>/dev/null
+        gsettings set org.gnome.desktop.interface cursor-size "$size" 2>/dev/null
+    fi
+
+    mkdir -p "$HOME/.icons/default"
+    printf '[Icon Theme]\nName=Default\nComment=Default cursor theme\nInherits=%s\n' \
+        "$theme" > "$HOME/.icons/default/index.theme"
+
+    # GTK3 и GTK4 читают ещё и свой ini — без него курсор в диалогах open/save
+    # оставался прежним, хотя во всём остальном уже сменился.
+    local g
+    for g in "$CONF/gtk-3.0/settings.ini" "$CONF/gtk-4.0/settings.ini"; do
+        mkdir -p "$(dirname "$g")"
+        if [ -f "$g" ] && grep -q '^gtk-cursor-theme-name=' "$g"; then
+            sed -i "s|^gtk-cursor-theme-name=.*|gtk-cursor-theme-name=$theme|" "$g"
+        else
+            grep -q '^\[Settings\]' "$g" 2>/dev/null || echo '[Settings]' >> "$g"
+            echo "gtk-cursor-theme-name=$theme" >> "$g"
+        fi
+    done
+
+    hyprctl setcursor "$theme" "$size" >/dev/null 2>&1
+    ok "cursor → $theme"
+}
+
+step "Cursor"
+setup_cursor
+
+# Оболочка ставит свой config.fish с алиасами (ls → eza, cd → zoxide, c →
+# clear) и своей строкой приглашения. Всё это включается только тогда, когда
+# fish действительно запускается при входе: у терминалов свои настройки
+# оболочки, и в одном окне алиасы были, а в TTY и соседнем терминале — нет.
+step "Login shell"
+if [ "$(getent passwd "$USER" | cut -d: -f7)" = "$(command -v fish)" ]; then
+    ok "fish is already your login shell"
+elif ! command -v fish >/dev/null 2>&1; then
+    warn "fish is missing — the shell config and aliases stay unused"
+elif ask "Make fish your login shell? (that is where the aliases and the prompt live)"; then
+    sudo chsh -s "$(command -v fish)" "$USER" 2>/dev/null \
+        && ok "login shell → fish (takes effect at next login)" \
+        || warn "could not change the login shell — run: chsh -s $(command -v fish)"
+else
+    warn "login shell left as is — aliases work only where fish is started by hand"
 fi
 
 # Палитра одна и лежит в hypr/palette.conf: palette.sh разносит её по

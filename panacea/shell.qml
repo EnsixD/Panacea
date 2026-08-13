@@ -1353,6 +1353,121 @@ PanelWindow {
         return false;
     }
 
+    // ------------------------------------------------------------- машина
+    // Ноутбук или ПК — вопрос железа, а не настройки, поэтому спрашивать не о
+    // чем: батарея, тачпад и способ управления яркостью просто есть или их
+    // нет. Разбирается brightness.sh, тут только результат.
+    //
+    // Батарею берём у UPower (он и так подключён и сам следит за появлением
+    // устройств), остальное — разовым опросом на старте: тачпад и монитор в
+    // работающей системе не появляются.
+    property string brightBackend: "none"   // backlight | ddc | none
+    property bool   hasTouchpad: false
+    property bool   ddcutilPresent: false
+    readonly property bool isLaptop: root.batteryPresent
+    // На ПК прячем то, что относится только к ноутбуку: заряд, профили
+    // питания и настройки тачпада. Пустые разделы честнее убрать, чем
+    // показывать вечные нули.
+    readonly property bool showBattery: root.batteryPresent
+    readonly property bool showPowerProfiles: root.batteryPresent && root.cfg.featPowerProfiles
+
+    Process {
+        id: pMachine
+        running: true
+        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/brightness.sh detect"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var t = text.slice(text.lastIndexOf("backend="));
+                t.trim().split("\n").forEach(function (line) {
+                    var p = line.split("=");
+                    if (p.length !== 2) return;
+                    if (p[0] === "backend")  root.brightBackend  = p[1].trim();
+                    if (p[0] === "touchpad") root.hasTouchpad    = p[1].trim() === "1";
+                    if (p[0] === "ddcutil")  root.ddcutilPresent = p[1].trim() === "1";
+                });
+                // Список экранов нужен самой панели, а не только вкладке
+                // Display: дорожка яркости стоит в быстрых настройках и
+                // должна быть там с первого раскрытия, а не после того, как
+                // человек однажды заглянул в настройки экрана.
+                root.brightRefresh(false);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------- яркость
+    // [{ id, name, pct }] — экраны, у которых яркость вообще управляется.
+    // Пустой список на ПК означает «монитор не отвечает по DDC/CI», и вкладка
+    // Display говорит об этом словами вместо мёртвого ползунка.
+    property var brightList: []
+    property bool brightBusy: false
+
+    Process {
+        id: pBrightList
+        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/brightness.sh list"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var out = [];
+                text.trim().split("\n").forEach(function (line) {
+                    var p = line.split("\t");
+                    if (p.length < 3) return;
+                    var pct = parseInt(p[2]);
+                    if (isNaN(pct)) return;
+                    out.push({ id: p[0], name: p[1], pct: pct });
+                });
+                root.brightList = out;
+                root.brightBusy = false;
+            }
+        }
+    }
+
+    function brightRefresh(rescan) {
+        if (root.brightBackend === "none") return;
+        root.brightBusy = true;
+        pBrightList.command = ["sh", "-c",
+            Quickshell.env("HOME") + "/.config/panacea/scripts/brightness.sh "
+            + (rescan ? "rescan" : "list")];
+        pBrightList.running = false;
+        pBrightList.running = true;
+    }
+
+    // Запись по DDC идёт по I2C и занимает десятки миллисекунд, а ползунок
+    // шлёт значения на каждое движение мыши. Без сдерживания шина забивается
+    // очередью, монитор отстаёт от ручки и догоняет её через секунду после
+    // отпускания. Копим последнее значение и отправляем не чаще, чем шина
+    // успевает переварить.
+    Process { id: pBrightSet }
+    property string brightPendingId: ""
+    property int    brightPendingPct: -1
+
+    Timer {
+        id: brightFlush
+        interval: 90
+        repeat: false
+        onTriggered: {
+            if (root.brightPendingPct < 0) return;
+            pBrightSet.command = ["sh", "-c",
+                Quickshell.env("HOME") + "/.config/panacea/scripts/brightness.sh set "
+                + root.brightPendingId + " " + root.brightPendingPct];
+            pBrightSet.running = false;
+            pBrightSet.running = true;
+            root.brightPendingPct = -1;
+        }
+    }
+
+    function brightSet(id, pct) {
+        pct = Math.max(1, Math.min(100, Math.round(pct)));
+        // Показываем сразу, не дожидаясь монитора: ползунок под рукой обязан
+        // ходить без задержки, даже когда шина отвечает медленно.
+        var l = root.brightList.slice();
+        for (var i = 0; i < l.length; i++)
+            if (l[i].id === id) l[i] = { id: id, name: l[i].name, pct: pct };
+        root.brightList = l;
+
+        root.brightPendingId = id;
+        root.brightPendingPct = pct;
+        if (!brightFlush.running) brightFlush.start();
+    }
+
     // Подробности для страницы «Батарея»: ёмкость, износ и текущий расход.
     // Прогнозов «сколько осталось» здесь намеренно нет — UPower пересчитывает
     // их рывками, и цифра прыгала на глазах.
