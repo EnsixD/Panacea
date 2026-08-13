@@ -54,6 +54,10 @@ Item {
           sub: view.sys.tr("Разрешение, частота и масштаб подключённых экранов."),
           keys: "display monitor resolution refresh scale layout placement detect island "
                 + "экран монитор разрешение герцовка раскладка расположение остров" },
+        { id: "input",   title: "Mouse",           g: 0xF037D, page: "SetInput.qml",
+          sub: view.sys.tr("Скорость указателя и разгон."),
+          keys: "mouse pointer cursor sensitivity speed accel acceleration raw input flat "
+                + "мышь указатель курсор скорость сенса чувствительность разгон прямой ввод" },
         { id: "plugins", title: "Plugins",        g: 0xF0431, page: "SetPlugins.qml",
           sub: view.sys.tr("То, что оболочка умеет, но не навязывает."),
           keys: "plugins todo tasks notes desktop плагины задачи заметки список дела" },

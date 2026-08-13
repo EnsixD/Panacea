@@ -346,6 +346,31 @@ PanelWindow {
         pVibrance.running = true;
     }
 
+    // ----------------------------------------------------------- мышь
+    // Через hyprctl eval по той же причине, что и настройки мониторов:
+    // keyword не-legacy парсер молча отвергает, выходя с нулевым кодом.
+    Process { id: pInput; property string args: ""; command: ["sh", "-c", pInput.args] }
+    function applyInput() {
+        var lua = "hl.config({ input = { sensitivity = "
+                + Number(root.cfg.mouseSens).toFixed(3)
+                + ", accel_profile = \"" + (root.cfg.mouseRaw ? "flat" : "adaptive") + "\""
+                + " } })";
+        var legacy = "hyprctl keyword input:sensitivity "
+                   + Number(root.cfg.mouseSens).toFixed(3)
+                   + "; hyprctl keyword input:accel_profile "
+                   + (root.cfg.mouseRaw ? "flat" : "adaptive");
+        pInput.args = "out=$(hyprctl eval '" + lua + "' 2>&1); "
+                    + "case \"$out\" in ok*) ;; *) " + legacy + " ;; esac";
+        pInput.running = false;
+        pInput.running = true;
+        root.saveCfg();
+    }
+
+    // Настройки ввода и цвета живут в компоновщике, а он их не помнит: любой
+    // hyprctl reload — и всё вернулось к тому, что записано в конфиге. Своё
+    // накатываем заново вместе с настройками мониторов, одним таймером —
+    // см. monReplayTimer, он же срабатывает и на старте оболочки.
+
     // семейства моноширинных шрифтов для выпадающего списка настроек
     property var fontList: ["JetBrainsMono Nerd Font"]
     Process {
@@ -887,7 +912,23 @@ PanelWindow {
             if (n === "configreloaded") monReplayTimer.restart();
         }
     }
-    Timer { id: monReplayTimer; interval: 400; onTriggered: root.monReplay() }
+    // Перезагрузка конфига стирает не только настройки мониторов: скорость
+    // указателя, разгон и шейдер насыщенности живут там же и уезжают вместе
+    // с ними. Накатываем всё своё одним заходом, иначе после любого
+    // hyprctl reload мышь и цвет молча возвращались к заводским.
+    Timer {
+        id: monReplayTimer
+        interval: 400
+        onTriggered: {
+            root.monReplay();
+            root.applyInput();
+            pVibrance.command = ["sh", "-c",
+                Quickshell.env("HOME") + "/.config/panacea/scripts/vibrance.sh set "
+                + root.cfg.vibrance];
+            pVibrance.running = false;
+            pVibrance.running = true;
+        }
+    }
 
     Component.onCompleted: {
         fsProbe.restart();
