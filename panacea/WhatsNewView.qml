@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "install: count finished downloads, not created files":
+            "Установщик: считает завершённые загрузки, а не созданные файлы",
         "install: drivers, dual boot, plain qs, and a reboot at the end":
             "Установщик: драйверы, дуалбут, запуск через qs и перезагрузка в конце",
         "hypr: launch the shell by absolute path, not through a tilde":

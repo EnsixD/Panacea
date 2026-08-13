@@ -486,10 +486,17 @@ for e in tree:
         local done_before; done_before=$(find "$dst" -type f 2>/dev/null | wc -l)
         (
             while :; do
+                # Считаем не появившиеся файлы, а закончившиеся загрузки: curl
+                # создаёт файл в первый же миг, поэтому по файлам счётчик
+                # мгновенно упирался в максимум и потом просто стоял, пока шла
+                # настоящая закачка. Живые curl — то, что осталось.
                 have=$(find "$dst" -type f 2>/dev/null | wc -l)
+                busy=$(pgrep -cx curl 2>/dev/null || echo 0)
+                done_now=$(( have - done_before - busy ))
+                [ "$done_now" -lt 0 ] && done_now=0
                 mb=$(du -sm "$dst" 2>/dev/null | cut -f1)
-                printf '\r  %s/%s files · %s MB   ' \
-                       "$((have - done_before))" "$n" "${mb:-0}"
+                printf '\r  %s/%s done · %s MB · %s downloading   ' \
+                       "$done_now" "$n" "${mb:-0}" "${busy:-0}"
                 sleep 1
             done
         ) &
@@ -498,7 +505,11 @@ for e in tree:
         trap 'kill "$mon" 2>/dev/null' EXIT INT TERM
     fi
 
-    (cd "$dst" && xargs -P 8 -n 1 curl -sfLO --retry 2 --max-time 180 < "$list")
+    # --speed-limit/--speed-time обрывают соединение, которое встало: без них
+    # одна повисшая закачка держала установщик все --max-time, и со стороны
+    # это выглядело как зависание на последнем файле.
+    (cd "$dst" && xargs -P 8 -n 1 curl -sfLO --retry 2 --max-time 120 \
+                        --speed-limit 2048 --speed-time 20 < "$list")
 
     if [ -n "$mon" ]; then
         kill "$mon" 2>/dev/null
