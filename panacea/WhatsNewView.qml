@@ -41,6 +41,10 @@ Item {
     readonly property var dictRu: ({
         "plugins: a tab of its own, and a task pad for the desktop":
             "Плагины: своя вкладка и блокнот задач",
+        "settings: the update notice opens System":
+            "Настройки: уведомление об обновлении открывает раздел System",
+        "todo: finish it the way the island behaves":
+            "Задачи: капсула ведёт себя как остров — ширина, разворот, кромка",
         "todo: a second capsule at the edge, not a window on the desktop":
             "Задачи: вторая капсула у кромки вместо окна на рабочем столе",
         "update: name the packages that are no longer needed":

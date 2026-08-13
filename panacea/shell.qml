@@ -462,11 +462,19 @@ PanelWindow {
 
     // Обычное уведомление рабочего стола: его увидят, даже когда окно настроек
     // закрыто, а поймает его собственная служба уведомлений оболочки.
+    // -p заставляет notify-send напечатать номер уведомления. Он нужен,
+    // чтобы потом узнать своё же уведомление в общей ленте: сравнивать текст
+    // нельзя — он переводится, и на другом языке проверка молча перестала бы
+    // совпадать.
+    property int updNotifId: -1
     Process {
         id: pUpdNotify
-        command: ["notify-send", "-a", "Panacea", "-i",
+        command: ["notify-send", "-p", "-a", "Panacea", "-i",
                   Quickshell.env("HOME") + "/.config/panacea/assets/logo-128.png",
                   root.tr("Доступно обновление Panacea"), root.updSubject]
+        stdout: StdioCollector {
+            onStreamFinished: root.updNotifId = parseInt(String(text).trim()) || -1
+        }
     }
 
     // ----------------------------------------------------- «что нового»
@@ -568,6 +576,14 @@ PanelWindow {
 
     // Какая вкладка настроек откроется: 0 — пилюля, 2 — экран, 3 — клавиши.
     property int settingsTab: 0
+    // Открыть настройки на разделе по имени, а не по номеру: номера зависят
+    // от порядка в списке разделов, и новый раздел посередине молча уводил бы
+    // не туда. Пустая строка — раздел не задан.
+    property string settingsSection: ""
+    function openSettingsAt(sectionId) {
+        root.settingsSection = sectionId;
+        if (root.page !== "settings" || !root.expanded) root.togglePage("settings");
+    }
 
     // Пересобрать binds_data.lua и перечитать конфиг Hyprland
     Process { id: pGenBinds }
@@ -1464,6 +1480,16 @@ PanelWindow {
             // одно действие без имени — тоже почти всегда «открыть»
             if (!used && acts.length === 1) acts[0].invoke();
         }
+        // Своё уведомление об обновлении ведёт не в приложение, а в настройки:
+        // кнопка «Обновить» живёт там, и искать её после нажатия странно.
+        if (id >= 0 && id === root.updNotifId) {
+            root.updNotifId = -1;
+            root.dismissToast();
+            root.dropNotification(id);
+            root.openSettingsAt("system");
+            return;
+        }
+
         root.focusApp(hint);
         root.dismissToast();
         if (id >= 0) root.dropNotification(id);

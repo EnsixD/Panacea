@@ -64,6 +64,24 @@ Item {
 
     readonly property var section: sections[Math.max(0, Math.min(sections.length - 1, tab))]
 
+    // Раздел могли попросить по имени — например уведомление об обновлении
+    // ведёт прямо в System. Имя ищем здесь: список разделов живёт тут же, и
+    // никому снаружи не нужно знать, какой у раздела номер.
+    function goToSection(id) {
+        if (!id) return;
+        for (var i = 0; i < view.sections.length; i++) {
+            if (view.sections[i].id === id) { view.go(i); break; }
+        }
+        // просьбу выполнили — иначе повторное открытие настроек снова
+        // уводило бы в тот же раздел
+        view.sys.settingsSection = "";
+    }
+    Component.onCompleted: view.goToSection(view.sys.settingsSection)
+    Connections {
+        target: view.sys
+        function onSettingsSectionChanged() { view.goToSection(view.sys.settingsSection); }
+    }
+
     // ------------------------------------------------------------- история
     // Стрелки над разделом ходят по уже открытым, как в браузере: список
     // разделов длинный, и возврат к предыдущему руками сбивает с мысли.
