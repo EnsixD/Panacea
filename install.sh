@@ -134,7 +134,9 @@ EXTRA_PKGS=(power-profiles-daemon bluez bluez-utils iwd cava pipewire-audio
             gvfs gvfs-mtp
             # необязательные: без них импорт паролей из браузеров просто
             # пропускает соответствующее семейство, всё остальное работает
-            python-secretstorage python-cryptography)
+            python-secretstorage python-cryptography
+            # дуалбут: GRUB найдёт Windows и другие системы только с ним
+            os-prober)
 FONT_PKG="ttf-jetbrains-mono-nerd"
 
 # Пакеты, которые Panacea ставила раньше и больше не использует. Установщик
@@ -155,6 +157,66 @@ OBSOLETE_PKGS=(
     # экран блокировки давно свой, на quickshell (lock.qml)
     "hyprlock|1.0.7"
 )
+
+# ------------------------------------------------------------------- drivers
+# Железо у всех разное, и ставить всё подряд нельзя: пакеты Nvidia на машине
+# с одной интеловской графикой — это лишние гигабайты и лишний DKMS-модуль.
+# Поэтому смотрим, что в машине на самом деле, и предлагаем ровно это.
+#
+# Микрокод обязателен: без него процессор живёт с ошибками, которые давно
+# исправлены, и это то, о чём вспоминают в последнюю очередь.
+detect_drivers() {
+    DRIVERS=()
+    DRIVER_NOTES=()
+
+    local cpu; cpu=$(grep -m1 '^vendor_id' /proc/cpuinfo | cut -d: -f2 | tr -d ' ')
+    case "$cpu" in
+        AuthenticAMD) DRIVERS+=(amd-ucode);   DRIVER_NOTES+=("amd-ucode — AMD CPU microcode") ;;
+        GenuineIntel) DRIVERS+=(intel-ucode); DRIVER_NOTES+=("intel-ucode — Intel CPU microcode") ;;
+    esac
+
+    local gpus; gpus=$(lspci -nn 2>/dev/null | grep -iE 'vga|3d controller|display controller')
+
+    if printf '%s' "$gpus" | grep -qiE 'amd|ati'; then
+        DRIVERS+=(mesa vulkan-radeon libva-mesa-driver)
+        DRIVER_NOTES+=("mesa, vulkan-radeon, libva-mesa-driver — AMD graphics")
+    fi
+    if printf '%s' "$gpus" | grep -qi 'intel'; then
+        DRIVERS+=(mesa vulkan-intel intel-media-driver)
+        DRIVER_NOTES+=("mesa, vulkan-intel, intel-media-driver — Intel graphics")
+    fi
+    if printf '%s' "$gpus" | grep -qiE 'nvidia'; then
+        # nvidia-dkms, а не nvidia: собирается под любое ядро, включая -lts и
+        # -zen, и переживает обновление ядра без чёрного экрана на следующем
+        # старте. egl-wayland обязателен — без него Hyprland на Nvidia не
+        # запустится вовсе.
+        DRIVERS+=(nvidia-dkms nvidia-utils egl-wayland)
+        DRIVER_NOTES+=("nvidia-dkms, nvidia-utils, egl-wayland — Nvidia graphics")
+    fi
+}
+
+install_drivers() {
+    detect_drivers
+    if [ "${#DRIVERS[@]}" -eq 0 ]; then
+        warn "could not tell what hardware this is — skipping drivers"
+        return
+    fi
+    printf '  found:\n'
+    printf '    %s\n' "${DRIVER_NOTES[@]}"
+    ask "Install these?" || { ok "drivers skipped"; return; }
+
+    local uniq; mapfile -t uniq < <(printf '%s\n' "${DRIVERS[@]}" | sort -u)
+    sudo pacman -S --needed "${uniq[@]}" || { warn "driver install failed"; return; }
+    ok "drivers in place"
+
+    # Nvidia на Wayland без этого либо не стартует, либо идёт рывками. Пишем
+    # в отдельный файл, а не в конфиг Hyprland: он принадлежит машине, а не
+    # дотфайлам, и переустановка их не затрёт.
+    if printf '%s' "${uniq[*]}" | grep -q nvidia; then
+        printf 'options nvidia_drm modeset=1\n' | sudo tee /etc/modprobe.d/nvidia-panacea.conf >/dev/null
+        warn "Nvidia: reboot needed, and check that nvidia_drm.modeset=1 took effect"
+    fi
+}
 
 MISSING=()
 check_deps() {
@@ -237,6 +299,16 @@ install_configs() {
     chmod +x "$CONF"/panacea/scripts/*.sh 2>/dev/null
     chmod +x "$CONF"/panacea/scripts/*.py 2>/dev/null
     chmod +x "$CONF"/hypr/scripts/*.sh 2>/dev/null
+    # Quickshell ищет конфигурации в ~/.config/quickshell/<имя>/shell.qml, и
+    # без этой ссылки простое `qs` отвечает «не найдена конфигурация default»
+    # — так и было у всех, кто пробовал запустить оболочку руками. Ссылка
+    # даёт штатное `qs -c panacea`, не перенося сам конфиг с привычного места.
+    mkdir -p "$CONF/quickshell"
+    if [ ! -e "$CONF/quickshell/panacea" ]; then
+        ln -sfn "$CONF/panacea" "$CONF/quickshell/panacea" \
+            && ok "qs -c panacea → $CONF/panacea"
+    fi
+
     # каталог живых обоев: карусель открывает его кнопкой, и он должен
     # существовать ещё до того, как туда что-то положат
     mkdir -p "$CONF/hypr/wallpaper/live"
@@ -341,6 +413,16 @@ install_grub() {
         # 640x480, и тема с её процентами выглядит растянутой
         set_grub_key "$def" GRUB_GFXMODE "1920x1080,auto"
         set_grub_key "$def" GRUB_GFXPAYLOAD_LINUX "keep"
+
+        # Дуалбут: без os-prober GRUB видит только Linux, и Windows из меню
+        # пропадает — при том, что она никуда не делась. Arch отключает его
+        # по умолчанию, поэтому включаем явно.
+        if command -v os-prober >/dev/null 2>&1; then
+            set_grub_key "$def" GRUB_DISABLE_OS_PROBER "false"
+            ok "os-prober enabled — other systems will show up in the menu"
+        else
+            warn "os-prober not installed — other systems won't appear in the boot menu"
+        fi
     fi
 
     local out=/boot/grub/grub.cfg
@@ -493,6 +575,11 @@ if [ "$DO_DEPS" = "1" ]; then
     install_deps || warn "some packages are missing — the shell may be degraded until they are installed"
 fi
 
+if [ "$DO_DEPS" = "1" ]; then
+    step "Graphics and CPU drivers"
+    install_drivers
+fi
+
 step "Copying configs"
 install_configs
 
@@ -561,6 +648,24 @@ else
     warn "Hyprland isn't running here — everything comes up at next login"
 fi
 
-printf '\n%s✓ Done.%s Log out and back in for a clean start.\n' "$OK" "$N"
+printf '\n%s✓ Done.%s\n' "$OK" "$N"
 printf '%sSUPER+A launcher · SUPER+Z quick settings · SUPER+Tab workspaces · SUPER+E files%s\n' "$DIM" "$N"
 printf '%sSUPER+I settings · SUPER+/ shortcuts · or hover the pill.%s\n' "$DIM" "$N"
+
+# ------------------------------------------------------------------- reboot
+# Половина установленного подхватывается только при новом входе: сессия видит
+# новые группы и службы, портал перечитывает окружение, Hyprland — свой
+# конфиг с нуля. Возвращаться в наполовину старую сессию и гадать, почему
+# что-то не так, — худший первый опыт, чем одна перезагрузка.
+#
+# При обновлении сюда не доходит: update.sh зовёт установщик с --no-restart.
+if [ "$DO_RESTART" = "1" ]; then
+    if [ "$ASSUME_YES" = "1" ]; then
+        printf '\n%sRebooting in 10 seconds — Ctrl+C to stay.%s\n' "$B" "$N"
+        sleep 10 && systemctl reboot
+    elif ask $'\nReboot now? Everything comes up clean after it'; then
+        systemctl reboot
+    else
+        printf '%sLog out and back in when convenient.%s\n' "$DIM" "$N"
+    fi
+fi
