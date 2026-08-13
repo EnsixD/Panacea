@@ -577,6 +577,21 @@ Item {
         property real wheelFrom: -1
         Timer { id: wheelIdle; interval: 260; onTriggered: trk.wheelFrom = -1 }
 
+        // Пока человек крутит — показываем ровно то, что он задал, не
+        // дожидаясь подтверждения. Громкость подтверждает Pipewire сигналом,
+        // яркость монитор по I2C через десятки миллисекунд; если рисовать
+        // только подтверждённое, при быстрой прокрутке полоска и число
+        // прыгают назад к предыдущему значению. Отпустил и всё устоялось —
+        // возвращаемся к настоящему.
+        property real held: -1
+        readonly property real shown: trk.held >= 0 ? trk.held : trk.pos
+        Timer { id: heldIdle; interval: 400; onTriggered: trk.held = -1 }
+        function put(frac) {
+            trk.held = Math.max(0, Math.min(1, frac));
+            heldIdle.restart();
+            trk.setFrac(trk.held);
+        }
+
         Rectangle {
             anchors.fill: parent
             radius: height / 2
@@ -584,7 +599,7 @@ Item {
             clip: true
 
             Rectangle {
-                width: Math.max(parent.height, parent.width * trk.pos)
+                width: Math.max(parent.height, parent.width * trk.shown)
                 height: parent.height
                 radius: height / 2
                 color: view.sys.colFg
@@ -614,7 +629,7 @@ Item {
             text: trk.valueText
             // Заливка и есть ручка, поэтому цифра оказывается то на светлом,
             // то на тёмном: перекрашиваем на границе, иначе она пропадает.
-            color: (trk.width * trk.pos) > (trk.width - trkVal.width - 12)
+            color: (trk.width * trk.shown) > (trk.width - trkVal.width - 12)
                    ? view.sys.colBg : view.sys.colFg
             font { family: view.sys.fontFam; pixelSize: 11; bold: true }
         }
@@ -626,8 +641,8 @@ Item {
             anchors.leftMargin: trk.padL
             preventStealing: true
             cursorShape: Qt.PointingHandCursor
-            onPressed: mouse => trk.setFrac(trk.fracAt(mouse.x))
-            onPositionChanged: mouse => { if (pressed) trk.setFrac(trk.fracAt(mouse.x)); }
+            onPressed: mouse => trk.put(trk.fracAt(mouse.x))
+            onPositionChanged: mouse => { if (pressed) trk.put(trk.fracAt(mouse.x)); }
             // Колесо поверх дорожки. На клавиатуре без мультимедийных клавиш
             // это единственный способ подправить значение, не целясь мышью в
             // тонкую полоску, — и привычка из любой другой оболочки.
@@ -642,14 +657,14 @@ Item {
             onWheel: wheel => {
                 var d = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x;
                 if (d === 0) return;
-                var base = trk.wheelFrom >= 0 ? trk.wheelFrom : trk.pos;
+                var base = trk.wheelFrom >= 0 ? trk.wheelFrom : trk.shown;
                 // Ровно по делениям: иначе от дробного начала вся дальнейшая
                 // прокрутка идёт мимо круглых чисел.
                 var steps = Math.round(base / trk.wheelStep) + (d > 0 ? 1 : -1);
                 var next = Math.max(0, Math.min(1, steps * trk.wheelStep));
                 trk.wheelFrom = next;
                 wheelIdle.restart();
-                trk.setFrac(next);
+                trk.put(next);
             }
         }
 
@@ -728,7 +743,7 @@ Item {
                                           : String.fromCodePoint(0xF057E)
                 valueText: !vol.a ? "—"
                     : vol.a.muted ? view.sys.tr("Без звука")
-                                  : Math.round(vol.pos * 100) + "%"
+                                  : Math.round(vol.shown * 100) + "%"
                 // шаг 5%, как у мультимедийных клавиш
                 onSetFrac: f => { if (vol.a) vol.a.volume = Math.round(f * 20) / 20; }
                 onIconClicked: if (vol.a) vol.a.muted = !vol.a.muted
@@ -783,11 +798,12 @@ Item {
             }
 
             Track {
+                id: brTrk
                 Layout.fillWidth: true
                 Layout.preferredHeight: 22
                 pos: Math.max(0, Math.min(1, brCard.bpct / 100))
                 icon: String.fromCodePoint(0xF00DD)   // солнце
-                valueText: brCard.bpct + "%"
+                valueText: Math.round(brTrk.shown * 100) + "%"
                 // шаг 5%, как у клавиш яркости
                 onSetFrac: f => view.sys.brightSet(brCard.bid, Math.round(f * 20) * 5)
             }

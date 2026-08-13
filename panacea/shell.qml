@@ -1598,7 +1598,11 @@ PanelWindow {
 
     Timer {
         id: brightFlush
-        interval: 90
+        // Ждём паузы в движении, а не шлём каждые N мс. Одна запись по DDC
+        // занимает десятки миллисекунд, монитор на неё моргает подсветкой, и
+        // очередь из промежуточных значений превращала протяжку ползунка в
+        // мигание с отставанием. Уходит только то, на чём ручка остановилась.
+        interval: 180
         repeat: false
         onTriggered: {
             if (root.brightPendingPct < 0) return;
@@ -1622,7 +1626,7 @@ PanelWindow {
 
         root.brightPendingId = id;
         root.brightPendingPct = pct;
-        if (!brightFlush.running) brightFlush.start();
+        brightFlush.restart();
     }
 
     // Подробности для страницы «Батарея»: ёмкость, износ и текущий расход.
