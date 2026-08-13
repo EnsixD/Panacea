@@ -134,6 +134,8 @@ FILE_DEPS=(
 )
 EXTRA_PKGS=(power-profiles-daemon bluez bluez-utils iwd cava pipewire-audio
             ttf-jetbrains-mono-nerd papirus-icon-theme
+            # курсор: чёрный, без обводки и теней — под тёмную оболочку
+            bibata-cursor-theme-bin
             # носители в проводнике: udisks2 монтирует, udiskie делает это
             # автоматически при подключении — без него раздел «Съёмные»
             # появится только после ручного монтирования
