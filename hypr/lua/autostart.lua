@@ -19,7 +19,6 @@ hl.on("hyprland.start", function ()
 
   hl.exec_cmd("hyprpaper")
   hl.exec_cmd(programs.bar)
-  hl.exec_cmd(programs.rog)
   hl.exec_cmd("wl-paste --type text --watch cliphist store")
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
   -- nm-applet отключён: в системе iwd + systemd-networkd

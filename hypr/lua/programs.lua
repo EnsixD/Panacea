@@ -1,17 +1,15 @@
 local programs = {}
 
+-- Что чем открывается. Всё, что здесь есть, действительно вызывается из
+-- keybindings.lua или autostart.lua: записи, на которые никто не смотрит,
+-- разъезжаются с системой молча — так здесь уже висели меню и повермену
+-- на скриптах, которых нет в репозитории.
 programs.terminal = "footclient"
-programs.fileManager = "pcmanfm"            -- графический проводник
 programs.fileManagerTui = "footclient yazi" -- в терминале, на Super+Shift+E
-programs.menu = "/home/ensi/.local/bin/smart_menu.sh"
--- Isola dinamica ingrandita (~1.35) senza toccare lo scale reale del monitor
-programs.bar = "qs -c ~/.config/panacea"   -- пилюля
-programs.rog = "rog-control-center"
+programs.bar = "qs -c ~/.config/panacea"    -- пилюля
 programs.screenshot = 'grim -g "$(slurp)" - | wl-copy'
 programs.browser = "firefox"
-programs.powermenu = "/home/ensi/.local/bin/smart_powermenu.sh"
 programs.lock = "/home/ensi/.config/panacea/scripts/lock.sh"
 programs.note = "obsidian"
-programs.dock = ""
 
 return programs

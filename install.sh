@@ -86,6 +86,10 @@ DEPS=(
     "wpctl|wireplumber|audio control"
     "eza|eza|ls replacement"
     "zoxide|zoxide|smarter cd"
+    # Super + Shift + E из списка сочетаний: без него биндинг открывал бы
+    # пустой терминал. Браузер и заметки сюда не входят нарочно — это выбор
+    # человека, а не часть оболочки
+    "yazi|yazi|files in the terminal"
     "python3|python|helper scripts"
     "rfkill|util-linux|Bluetooth soft-unblock"
     "openssl|openssl|encrypting the password vault"
