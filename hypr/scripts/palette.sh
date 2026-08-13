@@ -1,6 +1,6 @@
 #!/bin/bash
 # Раскладывает единственную палитру (~/.config/hypr/palette.conf) по
-# приложениям: tofi, fastfetch, waybar, kitty, ghostty, foot, fish, zed,
+# приложениям: tofi, fastfetch, waybar, kitty, ghostty, foot, wob, fish, zed,
 # btop, neovim, obsidian и экран входа.
 #
 # Раньше этим занимался switch_theme.sh, и цвета менялись вместе с обоями.
@@ -98,6 +98,29 @@ fi
 # молча игнорировалась: терминал оставался на сером 242424 вместо нашего
 # почти чёрного фона. Палитра у нас тёмная — заявляем это один раз здесь.
 gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
+
+# ---------------------------------------------------------------- wob
+# Полоска громкости/яркости в режиме энергосбережения. Цвета — RRGGBB[AA],
+# решётку wob не понимает.
+if [ -d "$HOME/.config/wob" ]; then
+    cat > "$HOME/.config/wob/wob.ini" <<EOF
+timeout = 1000
+max = 100
+width = 100
+height = 20
+border_offset = 0
+border_size = 2
+bar_padding = 3
+anchor = bottom
+margin = 60
+
+background_color = ${BG#\#}
+bar_color = ${ACCENT#\#}
+border_color = ${FG#\#}
+
+overflow_mode = nowrap
+EOF
+fi
 
 # ------------------------------------------ fish, zed, btop, neovim (python)
 python3 <<EOF
