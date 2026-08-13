@@ -13,6 +13,37 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: 12
 
+    // ------------------------------------------------------------- язык
+    // Стоит первым: с языка начинают, а не заканчивают им.
+    SetCard {
+        sys: page.sys
+
+        SetLabel { sys: page.sys; text: page.sys.tr("Язык") }
+
+        SetSelect {
+            sys: page.sys
+            label: page.sys.tr("Язык системы")
+            options: [
+                { id: "en", text: "English" },
+                { id: "ru", text: "Русский" }
+            ]
+            value: page.sys.cfg.lang
+            onPicked: id => page.sys.setLang(id)
+        }
+
+        Text {
+            Layout.fillWidth: true
+            text: page.sys.sysLangPending
+                  ? page.sys.tr("Меняем язык системы…")
+                  : (page.sys.sysLang !== page.sys.cfg.lang
+                     ? page.sys.tr("Оболочка уже на новом языке. Приложения и меню читают язык при входе — они переключатся после перезахода.")
+                     : page.sys.tr("Оболочка переключается сразу. Приложения и меню — после перезахода: язык они читают при входе."))
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+        }
+    }
+
     // ------------------------------------------------------------- тема
     SetCard {
         sys: page.sys

@@ -409,6 +409,51 @@ PanelWindow {
             "\"$1\" > \"$d/locale.qml\" && chmod 644 \"$d/locale.qml\"",
             "_", root.cfg.lang]
     }
+    // ------------------------------------------------------------ язык
+    // Язык оболочки меняется мгновенно — это её собственный словарь. Язык
+    // остального (приложений, меню, системных сообщений) живёт в LANG и
+    // требует root, поэтому идёт через pkexec: агент polkit у оболочки свой,
+    // окно с паролем нарисует она сама.
+    //
+    // Часы при этом остаются 24-часовыми при любом языке: за формат отвечает
+    // отдельная переменная, и скрипт её не трогает.
+    property string sysLang: "en"
+    property bool   sysLangPending: false
+
+    Process {
+        id: pLocaleGet
+        running: true
+        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/locale.sh get"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var s = text.trim().split("\n").pop().trim();
+                if (s === "ru" || s === "en") root.sysLang = s;
+            }
+        }
+    }
+
+    Process {
+        id: pLocaleSet
+        onExited: {
+            root.sysLangPending = false;
+            pLocaleGet.running = false;
+            pLocaleGet.running = true;
+        }
+    }
+
+    function setLang(code) {
+        // Оболочка переключается сразу, не дожидаясь пароля: её словарь
+        // системного языка не касается, и ждать здесь нечего.
+        root.cfg.lang = code;
+        root.saveCfg();
+
+        root.sysLangPending = true;
+        pLocaleSet.command = ["sh", "-c",
+            "pkexec " + Quickshell.env("HOME") + "/.config/panacea/scripts/locale.sh set " + code];
+        pLocaleSet.running = false;
+        pLocaleSet.running = true;
+    }
+
     function syncGreeterLocale() {
         pGreeterLocale.running = false;
         pGreeterLocale.running = true;
