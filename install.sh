@@ -456,6 +456,17 @@ install_configs() {
         fi
     fi
 
+    # То же для настроек экрана. Режим обязан стоять в конфиге компоновщика, а
+    # не выставляться оболочкой на ходу: Qt привязывает таймер анимаций к
+    # частоте обновления в момент создания первого окна, и на мониторе,
+    # который поднялся в "preferred" (по HDMI это часто 60 Гц), анимации так и
+    # останутся шестидесятикадровыми — на панели, давно ушедшей на 144.
+    if [ -x "$CONF/panacea/scripts/genmonitors.sh" ] && [ -f "$CONF/panacea/settings.json" ]; then
+        "$CONF/panacea/scripts/genmonitors.sh" >/dev/null 2>&1
+        [ -f "$CONF/hypr/lua/monitors_data.lua" ] \
+            && ok "screen mode written into the compositor config"
+    fi
+
     stamp_version
     personalize_paths
 }

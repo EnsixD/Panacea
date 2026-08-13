@@ -319,6 +319,23 @@ PanelWindow {
         all[n] = o;
         root.cfg.monOverrides = JSON.stringify(all);
         root.saveCfg();
+        // Компоновщику режим нужен ещё до нашего запуска: Qt привязывает
+        // таймер анимаций к частоте обновления, когда создаёт первое окно, а
+        // мы к тому моменту только стартуем. Пересобираем его конфиг, чтобы в
+        // следующий раз монитор поднялся сразу на своей частоте.
+        genMonTimer.restart();
+    }
+
+    Process { id: pGenMon }
+    Timer {
+        id: genMonTimer
+        interval: 400
+        onTriggered: {
+            pGenMon.command = ["sh", "-c",
+                Quickshell.env("HOME") + "/.config/panacea/scripts/genmonitors.sh"];
+            pGenMon.running = false;
+            pGenMon.running = true;
+        }
     }
 
     // Накатить запомненное заново: на старте оболочки и после каждой
