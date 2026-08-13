@@ -39,6 +39,10 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "install: open modules for Turing and newer, vendors by PCI id":
+            "Установщик: открытые модули Nvidia для Turing и новее, вендор по PCI-идентификатору",
+        "hypr: bring back a fallback config for Hyprland without Lua":
+            "Hyprland: возвращён запасной конфиг для версий без поддержки Lua",
         "system: read the GPU temperature where hwmon has none":
             "Система: температура видеокарты читается и там, где hwmon её не даёт",
         "island: no battery block on a machine without a battery":

@@ -175,23 +175,38 @@ detect_drivers() {
         GenuineIntel) DRIVERS+=(intel-ucode); DRIVER_NOTES+=("intel-ucode — Intel CPU microcode") ;;
     esac
 
+    # Вендора определяем по идентификатору PCI, а не по названию: строка
+    # «VGA compatible controller» содержит «ati», и поиск по имени выдавал
+    # AMD на любой машине, включая чисто nvidia'шную.
+    #   1002 — AMD, 10de — Nvidia, 8086 — Intel
     local gpus; gpus=$(lspci -nn 2>/dev/null | grep -iE 'vga|3d controller|display controller')
 
-    if printf '%s' "$gpus" | grep -qiE 'amd|ati'; then
+    if printf '%s' "$gpus" | grep -q '\[1002:'; then
         DRIVERS+=(mesa vulkan-radeon libva-mesa-driver)
         DRIVER_NOTES+=("mesa, vulkan-radeon, libva-mesa-driver — AMD graphics")
     fi
-    if printf '%s' "$gpus" | grep -qi 'intel'; then
+    if printf '%s' "$gpus" | grep -q '\[8086:'; then
         DRIVERS+=(mesa vulkan-intel intel-media-driver)
         DRIVER_NOTES+=("mesa, vulkan-intel, intel-media-driver — Intel graphics")
     fi
-    if printf '%s' "$gpus" | grep -qiE 'nvidia'; then
-        # nvidia-dkms, а не nvidia: собирается под любое ядро, включая -lts и
-        # -zen, и переживает обновление ядра без чёрного экрана на следующем
+    if printf '%s' "$gpus" | grep -q '\[10de:'; then
+        # Открытые модули или закрытые — не вопрос вкуса. Начиная с Turing
+        # (RTX 20xx, GTX 16xx) Nvidia ведёт именно открытые, а для Blackwell
+        # (RTX 50xx) закрытых не существует вовсе: на них система остаётся
+        # с nouveau, который эти карты не тянет и роняет машину в перезагрузку.
+        # Старым картам, наоборот, открытые модули не подходят.
+        #
+        # dkms, а не готовый модуль: собирается под любое ядро, включая -lts
+        # и -zen, и переживает обновление ядра без чёрного экрана на следующем
         # старте. egl-wayland обязателен — без него Hyprland на Nvidia не
-        # запустится вовсе.
-        DRIVERS+=(nvidia-dkms nvidia-utils egl-wayland)
-        DRIVER_NOTES+=("nvidia-dkms, nvidia-utils, egl-wayland — Nvidia graphics")
+        # запускается совсем.
+        if printf '%s' "$gpus" | grep -qiE 'rtx|gtx 16'; then
+            DRIVERS+=(nvidia-open-dkms nvidia-utils egl-wayland)
+            DRIVER_NOTES+=("nvidia-open-dkms, nvidia-utils, egl-wayland — Nvidia graphics (Turing and newer)")
+        else
+            DRIVERS+=(nvidia-dkms nvidia-utils egl-wayland)
+            DRIVER_NOTES+=("nvidia-dkms, nvidia-utils, egl-wayland — Nvidia graphics (pre-Turing)")
+        fi
     fi
 }
 
