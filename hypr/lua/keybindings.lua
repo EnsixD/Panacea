@@ -15,7 +15,9 @@ local function B(id, def, action, opts)
     hl.bind(combo, action, opts)
 end
 
-local QS = "qs -c ~/.config/panacea ipc call pill "
+-- Абсолютный путь по той же причине, что и у programs.bar: «~» доживает до
+-- qs как есть, если команду запускают не через шелл.
+local QS = "qs -c " .. os.getenv("HOME") .. "/.config/panacea ipc call pill "
 
 
 -- ---------------------------------------------------------------- пилюля
