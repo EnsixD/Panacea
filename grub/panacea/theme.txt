@@ -1,5 +1,12 @@
 # Тема GRUB «Panacea» — тот же язык, что у динамического острова:
 # обои темы Fav, капсула-подсветка на выбранном пункте, ничего лишнего.
+#
+# Имена шрифтов пишутся ровно так, как они лежат внутри .pf2, а не так, как
+# их звали при сборке: grub-mkfont дописывает к семейству начертание, и из
+# «Panacea Regular» получается «Panacea Regular Regular». Не совпало хоть на
+# букву — GRUB молча не находит шрифт и рисует простое меню вместо темы, без
+# единого сообщения об ошибке. Проверить имя внутри файла:
+#   strings panacea18.pf2 | head -3
 
 desktop-image: "background.png"
 desktop-color: "#050506"
@@ -10,14 +17,14 @@ title-text: ""
 # невысокая: в ней же GRUB печатает «Loading Linux…» перед передачей
 # управления ядру, и раньше это выглядело как чёрное окно посреди экрана —
 # коробка занимала центр и была почти непрозрачной.
-terminal-font: "Panacea Regular 18"
+terminal-font: "Panacea Regular Regular 18"
 terminal-box: "menu_*.png"
 terminal-left: "12%"
 terminal-top: "72%"
 terminal-width: "76%"
 terminal-height: "24%"
 
-message-font: "Panacea Regular 18"
+message-font: "Panacea Regular Regular 18"
 message-color: "#f2f2f2"
 message-bg-color: "#050506"
 
@@ -28,7 +35,7 @@ message-bg-color: "#050506"
     width = 100%
     align = "center"
     text = "Panacea"
-    font = "Panacea Bold 22"
+    font = "Panacea Bold Bold 22"
     color = "#f2f2f2"
 }
 
@@ -38,7 +45,7 @@ message-bg-color: "#050506"
     width = 100%
     align = "center"
     text = "выберите систему"
-    font = "Panacea Small 14"
+    font = "Panacea Small Regular 14"
     color = "#7a7a7a"
 }
 
@@ -49,9 +56,9 @@ message-bg-color: "#050506"
     top = 32%
     height = 44%
 
-    item_font = "Panacea Regular 18"
+    item_font = "Panacea Regular Regular 18"
     item_color = "#c8c8c8"
-    selected_item_font = "Panacea Regular 18"
+    selected_item_font = "Panacea Regular Regular 18"
     selected_item_color = "#ffffff"
 
     # GRUB рисует подсветку ВОКРУГ строки: к её высоте добавляются отступы
@@ -91,7 +98,7 @@ message-bg-color: "#050506"
     width = 100%
     align = "center"
     text = "@TIMEOUT_NOTIFICATION_SHORT@"
-    font = "Panacea Small 14"
+    font = "Panacea Small Regular 14"
     color = "#6e6e6e"
 }
 
@@ -102,6 +109,6 @@ message-bg-color: "#050506"
     width = 100%
     align = "center"
     text = "Стрелки - выбор     Enter - запуск     E - правка     C - консоль"
-    font = "Panacea Small 14"
+    font = "Panacea Small Regular 14"
     color = "#5a5a5a"
 }
