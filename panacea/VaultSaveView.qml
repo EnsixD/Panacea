@@ -11,17 +11,8 @@ FocusScope {
 
     implicitHeight: col.implicitHeight
 
-    Component.onCompleted: { forceActiveFocus(); focusTimer.start(); }
-    Timer {
-        id: focusTimer
-        interval: 16; repeat: true; triggeredOnStart: true
-        property int tries: 0
-        onTriggered: {
-            var t = view.sys.vaultUnlocked ? name : pw;
-            if (t.activeFocus || tries++ > 12) { stop(); return; }
-            t.forceActiveFocus();
-        }
-    }
+    Component.onCompleted: view.forceActiveFocus()
+    FocusGrabber { target: view.sys.vaultUnlocked ? name : pw }
 
     Keys.onEscapePressed: view.sys.dismissVaultPrompt()
 

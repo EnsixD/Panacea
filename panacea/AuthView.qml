@@ -12,16 +12,8 @@ Item {
     implicitHeight: col.implicitHeight
 
     focus: true
-    Component.onCompleted: { forceActiveFocus(); focusTimer.start(); }
-    Timer {
-        id: focusTimer
-        interval: 16; repeat: true; triggeredOnStart: true
-        property int tries: 0
-        onTriggered: {
-            if (pw.activeFocus || tries++ > 12) { stop(); return; }
-            pw.forceActiveFocus();
-        }
-    }
+    Component.onCompleted: view.forceActiveFocus()
+    FocusGrabber { target: pw }
 
     Keys.onEscapePressed: view.cancel()
 

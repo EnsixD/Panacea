@@ -137,19 +137,7 @@ FocusScope {
 
     // фокус сразу, плюс несколько повторов: слой получает клавиатуру
     // на кадр-другой позже создания компонента
-    Component.onCompleted: { input.forceActiveFocus(); focusTimer.start() }
-    Timer {
-        id: focusTimer
-        interval: 16; repeat: true; triggeredOnStart: true
-        property int tries: 0
-        onTriggered: {
-            // Клавиатуру слой получает не сразу, поэтому долбимся полсекунды:
-            // раньше окно успевало открыться быстрее, чем приходил фокус,
-            // и первые буквы улетали в никуда.
-            if (input.activeFocus || tries++ > 30) { stop(); return; }
-            input.forceActiveFocus();
-        }
-    }
+    FocusGrabber { target: input }
 
     ColumnLayout {
         id: col

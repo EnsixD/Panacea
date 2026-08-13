@@ -53,20 +53,9 @@ FocusScope {
         // Стол, с которого открыли: пилюля знает его точно и без опроса —
         // она слушает события Hyprland постоянно.
         view.currentWs = view.sys.wsId;
-        forceActiveFocus();
-        focusTimer.start();
+        view.forceActiveFocus();
     }
-    // Слой получает клавиатуру не в первом кадре: пока композитор её не отдал,
-    // forceActiveFocus() ничего не делает. Повторяем, пока не возьмём.
-    Timer {
-        id: focusTimer
-        interval: 16; repeat: true; triggeredOnStart: true
-        property int tries: 0
-        onTriggered: {
-            if (view.activeFocus || tries++ > 20) { stop(); return; }
-            view.forceActiveFocus();
-        }
-    }
+    FocusGrabber { target: view }
 
     // ------------------------------------------------------------ клавиши
     function move(d) {

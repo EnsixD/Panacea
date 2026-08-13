@@ -60,16 +60,8 @@ FocusScope {
         view.sys.collapse();
     }
 
-    Component.onCompleted: { reload(); input.forceActiveFocus(); focusTimer.start(); }
-    Timer {
-        id: focusTimer
-        interval: 16; repeat: true; triggeredOnStart: true
-        property int tries: 0
-        onTriggered: {
-            if (input.activeFocus || tries++ > 12) { stop(); return; }
-            input.forceActiveFocus();
-        }
-    }
+    Component.onCompleted: view.reload()
+    FocusGrabber { target: input }
 
     ColumnLayout {
         id: col
