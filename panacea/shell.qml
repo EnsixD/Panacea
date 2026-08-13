@@ -371,6 +371,49 @@ PanelWindow {
     // накатываем заново вместе с настройками мониторов, одним таймером —
     // см. monReplayTimer, он же срабатывает и на старте оболочки.
 
+    // ------------------------------------------------- проводная сеть
+    // Кабель воткнут — значок сети должен быть проводной, а не Wi-Fi: связь
+    // идёт по нему, и рисовать антенну поверх работающего кабеля неверно.
+    //
+    // Смотрим в sysfs, а не спрашиваем NetworkManager: в системе может стоять
+    // iwd с systemd-networkd, и тогда NM просто нет. Ядро же знает про
+    // несущую на интерфейсе всегда, кто бы сетью ни управлял.
+    //
+    //   type == 1  — Ethernet (ARPHRD_ETHER);
+    //   carrier    — есть ли линк прямо сейчас, то есть воткнут ли кабель;
+    //   wireless/  — каталог есть только у беспроводных, их пропускаем.
+    //
+    // Мосты, докер, туннели и виртуальные пары отсеиваем по имени: у них
+    // тоже type 1 и своя несущая, но интернетом они не являются.
+    property string wiredName: ""
+    readonly property bool wiredOn: root.wiredName.length > 0
+
+    Process {
+        id: pWired
+        command: ["sh", "-c",
+            "for d in /sys/class/net/*; do " +
+            "n=${d##*/}; " +
+            "[ -d \"$d/wireless\" ] && continue; " +
+            "case $n in lo|docker*|veth*|br-*|virbr*|tun*|tap*|wg*|zt*|tailscale*) continue ;; esac; " +
+            "[ \"$(cat $d/type 2>/dev/null)\" = 1 ] || continue; " +
+            "[ \"$(cat $d/carrier 2>/dev/null)\" = 1 ] && { echo $n; exit 0; }; " +
+            "done"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var lines = text.trim().split("\n");
+                root.wiredName = lines.length ? lines[lines.length - 1].trim() : "";
+            }
+        }
+    }
+
+    Timer {
+        interval: 3000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: { pWired.running = false; pWired.running = true; }
+    }
+
     // семейства моноширинных шрифтов для выпадающего списка настроек
     property var fontList: ["JetBrainsMono Nerd Font"]
     Process {

@@ -861,20 +861,37 @@ Item {
                 Layout.fillWidth: true
                 spacing: 8
 
+                // Wi-Fi и Bluetooth делят строку поровну. Раньше рядом с ними
+                // стоял ещё и звук, и три плитки в ряд ужимали каждую до
+                // ширины, на которой не помещалось имя сети.
+                // Воткнут кабель — плитка показывает проводную сеть: связь
+                // идёт по нему, и антенна Wi-Fi поверх работающего кабеля
+                // вводила бы в заблуждение. Кабель вынули — плитка сама
+                // возвращается к Wi-Fi. Одинаково на ноутбуке и на ПК: там,
+                // где беспроводного адаптера нет вовсе, она просто всегда
+                // проводная.
                 MiniTile {
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     Layout.preferredHeight: 56
-                    icon: view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
+                    icon: view.sys.wiredOn ? "󰈀"
+                        : view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
                                            : view.sys.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
                     // подключены — в заголовке имя сети, иначе обычное «Wi-Fi»
-                    label: (view.sys.wifiOn && view.sys.wifiSsid.length)
+                    label: view.sys.wiredOn ? view.sys.tr("Проводная сеть")
+                         : (view.sys.wifiOn && view.sys.wifiSsid.length)
                            ? view.sys.wifiSsid : "Wi-Fi"
-                    sub: !view.sys.wifiOn ? view.sys.tr("Выключен")
+                    sub: view.sys.wiredOn ? view.sys.wiredName
+                       : !view.sys.wifiOn ? view.sys.tr("Выключен")
                        : (view.sys.wifiSsid.length
                           ? view.sys.wifiQuality + "%"
                           : view.sys.tr("Не подключено"))
-                    on: view.sys.wifiOn
-                    onIconClicked: view.sys.toggleWifi()
+                    on: view.sys.wiredOn || view.sys.wifiOn
+                    // Значок кабеля ничего не переключает: проводную сеть
+                    // выключают кабелем, а не кнопкой. Wi-Fi при этом остаётся
+                    // доступен из тела плитки — он мог понадобиться и рядом
+                    // с кабелем.
+                    onIconClicked: if (!view.sys.wiredOn) view.sys.toggleWifi()
                     onBodyClicked: {
                         // страница сетей могла быть отключена установщиком —
                         // тогда плитка только переключает Wi-Fi
@@ -887,6 +904,7 @@ Item {
 
                 MiniTile {
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     Layout.preferredHeight: 56
                     icon: view.sys.btOn ? "󰂯" : "󰂲"
                     // подключено устройство — его имя вместо «Bluetooth»
@@ -908,11 +926,40 @@ Item {
                     }
                 }
 
+            }
+
+            // ------------------------------------------- громкость и яркость
+            // Две одинаковые карточки в одной строке. На ПК клавиш яркости на
+            // клавиатуре нет, а на мониторе она прячется в аппаратном меню —
+            // эта дорожка единственный быстрый способ до неё добраться.
+            // Экранов, отвечающих на запрос яркости, может не быть вовсе —
+            // тогда в строке остаётся один звук.
+            RowLayout {
+                objectName: "cc-sliders"
+                Layout.row: view.ccRow("sliders")
+                Layout.column: 0
+                Layout.fillWidth: true
+                spacing: 8
+
                 VolCard {
                     visible: view.sys.cfg.featAudio
                     Layout.fillWidth: true
-                    Layout.preferredWidth: 190
+                    Layout.preferredWidth: 1
                     Layout.preferredHeight: 56
+                }
+
+                Repeater {
+                    model: view.sys.brightList
+
+                    BrightCard {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Layout.preferredHeight: 56
+                        bid:  modelData.id
+                        bpct: modelData.pct
+                        bname: (view.sys.brightList || []).length > 1 ? modelData.name : ""
+                    }
                 }
             }
 
