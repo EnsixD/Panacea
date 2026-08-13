@@ -87,10 +87,6 @@ DEPS=(
     "ffmpeg|ffmpeg|media player, trimming, thumbnails"
     "wf-recorder|wf-recorder|screen recording"
     "brightnessctl|brightnessctl|brightness keys"
-    # режим энергосбережения гасит пилюлю и ставит вместо неё waybar с wob:
-    # без них он оставил бы экран вообще без панели и без индикатора громкости
-    "waybar|waybar|the bar used by battery-saving mode"
-    "wob|wob|volume and brightness bar in battery-saving mode"
     "playerctl|playerctl|media keys"
     "wpctl|wireplumber|audio control"
     "eza|eza|ls replacement"
@@ -203,7 +199,7 @@ copy_into_config() {   # copy_into_config <dir-in-repo>
 
 install_configs() {
     mkdir -p "$CONF" "$HOME/.local/bin"
-    for d in panacea hypr foot ghostty kitty fish fastfetch nano tofi waybar wob swaylock; do
+    for d in panacea hypr foot ghostty kitty fish fastfetch nano swaylock; do
         [ -d "$SRC/$d" ] && copy_into_config "$d"
     done
     # nanorc lives at ~/.nanorc, not in a directory

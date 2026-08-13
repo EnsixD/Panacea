@@ -76,7 +76,7 @@ multi‑monitor arrangement) and the keys.
 ## Colours and wallpapers
 
 There is **one palette** for the whole system, in `hypr/palette.conf`.
-`hypr/scripts/palette.sh` spreads it across the terminals, waybar, btop, fish,
+`hypr/scripts/palette.sh` spreads it across the terminals, btop, fish,
 neovim and the login screen. Changing the wallpaper never touches the colours —
 and never touches a file that Hyprland sources, so your windows are left alone.
 
@@ -137,7 +137,7 @@ left alone — those are installed once. From then on updates arrive through the
 button.
 
 Prefer to do it by hand? Copy `panacea hypr foot ghostty kitty fish fastfetch
-nano tofi waybar` into `~/.config`, `nano/nanorc` to `~/.nanorc`, `bin/*` to
+nano` into `~/.config`, `nano/nanorc` to `~/.nanorc`, `bin/*` to
 `~/.local/bin`, then run `hypr/scripts/palette.sh`, `hypr/scripts/switch_theme.sh
 --restore` and `hyprctl reload`.
 
@@ -155,7 +155,7 @@ sddm/      login theme
 bin/       standalone helper scripts
 fish/      shell config and prompt
 foot/ ghostty/ kitty/   terminals
-fastfetch/ nano/ tofi/ waybar/
+fastfetch/ nano/
 ```
 
 Shortcuts live in `panacea/settings.json` and compile into

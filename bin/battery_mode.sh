@@ -1,10 +1,14 @@
 #!/bin/bash
 #
-# Режим энергосбережения: гасит анимации, тени и размытие, убирает пилюлю и
-# ставит вместо неё waybar с wob. Второй запуск возвращает всё обратно.
+# Режим энергосбережения: гасит анимации, тени, размытие и скругления.
+# Второй запуск возвращает всё обратно.
 #
-# Оболочку поднимает Hyprland (exec-once в programs.lua), службы у неё нет —
-# поэтому останавливаем и запускаем сам процесс.
+# Раньше он ещё и подменял оболочку — убивал пилюлю и ставил вместо неё
+# waybar с wob. От этого отказались: экономит здесь не память, а несделанная
+# перерисовка, и она выключается вот этими же строками. Второй набор панелей
+# приходилось держать в паритете с первым, и он этого не выдержал — меню
+# Wi-Fi было написано на nmcli, хотя система на iwd, а половина кнопок бара
+# звала программы, которых в зависимостях никогда не было.
 
 # Включён режим или нет, помнит этот файл. Раньше признаком служила
 # закомментированная секция в hypr/modules/look_and_feel.conf — но конфиг
@@ -14,8 +18,7 @@
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/panacea"
 STATE="$STATE_DIR/battery-mode"
 LOG="${XDG_RUNTIME_DIR:-/tmp}/battery_mode.log"
-SHELL_CMD="qs -c $HOME/.config/panacea"
-FIFO="${XDG_RUNTIME_DIR:-/tmp}/wob.fifo"
+SHELL="qs -c $HOME/.config/panacea"
 
 # Текущий монитор: режим переставляет его на 120 Гц с VRR. Частоту не
 # опускаем — при VRR драйвер сам роняет её до 48 Гц на статичной картинке,
@@ -37,18 +40,9 @@ enable_battery() {
 
     hyprctl eval 'hl.config({ animations = { enabled = false }, decoration = { rounding = 0, shadow = { enabled = false }, blur = { enabled = false } } })'
 
-    pkill -x qs; pkill -x quickshell
-    # на случай, если режим включают повторно: без этого рядом встал бы
-    # второй waybar, а первый остался бы висеть
-    pkill waybar
-    waybar &
-
-    # Уровень громкости и яркости: пилюля погашена, показывает wob.
-    # Сначала снимаем прошлого читателя — иначе он остаётся висеть на старом
-    # inode трубы, и с каждым включением режима их копится всё больше.
-    pkill -f "tail -f $FIFO"
-    rm -f "$FIFO" && mkfifo "$FIFO"
-    tail -f "$FIFO" | wob -c "$HOME/.config/wob/wob.ini" &
+    # Оболочке тоже незачем двигаться: остров перестаёт разворачиваться
+    # плавно и просто меняет размер.
+    $SHELL ipc call pill motion off 2>/dev/null || true
 }
 
 disable_battery() {
@@ -71,11 +65,7 @@ disable_battery() {
     })
     '
 
-    pkill waybar
-    pkill wob
-    pkill -f "tail -f $FIFO"
-
-    $SHELL_CMD &
+    $SHELL ipc call pill motion on 2>/dev/null || true
 }
 
 {

@@ -64,12 +64,6 @@ case "$1" in
         ;;
 esac
 
-# Уровень показывает сама пилюля: она следит за Pipewire и рисует полоску.
-# wob остаётся запасным вариантом на случай режима энергосбережения.
-if ! pgrep -x qs >/dev/null; then
-    VAL=$(wpctl get-volume "$SINK")
-    if echo "$VAL" | grep -q "MUTED"; then PCT=0; else PCT=$(cur_pct); fi
-    if [ -p "$XDG_RUNTIME_DIR/wob.fifo" ] && pgrep -x wob >/dev/null; then
-        echo "$PCT" > "$XDG_RUNTIME_DIR/wob.fifo" &
-    fi
-fi
+# Уровень показывает сама пилюля: она следит за Pipewire и рисует полоску,
+# и делает это в любом режиме — отдельного индикатора для энергосбережения
+# больше нет.

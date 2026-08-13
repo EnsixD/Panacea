@@ -43,9 +43,8 @@ esac
 
 PCT=$(cur_pct)
 
-# Пилюля рисует уровень сама; wob — запасной путь для энергосбережения.
+# Уровень рисует пилюля: яркость идёт мимо Pipewire, и сама она об изменении
+# не узнает — поэтому говорим ей об этом.
 if pgrep -x qs >/dev/null; then
     qs -c "$HOME/.config/panacea" ipc call pill brightness "$PCT" 2>/dev/null &
-elif [ -p "$XDG_RUNTIME_DIR/wob.fifo" ] && pgrep -x wob >/dev/null; then
-    echo "$PCT" > "$XDG_RUNTIME_DIR/wob.fifo" &
 fi

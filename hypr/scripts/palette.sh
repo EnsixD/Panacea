@@ -1,7 +1,7 @@
 #!/bin/bash
 # Раскладывает единственную палитру (~/.config/hypr/palette.conf) по
-# приложениям: tofi, fastfetch, waybar, kitty, ghostty, foot, wob, fish, zed,
-# btop, neovim, obsidian и экран входа.
+# приложениям: fastfetch, kitty, ghostty, foot, fish, zed, btop, neovim,
+# obsidian и экран входа.
 #
 # Раньше этим занимался switch_theme.sh, и цвета менялись вместе с обоями.
 # Теперь палитра одна: скрипт нужен установщику и после правки palette.conf
@@ -19,39 +19,11 @@ ACCENT=$(val accent_color)
 BG=$(val bg_color)
 FG=$(val fg_color)
 TERM_BG=$(val term_bg)
-TOFI_SEL=$(val tofi_selection)
 
 [[ ! $ACCENT =~ ^# ]] && ACCENT="#ffffff"
 [[ ! $BG     =~ ^# ]] && BG="#000000"
 [[ ! $FG     =~ ^# ]] && FG="#ffffff"
 [[ ! $TERM_BG =~ ^# ]] && TERM_BG="$BG"
-[[ ! $TOFI_SEL =~ ^# ]] && TOFI_SEL="$ACCENT"
-
-# ---------------------------------------------------------------- tofi
-for CONFIG in "config" "configpowermenu"; do
-    [ -d "$HOME/.config/tofi" ] || break
-    cat > "$HOME/.config/tofi/$CONFIG" <<EOF
-anchor = top
-width = 100%
-height = $( [ "$CONFIG" = "config" ] && echo 25 || echo 30 )
-horizontal = true
-font-size = 10
-prompt-text = " $( [ "$CONFIG" = "config" ] && echo "run:" || echo "Action:" ) "
-font = JetBrainsMono Nerd Font
-outline-width = 0
-border-width = 0
-min-input-width = 120
-result-spacing = 25
-padding-top = 5
-padding-bottom = 5
-padding-left = 10
-padding-right = 10
-background-color = $BG
-text-color = $FG
-selection-color = $TOFI_SEL
-selection-background = #00000000
-EOF
-done
 
 # ----------------------------------------------------------- fastfetch
 # Подписи и логотип красим акцентом. В конфиге строки помечены комментарием
@@ -65,11 +37,7 @@ if [ -f "$FF" ]; then
     ' "$FF" > "$FF.new" && mv "$FF.new" "$FF"
 fi
 
-# --------------------------------------------- waybar, kitty, ghostty, foot
-[ -d "$HOME/.config/waybar" ] && printf \
-    "@define-color accent %s;\n@define-color bg %s;\n@define-color fg %s;\n" \
-    "$ACCENT" "$BG" "$FG" > "$HOME/.config/waybar/theme.css"
-
+# ---------------------------------------------------- kitty, ghostty, foot
 [ -d "$HOME/.config/kitty" ] && cat > "$HOME/.config/kitty/theme.conf" <<EOF
 foreground $FG
 background $TERM_BG
@@ -98,29 +66,6 @@ fi
 # молча игнорировалась: терминал оставался на сером 242424 вместо нашего
 # почти чёрного фона. Палитра у нас тёмная — заявляем это один раз здесь.
 gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
-
-# ---------------------------------------------------------------- wob
-# Полоска громкости/яркости в режиме энергосбережения. Цвета — RRGGBB[AA],
-# решётку wob не понимает.
-if [ -d "$HOME/.config/wob" ]; then
-    cat > "$HOME/.config/wob/wob.ini" <<EOF
-timeout = 1000
-max = 100
-width = 100
-height = 20
-border_offset = 0
-border_size = 2
-bar_padding = 3
-anchor = bottom
-margin = 60
-
-background_color = ${BG#\#}
-bar_color = ${ACCENT#\#}
-border_color = ${FG#\#}
-
-overflow_mode = nowrap
-EOF
-fi
 
 # ------------------------------------------ fish, zed, btop, neovim (python)
 python3 <<EOF
@@ -266,6 +211,5 @@ if [ -d "$SDDM_DIR" ] && [ -w "$SDDM_DIR" ]; then
 fi
 
 # Палитра сменилась — просим уже запущенных перечитать её
-killall -SIGUSR2 waybar >/dev/null 2>&1
 killall -USR1 kitty >/dev/null 2>&1
 exit 0

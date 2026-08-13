@@ -2475,6 +2475,13 @@ PanelWindow {
         function brightness(pct: string): void {
             root.showOsd("bright", parseFloat(pct) / 100.0, false);
         }
+        // Режим энергосбережения гасит движение и в оболочке: анимации —
+        // самое дорогое, что она делает без спроса. Настройка та же, что на
+        // вкладке Motion, поэтому режим её честно возвращает при выходе.
+        function motion(on: string): void {
+            root.cfg.reduceMotion = (on !== "on");
+            root.saveCfg();
+        }
         function close(): void { root.collapse(); }
     }
 

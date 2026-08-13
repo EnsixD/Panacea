@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "battery mode: keep the pill, drop the second set of panels":
+            "Режим батареи: остаётся пилюля, второй набор панелей убран",
         "install: fix the dependency list, and name what an update still needs":
             "Установщик: список зависимостей исправлен, обновление называет недостающие пакеты",
         "wob: colour it from the palette and stop leaking readers":

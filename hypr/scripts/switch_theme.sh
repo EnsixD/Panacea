@@ -4,7 +4,10 @@
 #   switch_theme.sh --restore     вернуть последние обои (автозапуск)
 #   switch_theme.sh <имя>         обои из ~/.config/hypr/wallpaper (без .jpg)
 #   switch_theme.sh <путь>        любой файл
-#   switch_theme.sh               спросить через tofi
+#
+# Без аргументов ничего не спрашивает: выбор обоев живёт в самой пилюле
+# (Super + Shift + T), и держать ради того же самого второе меню на tofi
+# значило бы держать и tofi.
 #
 # Цвета здесь не участвуют: палитра одна и лежит в palette.conf, её
 # раскладывает palette.sh. Так смена картинки больше не перекрашивает
@@ -47,11 +50,8 @@ if [ "$1" = "--restore" ]; then
 elif [ -n "$1" ]; then
     WALL=$(resolve "$1")
 else
-    PICK=$(find "$WALL_DIR" -maxdepth 2 -type f \
-                \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
-           | sort | sed "s|^$WALL_DIR/||" | tofi --prompt-text " Обои: ")
-    [ -z "$PICK" ] && exit 0
-    WALL="$WALL_DIR/$PICK"
+    echo "usage: switch_theme.sh --restore | <имя> | <путь>" >&2
+    exit 1
 fi
 
 WALL="${WALL/#\~/$HOME}"

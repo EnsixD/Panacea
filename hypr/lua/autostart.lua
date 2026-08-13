@@ -34,6 +34,5 @@ hl.on("hyprland.start", function ()
   -- на чужой машине жёсткий путь молча не срабатывал, и после перезагрузки
   -- возвращалась тема из theme.conf, положенного установщиком.
   hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/switch_theme.sh --restore")
-  hl.exec_cmd("rm -f $XDG_RUNTIME_DIR/wob.fifo && mkfifo $XDG_RUNTIME_DIR/wob.fifo")
   hl.exec_cmd("cliphist list | tail -n +501 | cliphist delete")
 end)
