@@ -53,7 +53,7 @@ one geometry, one palette and one animation timeline.
 | Notifications | `Super + Shift + N` | Live cards that open what they are about, one history list, do‑not‑disturb |
 | Wallpapers | `Super + Shift + T` | Full‑screen carousel with parallax previews, stills and live video |
 | Workspaces | `Super + Tab` | Live previews of every workspace, switch from the grid |
-| Launcher | `Super + A` | App search + calculator, recents first |
+| Launcher | `Super + A` | App search + calculator, recents first; also the agent panel and the other systems on the disk |
 | Clipboard | `Super + V` | `cliphist` history with search |
 | Files | `Super + E` | Bookmarks, disks, sorting, trash, context menu, drag between windows |
 | Media | opens a file | Images, GIFs, video — trim and crop |
@@ -75,6 +75,49 @@ language), *Motion*, *Launcher*, *Notifications*, *Control Center* (the quick
 settings tiles, rearranged by dragging), *Lock Screen*, *Display* (resolution,
 refresh rate, scale, orientation, VRR, multi‑monitor arrangement, brightness and
 digital vibrance), *Mouse* and *System*.
+
+## Dual boot
+
+If this machine has more than one operating system on it, three separate things
+here know about that.
+
+**The boot menu is themed.** `grub/panacea/` is a GRUB theme in the same
+language as the island — the wallpaper, a capsule highlight on the selected
+entry, nothing else. The installer copies it to `/boot/grub/themes/panacea`,
+points `/etc/default/grub` at it and regenerates the config. Skip it with
+`--no-grub`.
+
+**Other systems are made to show up.** Arch disables `os-prober` by default,
+which is why a fresh GRUB config often lists only Linux and quietly loses the
+Windows that is still sitting on the disk. The installer sets
+`GRUB_DISABLE_OS_PROBER=false` when `os-prober` is installed, and says so if it
+is missing.
+
+**You can restart into another system from the launcher.** Open it, type
+`windows` — or whatever the system is called — and press Enter. There is no
+fixed list of two: `panacea/scripts/bootos.sh` finds what is actually there, so
+three systems give three entries and one system gives none at all. Names are
+tidied for reading, so `Windows Boot Manager (on /dev/nvme0n1p1)` becomes
+`Windows`, while distributions keep their versions.
+
+The choice is **one‑shot**: it sets the next boot only, through `grub-reboot`
+(or `BootNext` in EFI variables when GRUB is not the bootloader). Your default
+system does not change, and the boot after that comes back here. Touching the
+bootloader needs root, so `pkexec` asks for a password — that prompt is also the
+confirmation, which is why there is no separate "are you sure". These entries
+never appear in an empty launcher and are never remembered as recent: a line
+that reboots the machine should not sit one careless Enter away from the browser.
+
+> [!NOTE]
+> A theme that copies successfully and a config that regenerates without error
+> can still both be ignored. The `grubx64.efi` image carries a **prefix** inside
+> it — the directory it reads the config, modules and themes from — and if that
+> points somewhere else, everything above lands in a folder the bootloader never
+> opens. Nothing reports an error; the menu simply never changes. The classic
+> case is an ESP mounted at `/boot` over a non‑empty directory, leaving the
+> prefix pointing at the old `/boot/grub` now hidden under the mount point. The
+> installer checks for exactly this after regenerating and prints the fix:
+> `sudo grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB`.
 
 ## Colours and wallpapers
 
