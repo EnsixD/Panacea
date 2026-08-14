@@ -68,15 +68,18 @@ Hovering the pill opens it too — the player if something is playing, quick
 settings otherwise. Every page closes with the same key, `Escape`, or a click
 outside. Collapsed, it shows day, clock, workspace, layout and battery.
 
-**Settings** has four sections: the pill (a mock‑up of your desktop with the real
-island on it, its screen edge and the colours), the system (language, clock,
-file‑manager mode), displays (resolution, refresh rate, scale, orientation, VRR,
-multi‑monitor arrangement) and the keys.
+**Settings** has twelve sections, searchable from the top of the panel: *Bar &
+Island* (a mock‑up of your desktop with the real island on it, its screen edge
+and geometry), *Media*, *Clock & Date*, *Appearance* (palette, fonts, interface
+language), *Motion*, *Launcher*, *Notifications*, *Control Center* (the quick
+settings tiles, rearranged by dragging), *Lock Screen*, *Display* (resolution,
+refresh rate, scale, orientation, VRR, multi‑monitor arrangement, brightness and
+digital vibrance), *Mouse* and *System*.
 
 ## Colours and wallpapers
 
 There is **one palette** for the whole system, in `hypr/palette.conf`.
-`hypr/scripts/palette.sh` spreads it across the terminals, btop, fish,
+`hypr/scripts/palette.sh` spreads it across the terminal, btop, fish,
 neovim and the login screen. Changing the wallpaper never touches the colours —
 and never touches a file that Hyprland sources, so your windows are left alone.
 
@@ -87,12 +90,16 @@ and never touches a file that Hyprland sources, so your windows are left alone.
 | **Compositor** | [Hyprland](https://hyprland.org), Lua config |
 | **Shell** | [Quickshell](https://quickshell.org) — the pill, in QML |
 | **CLI** | Fish + eza + zoxide |
-| **Terminal** | foot |
+| **Terminal** | [foot](https://codeberg.org/dnkl/foot), as a server — `foot --server` starts with the session and `footclient` opens windows instantly |
 | **Lock / wallpaper** | the pill's own lock screen, hyprpaper, hyprsunset |
 | **Boot / login** | GRUB theme, SDDM theme — both matching the palette |
 
 The pill is also the notification daemon and the polkit agent, so don't run
-`mako`, `dunst` or `hyprpolkitagent` alongside it.
+`mako`, `dunst` or `hyprpolkitagent` alongside it. Only one process can own
+`org.freedesktop.Notifications`, and the rival never has to be launched to win —
+D‑Bus starts it on the first notification, and from then on it draws them in its
+own window instead of the island. The installer masks `dunst` and `mako` for that
+reason; `systemctl --user unmask dunst.service` puts one back.
 
 ## Install these dotfiles
 
@@ -108,8 +115,11 @@ cd Panacea
 ./install.sh
 ```
 
-The script checks and installs the dependencies (repos + AUR for `quickshell`),
-backs up anything it would overwrite, copies the configs, enables Bluetooth /
+The script checks the dependencies, then checks for an AUR helper — `yay`, `paru`
+or `pikaur`. If you have one it says which and moves on; if you have none it
+offers to build `yay-bin` there and then, since `quickshell` itself lives in the
+AUR. Declining is fine: everything from the repos still installs. It then backs
+up anything it would overwrite, copies the configs, enables Bluetooth /
 power‑profiles / iwd, spreads the palette across the applications, restores the
 wallpaper and warms up its thumbnails. It then offers, one prompt at a time: the
 wallpaper pack (about 400 MB, downloaded as plain files), the GRUB boot theme and
@@ -170,73 +180,29 @@ gitignored, and without it the defaults in `keybindings.lua` apply.
 
 ## Credits
 
-None of the wallpapers here are mine. They are kept for convenience, and every
-one of them belongs to its original author.
+No wallpaper here is mine — each belongs to its author, and they are bundled only
+so a fresh install has something to show. Author of one and want it gone? Open an
+issue.
 
-**Bundled wallpapers**
+- [matteogini/dotfiles](https://github.com/matteogini/dotfiles) — `ember_stripes.jpg`
+  and `misty_peaks.jpg`; the rice this setup grew out of.
+- [HyDE](https://github.com/HyDE-Project/HyDE) — `spring_bloom.jpg`, from its
+  Graphite Mono theme; `hypr/palette.conf` is derived from it.
+- [ilyamiro/shell-wallpapers](https://github.com/ilyamiro/shell-wallpapers) — the
+  optional pack the installer offers to download.
 
-- `ember_stripes.jpg` (was `line.jpg`) and `misty_peaks.jpg` (was
-  `mountains.jpg`) — from
-  [matteogini/dotfiles](https://github.com/matteogini/dotfiles), the `hyprland`
-  branch, `hypr/wallpaper/` — the rice this setup grew out of.
-- `spring_bloom.jpg` — from the **Graphite Mono** theme of
-  [HyDE](https://github.com/HyDE-Project/HyDE). It lives in
-  `wallpaper/custom/` rather than in the repository, and the palette in
-  `hypr/palette.conf` is derived from it.
+Video wallpapers play through [mpvpaper](https://github.com/GhostNaN/mpvpaper);
+none are bundled. Drop `.mp4`, `.webm`, `.mkv` or `.mov` into
+`~/.config/hypr/wallpaper/live`, or take them from
+[DesktopHut](https://www.desktophut.com),
+[Wallper](https://wallper.app), [TuxPapers](https://tuxpapers.com) or
+[Papyrus](https://github.com/PSGtatitos/papyrus) — each on its own terms.
 
-Wallpapers are named after what they show, so the carousel reads as a list of
-pictures rather than a list of file ids.
+Interface font: [JetBrains Mono Nerd Font](https://www.nerdfonts.com) (SIL OFL),
+with [Material Design Icons](https://pictogrammers.com/library/mdi/) for every
+glyph. `assets/logo*.png` is drawn for this project, same licence as the code.
 
-They are kept here only so a fresh install has something to show. If you are the
-author of an image and want it gone, open an issue and it will be removed.
-
-**Wallpaper pack** (optional, fetched by the installer, not redistributed here)
-
-- [ilyamiro/shell-wallpapers](https://github.com/ilyamiro/shell-wallpapers) —
-  the collection the installer offers to download into
-  `~/.config/hypr/wallpaper/shell`. Individual images belong to their own
-  authors; the collection only gathers them.
-
-**Live wallpapers**
-
-Video wallpapers play through [mpvpaper](https://github.com/GhostNaN/mpvpaper),
-which puts mpv on the background layer; hyprpaper steps aside while a video is
-up. Drop `.mp4`, `.webm`, `.mkv` or `.mov` files into
-`~/.config/hypr/wallpaper/live` — the **Live wallpapers** tab of the carousel has
-a button that opens that folder in the file manager. Posters are pulled from the
-middle of each clip. One mpv runs per monitor and each pauses on its own when its
-wallpaper is covered, so a fullscreen window on one screen does not freeze the
-others.
-
-Nothing is bundled — bring your own, or take them from here:
-
-- [DesktopHut](https://www.desktophut.com) — large library of ready‑made MP4
-  loops, including very minimal abstractions.
-- [Wallper](https://wallper.app) ([source](https://github.com/alxndlk/wallper-app))
-  — open collection of 4K/60 H.264/H.265 loops with a community library.
-- [TuxPapers](https://tuxpapers.com) — animated wallpapers aimed at
-  Linux/Hyprland/Sway, with per‑monitor setup.
-- [Papyrus](https://github.com/PSGtatitos/papyrus) — animated wallpaper manager:
-  point it at a folder of MP4/WebM/MKV files and get a library with previews.
-
-Each of these has its own terms. Check them before redistributing anything you
-download.
-
-**Logo**
-
-`assets/logo*.png` — drawn for this project; the capsule with two concave notch
-cutouts is the shell's own silhouette. Same licence as the code.
-
-**Fonts and icons**
-
-- [JetBrains Mono Nerd Font](https://www.nerdfonts.com) — the whole interface,
-  SIL Open Font License.
-- [Material Design Icons](https://pictogrammers.com/library/mdi/), shipped
-  inside the Nerd Font — every glyph in the pill.
-
-**Tools this leans on**
-
-[Hyprland](https://hyprland.org) · [Quickshell](https://quickshell.org) ·
+Built on [Hyprland](https://hyprland.org) · [Quickshell](https://quickshell.org) ·
 [cava](https://github.com/karlstav/cava) · [cliphist](https://github.com/sentriz/cliphist) ·
 [hyprpaper / hyprsunset](https://github.com/hyprwm) ·
 [wf-recorder](https://github.com/ammen99/wf-recorder) · [fish](https://fishshell.com)
