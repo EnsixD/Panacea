@@ -1,6 +1,6 @@
 #!/bin/bash
 # Раскладывает единственную палитру (~/.config/hypr/palette.conf) по
-# приложениям: fastfetch, kitty, ghostty, foot, fish, zed, btop, neovim,
+# приложениям: fastfetch, foot, fish, zed, btop, neovim,
 # obsidian и экран входа.
 #
 # Раньше этим занимался switch_theme.sh, и цвета менялись вместе с обоями.
@@ -37,19 +37,7 @@ if [ -f "$FF" ]; then
     ' "$FF" > "$FF.new" && mv "$FF.new" "$FF"
 fi
 
-# ---------------------------------------------------- kitty, ghostty, foot
-[ -d "$HOME/.config/kitty" ] && cat > "$HOME/.config/kitty/theme.conf" <<EOF
-foreground $FG
-background $TERM_BG
-cursor $ACCENT
-EOF
-
-[ -d "$HOME/.config/ghostty" ] && cat > "$HOME/.config/ghostty/theme" <<EOF
-foreground = $FG
-background = $TERM_BG
-cursor-color = $ACCENT
-EOF
-
+# ------------------------------------------------------------------- foot
 # Foot не хочет '#' в значениях цветов
 if [ -d "$HOME/.config/foot" ]; then
     cat > "$HOME/.config/foot/theme" <<EOF
@@ -210,6 +198,4 @@ if [ -d "$SDDM_DIR" ] && [ -w "$SDDM_DIR" ]; then
     chmod 644 "$SDDM_DIR/accent.qml"
 fi
 
-# Палитра сменилась — просим уже запущенных перечитать её
-killall -USR1 kitty >/dev/null 2>&1
 exit 0

@@ -414,7 +414,7 @@ copy_into_config() {   # copy_into_config <dir-in-repo>
 install_configs() {
     mkdir -p "$CONF" "$HOME/.local/bin"
     keep_stash
-    for d in panacea hypr foot ghostty kitty fish fastfetch nano; do
+    for d in panacea hypr foot fish fastfetch nano; do
         [ -d "$SRC/$d" ] && copy_into_config "$d"
     done
     keep_restore

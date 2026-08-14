@@ -87,7 +87,7 @@ and never touches a file that Hyprland sources, so your windows are left alone.
 | **Compositor** | [Hyprland](https://hyprland.org), Lua config |
 | **Shell** | [Quickshell](https://quickshell.org) — the pill, in QML |
 | **CLI** | Fish + eza + zoxide |
-| **Terminals** | foot, Ghostty, Kitty |
+| **Terminal** | foot |
 | **Lock / wallpaper** | the pill's own lock screen, hyprpaper, hyprsunset |
 | **Boot / login** | GRUB theme, SDDM theme — both matching the palette |
 
@@ -136,7 +136,7 @@ version and restarts the shell. Packages, the login theme and the boot theme are
 left alone — those are installed once. From then on updates arrive through the
 button.
 
-Prefer to do it by hand? Copy `panacea hypr foot ghostty kitty fish fastfetch
+Prefer to do it by hand? Copy `panacea hypr foot fish fastfetch
 nano` into `~/.config`, `nano/nanorc` to `~/.nanorc`, `bin/*` to
 `~/.local/bin`, then run `hypr/scripts/palette.sh`, `hypr/scripts/switch_theme.sh
 --restore` and `hyprctl reload`.
@@ -160,7 +160,7 @@ grub/      boot theme + the script that generates its assets
 sddm/      login theme
 bin/       standalone helper scripts
 fish/      shell config and prompt
-foot/ ghostty/ kitty/   terminals
+foot/      terminal
 fastfetch/ nano/
 ```
 
