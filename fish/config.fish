@@ -14,17 +14,15 @@ set -g fish_greeting ""
 # eza вместо ls: цвета, иконки, дерево. Флаги подобраны под остров —
 # без рамок, группировка папок сверху.
 #
-# -a везде: в домашнем каталоге почти всё интересное начинается с точки —
-# .config, .local, .ssh. Прятать их по умолчанию значит прятать ровно то,
-# ради чего в этот каталог и заходят. Точку и две точки (-a, а не -A) не
-# показываем: они не файлы, а навигация, и только зашумляют список.
+# Скрытые файлы намеренно не показываются по умолчанию: в домашнем каталоге
+# их вчетверо больше, чем обычных, и голый ls превращался в простыню из
+# служебных точек. Они никуда не делись — их показывают ll, la и любой вызов
+# с -a или -la, потому что алиас дописывает флаги к концу команды.
 if type -q eza
-    alias ls   'eza --icons --group-directories-first -a'
+    alias ls   'eza --icons --group-directories-first'
     alias ll   'eza --icons --group-directories-first -la --git'
     alias la   'eza --icons --group-directories-first -la --git'
-    alias lt   'eza --icons --group-directories-first --tree --level=2 -a'
-    # если понадобится список без скрытых — вот он
-    alias lv   'eza --icons --group-directories-first'
+    alias lt   'eza --icons --group-directories-first --tree --level=2'
 end
 
 # zoxide подменяет cd: он помнит, куда вы ходили, и прыгает по обрывку пути.
