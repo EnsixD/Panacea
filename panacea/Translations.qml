@@ -21,7 +21,7 @@ QtObject {
         "окно уже обновилось": "window has already reset",
         "д": "d",
         "ч": "h",
-        "мин": "min",
+        // «мин» уже есть ниже, в строках уведомлений, — второй раз не заводим
         "только что": "just now",
         "мин назад": "min ago",
         "ч назад": "h ago",
@@ -33,12 +33,17 @@ QtObject {
         // другие системы на диске — строки лаунчера
         "Перезагрузиться в эту систему": "Restart into this system",
 
+        // перетаскивание в проводнике: что делать с совпавшими именами
+        "Уже есть: ": "Already there: ",
+        "Совпало имён: ": "Names already taken: ",
+        "Заменить": "Replace",
+        "Оставить оба": "Keep both",
+        "Пропустить": "Skip",
+
         // строки нового окна настроек
         "и ещё": "and",
         "Монитор не сообщил свои режимы — обычно это значит, что не установлен драйвер видеокарты.":
             "The monitor did not report its modes — usually that means the graphics driver is missing.",
-        "Слева": "Left",
-        "Справа": "Right",
         "Не хватает пакетов": "Some packages are missing",
         "Больше не нужны": "No longer needed",
         "Скопировать команду": "Copy the command",

@@ -1727,21 +1727,88 @@ Item {
         }
         return out;
     }
-    function dropRun(move) {
-        var paths = view.pathsOf(view.dropUrls);
-        if (paths.length === 0) { view.dropMenu = false; return; }
+    // Что выбрали в первом меню, и что уже лежит в каталоге назначения.
+    property bool dropMove: false
+    property var  dropConflicts: []
+    property bool dropAsk: false
+
+    function dirOf(p) {
+        var s = String(p).replace(/\/+$/, "");
+        var i = s.lastIndexOf("/");
+        return i <= 0 ? "/" : s.substring(0, i);
+    }
+    function dropTargetDir() {
+        return view.dropDir.length ? view.dropDir : view.dir;
+    }
+
+    // То из перетаскиваемого, что действительно куда-то поедет.
+    //
+    // Файл, отпущенный там же, где он и лежал, никуда не переносится: копия
+    // рядом с оригиналом — это не то, что человек имел в виду, отпустив кнопку
+    // в паре сантиметров от места, где нажал. И папку внутрь себя самой класть
+    // тоже незачем.
+    function movablePaths() {
+        var dest = view.dropTargetDir();
+        var all = view.pathsOf(view.dropUrls), out = [];
+        for (var i = 0; i < all.length; i++) {
+            var p = String(all[i]).replace(/\/+$/, "");
+            if (p === dest) continue;               // папка сама в себя
+            if (view.dirOf(p) === dest) continue;   // уже здесь
+            out.push(all[i]);
+        }
+        return out;
+    }
+
+    function dropCancel() {
+        view.dropMenu = false;
+        view.dropAsk = false;
+        view.dropUrls = [];
+        view.dropDir = "";
+        view.dropConflicts = [];
+    }
+
+    // Первый вопрос: переместить или скопировать. Второй — что делать с
+    // совпавшими именами — задаём только если совпадения есть, и только
+    // после того, как выбран сам способ.
+    Process {
+        id: pConflicts
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var names = String(text).trim().split("\n").filter(function (x) {
+                    return x.length > 0;
+                });
+                if (names.length === 0) { view.dropRun("keepboth"); return; }
+                view.dropConflicts = names;
+                view.dropAsk = true;
+            }
+        }
+    }
+
+    function dropPick(move) {
+        var paths = view.movablePaths();
+        if (paths.length === 0) { view.dropCancel(); return; }
+        view.dropMove = move;
+        view.dropMenu = false;
+        pConflicts.running = false;
+        pConflicts.command = ["sh", "-c", view.scripts + ' conflicts "$@"',
+                              "_", view.dropTargetDir()].concat(paths);
+        pConflicts.running = true;
+    }
+
+    function dropRun(mode) {
+        var paths = view.movablePaths();
+        if (paths.length === 0) { view.dropCancel(); return; }
         // Все файлы одним вызовом: скрипт сам обходит список и считает по
         // нему общий прогресс. Имена уходят отдельными аргументами, поэтому
         // пробелы и кавычки внутри них ничего не ломают.
-        var op = move ? "move" : "copy";
-        var dest = view.dropDir.length ? view.dropDir : view.dir;
-        var args = ["sh", "-c", view.scripts + " " + op + ' "$@"', "_", dest].concat(paths);
+        var op = view.dropMove ? "move" : "copy";
+        var dest = view.dropTargetDir();
+        var args = ["sh", "-c", view.scripts + " " + op + ' "$@"',
+                    "_", dest, mode].concat(paths);
         view.runLong(args, undefined,
                      paths.length === 1 ? view.baseName(paths[0])
                                         : view.sys.tr("Файлов: ") + paths.length);
-        view.dropMenu = false;
-        view.dropUrls = [];
-        view.dropDir = "";
+        view.dropCancel();
         // перечитывать список тут не надо: pAction сделает это сам, когда
         // закончит. Две перезагрузки подряд запускали анимацию списка дважды,
         // и появление файла дёргалось.
@@ -1755,6 +1822,16 @@ Item {
         drop.accept(Qt.CopyAction);
         view.dropUrls = drop.urls;
         view.dropDir = targetDir;
+
+        // Отпустили там же, откуда взяли, — переносить нечего, и спрашивать не
+        // о чем: любой ответ ничего бы не изменил. Меню в этом случае было
+        // чистой помехой — оно появлялось на каждый промах мимо цели и его
+        // приходилось закрывать.
+        if (view.movablePaths().length === 0) {
+            view.dropCancel();
+            return;
+        }
+
         view.dropX = Math.max(6, Math.min(px, view.width - 192));
         view.dropY = Math.max(6, Math.min(py, view.height - 84));
         view.dropMenu = true;
@@ -1791,7 +1868,7 @@ Item {
         z: 92
         anchors.fill: parent
         visible: view.dropMenu
-        onClicked: { view.dropMenu = false; view.dropUrls = []; }
+        onClicked: view.dropCancel()
     }
     Rectangle {
         z: 93
@@ -1844,7 +1921,91 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: view.dropRun(dropItem.modelData.mv)
+                        onClicked: view.dropPick(dropItem.modelData.mv)
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------- совпавшие имена: что с ними делать
+    // Второй вопрос задаётся только когда есть о чём спрашивать, и уже после
+    // того, как выбран способ переноса. Раньше совпадения разбирались молча:
+    // рядом появлялся «файл-2», и человек узнавал об этом, когда искал глазами
+    // тот, что клал.
+    MouseArea {
+        z: 94
+        anchors.fill: parent
+        visible: view.dropAsk
+        onClicked: view.dropCancel()
+    }
+    Rectangle {
+        z: 95
+        visible: view.dropAsk
+        x: view.dropX
+        y: view.dropY
+        width: 236
+        height: askCol.implicitHeight + 12
+        radius: 12
+        color: Qt.rgba(0.06, 0.06, 0.07, 0.99)
+        border.color: view.sys.colLine
+        border.width: 1
+
+        ColumnLayout {
+            id: askCol
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 2
+
+            Text {
+                Layout.fillWidth: true
+                Layout.leftMargin: 10
+                Layout.topMargin: 6
+                Layout.bottomMargin: 2
+                text: view.dropConflicts.length === 1
+                      ? view.sys.tr("Уже есть: ") + view.dropConflicts[0]
+                      : view.sys.tr("Совпало имён: ") + view.dropConflicts.length
+                color: view.sys.colMuted
+                elide: Text.ElideMiddle
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+            }
+
+            Repeater {
+                model: [
+                    { t: view.sys.tr("Заменить"),     g: 0xF0450, m: "overwrite" },
+                    { t: view.sys.tr("Оставить оба"), g: 0xF018F, m: "keepboth" },
+                    { t: view.sys.tr("Пропустить"),   g: 0xF0156, m: "skip" }
+                ]
+                Rectangle {
+                    id: askItem
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    radius: 9
+                    color: askItemMa.containsMouse ? view.sys.colHover : "transparent"
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        spacing: 9
+                        Text {
+                            text: String.fromCodePoint(askItem.modelData.g)
+                            color: askItem.modelData.m === "overwrite"
+                                   ? view.sys.colCrit : view.sys.colMuted
+                            font { family: view.sys.fontFam; pixelSize: 14 }
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: askItem.modelData.t
+                            color: view.sys.colFg
+                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                        }
+                    }
+                    MouseArea {
+                        id: askItemMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.dropRun(askItem.modelData.m)
                     }
                 }
             }
