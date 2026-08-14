@@ -631,9 +631,16 @@ PanelWindow {
     // байтов и файлов оно не считает, а этапы известны наперёд.
     readonly property var updSteps: ["download", "selfupdate", "backup",
                                      "install", "restore", "restart", "done"]
+    // Считаем по НАЧАТЫМ этапам, а не по законченным.
+    //
+    // Раньше «скачивание» давало ровно 0%: этап первый, законченных ноль. А
+    // скачивание — самый долгий шаг, минуты, и всё это время полоса стояла
+    // пустой. Пустая полоса читается как «ничего не происходит», хотя
+    // происходит как раз самое долгое.
     readonly property int updStepPercent: {
         var i = root.updSteps.indexOf(root.updStep);
-        return i < 0 ? 0 : Math.round(i * 100 / (root.updSteps.length - 1));
+        if (i < 0) return 0;
+        return Math.round((i + 1) * 100 / root.updSteps.length);
     }
     onUpdStepChanged: if (root.updBusy) root.busyProgress = root.updStepPercent;
 
@@ -674,7 +681,19 @@ PanelWindow {
     Process {
         id: pUpdApply
         command: [root.scriptDir + "/update.sh", "apply"]
-        stdout: StdioCollector { onStreamFinished: root.updParse(text, false) }
+        // Построчно, а не StdioCollector.
+        //
+        // StdioCollector копит весь вывод и отдаёт его одним куском, когда
+        // поток закроется, то есть когда обновление уже кончилось. Строки
+        // step= приезжали все разом и в самом конце — полоса честно стояла на
+        // нуле всё обновление, а потом оболочка просто перезапускалась. Ход
+        // работы, показанный после её окончания, — это не ход работы.
+        //
+        // SplitParser отдаёт каждую строку сразу, как скрипт её напечатал.
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => root.updParse(data, false)
+        }
         onExited: code => {
             root.updBusy = false;
             root.endBusy();
