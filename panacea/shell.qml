@@ -134,6 +134,11 @@ PanelWindow {
             // почти всё, за чем в него заходят, начинается именно с неё —
             // .config, .local, .ssh.
             property bool   filesHidden: true
+            // Как проводник раскладывает содержимое: "list" — строки с
+            // мелкими значками, размером и датой; "grid" — плитки покрупнее,
+            // когда важнее узнать файл в лицо, чем прочитать про него цифры.
+            // Переключатель стоит рядом с поиском, выбор запоминается.
+            property string filesMode: "list"
 
             // Цифровая интенсивность, шкала как в панели NVIDIA: 50 — как
             // есть, 100 — максимум. На Wayland ручка из nvidia-settings не
@@ -263,7 +268,8 @@ PanelWindow {
         clockTz: "auto", clockDateFmt: "d MMMM",
         notifDnd: false, notifTimeout: 5000, notifCritTimeout: 0, notifPreview: true,
         lockBlur: 32, lockHint: "",
-        ccLayout: "", filesWindow: false, filesHidden: true, vaultCapture: true,
+        ccLayout: "", filesWindow: false, filesHidden: true, filesMode: "list",
+        vaultCapture: true,
         vibrance: 50, mouseSens: 0, mouseRaw: false,
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: ""
     })

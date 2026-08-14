@@ -33,6 +33,21 @@ Item {
     property bool   foldersFirst: true
     property string status: ""
 
+    // Раскладка содержимого: "list" | "grid". Живёт в настройках, а не в самом
+    // виде: проводник открывают и закрывают десятками раз за сеанс, и каждый
+    // раз возвращаться к списку, когда работаешь с картинками, — маета.
+    readonly property string mode: view.sys.cfg.filesMode === "grid" ? "grid" : "list"
+    function setMode(m) {
+        if (view.mode === m) return;
+        view.sys.cfg.filesMode = m;
+        view.sys.saveCfg();
+    }
+    // Сколько плиток помещается в ряд. Нужно не только сетке: по этому же
+    // числу стрелки вверх и вниз ходят на строку, а не на соседний файл.
+    readonly property int gridCell: 118
+    readonly property int gridCols: Math.max(1, Math.floor(view.width > 0
+                                                           ? view.width / view.gridCell : 1))
+
     // выбранный файл, для которого показываем «чем открыть»
     property string openWithFile: ""
 
@@ -573,8 +588,18 @@ Item {
         if (view.filter.length) { view.filter = ""; applyFilter(); return; }
         view.leave();
     }
-    Keys.onUpPressed:    if (view.current > 0) view.current--;
-    Keys.onDownPressed:  if (view.current < entries.count - 1) view.current++;
+    // В сетке вверх и вниз ходят на строку, а не на соседний файл: иначе
+    // стрелка вниз ползла бы вдоль ряда, а глаз ждёт, что она опустится под
+    // курсор. В списке строка и есть один файл, поэтому шаг там прежний.
+    function step(delta) {
+        var n = entries.count;
+        if (n === 0) return;
+        view.current = Math.max(0, Math.min(n - 1, view.current + delta));
+    }
+    Keys.onUpPressed:    view.step(view.mode === "grid" ? -view.gridCols : -1)
+    Keys.onDownPressed:  view.step(view.mode === "grid" ?  view.gridCols :  1)
+    Keys.onLeftPressed:  if (view.mode === "grid") view.step(-1)
+    Keys.onRightPressed: if (view.mode === "grid") view.step(1)
     Keys.onReturnPressed: view.openWithFile.length ? view.openWith(appList.currentFile())
                                                    : view.activate(view.current)
     Keys.onEnterPressed:  view.openWithFile.length ? view.openWith(appList.currentFile())
@@ -906,6 +931,60 @@ Item {
                     }
                 }
             }
+
+            // ------------------------------------------- список или сетка
+            // Две кнопки, а не выпадающий список: режимов ровно два, и между
+            // ними переключаются часто. Выбор запоминается в настройках, иначе
+            // проводник каждый раз открывался бы не тем, чем его закрыли.
+            Rectangle {
+                Layout.preferredWidth: 76
+                Layout.preferredHeight: 38
+                radius: 19
+                color: Qt.rgba(1, 1, 1, 0.06)
+                border.color: view.sys.colLine
+                border.width: 1
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 2
+
+                    Repeater {
+                        model: [
+                            { id: "list", g: 0xF0279 },   // md-format_list_bulleted
+                            { id: "grid", g: 0xF0A0E }    // md-view_grid_outline
+                        ]
+
+                        Rectangle {
+                            required property var modelData
+                            readonly property bool on: view.mode === modelData.id
+
+                            width: 34; height: 30
+                            radius: 15
+                            color: on ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                                view.sys.colOn.b, 0.25)
+                                 : (modeMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08)
+                                                         : "transparent")
+                            Behavior on color { ColorAnimation { duration: 130 } }
+
+                            Glyph {
+                                anchors.centerIn: parent
+                                glyph: String.fromCodePoint(parent.modelData.g)
+                                color: parent.on ? view.sys.colOn : view.sys.colMuted
+                                fontFam: view.sys.fontFam
+                                size: 15
+                            }
+
+                            MouseArea {
+                                id: modeMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: view.setMode(parent.modelData.id)
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Rectangle {
@@ -1177,6 +1256,7 @@ Item {
 
                 ListView {
                     id: list
+                    visible: view.mode === "list"
                     Layout.fillWidth: true
                     // В пилюле высоту держим постоянной: список не должен
                     // «дышать» при переходе между папками с разным числом
@@ -1190,6 +1270,31 @@ Item {
                     currentIndex: view.current
                     highlightMoveDuration: 130
                     onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+
+                    // Мышью список не таскается. ListView — это Flickable, а он
+                    // по умолчанию понимает зажатую кнопку как прокрутку: то
+                    // есть ровно тем же движением, которым файл берут, чтобы
+                    // перетащить. Список уезжал из-под курсора на первых же
+                    // пикселях, и перетаскивание превращалось в лотерею.
+                    //
+                    // Это поведение с сенсорного экрана, где другого способа
+                    // прокрутить нет. Здесь есть колесо, и оно однозначно.
+                    interactive: false
+
+                    // interactive: false выключает у Flickable и колесо тоже,
+                    // поэтому крутим сами. У мыши шаг приходит в angleDelta
+                    // (одна «ступенька» — 120), у тачпада в pixelDelta и
+                    // мелкими порциями; берём то, что пришло.
+                    WheelHandler {
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: function (ev) {
+                            var step = ev.pixelDelta.y !== 0 ? ev.pixelDelta.y
+                                     : ev.angleDelta.y;
+                            if (step === 0) return;
+                            var max = Math.max(0, list.contentHeight - list.height);
+                            list.contentY = Math.max(0, Math.min(max, list.contentY - step));
+                        }
+                    }
 
                     // Подложка под делегатами: правый клик по пустому месту
                     // даёт меню самой папки. Живёт внутри ListView, иначе
@@ -1310,6 +1415,150 @@ Item {
                                 }
                             }
                             onDoubleClicked: view.activate(row.index)
+                        }
+                    }
+                }
+
+                // ------------------------------------------------- сетка
+                // Тот же список, разложенный плитками: значок крупно, имя под
+                // ним в две строки. Пригождается там, где по имени файл не
+                // узнать, — снимки, обои, загрузки.
+                //
+                // Модель, выделение, перетаскивание и меню — те же, что у
+                // списка: это одна и та же папка, показанная иначе, и вести
+                // себя она обязана одинаково.
+                GridView {
+                    id: grid
+                    visible: view.mode === "grid"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: view.windowMode
+                    Layout.preferredHeight: view.windowMode ? 0 : view.sys.filesListH
+                    Layout.minimumHeight: view.windowMode ? 120 : 0
+                    clip: true
+                    model: entries
+                    currentIndex: view.current
+                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, GridView.Contain)
+
+                    cellWidth: Math.floor(width / view.gridCols)
+                    cellHeight: 104
+
+                    // Мышью не таскается — по той же причине, что и список:
+                    // зажатая кнопка здесь берёт файл, а не крутит содержимое.
+                    interactive: false
+                    WheelHandler {
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: function (ev) {
+                            var step = ev.pixelDelta.y !== 0 ? ev.pixelDelta.y
+                                     : ev.angleDelta.y;
+                            if (step === 0) return;
+                            var max = Math.max(0, grid.contentHeight - grid.height);
+                            grid.contentY = Math.max(0, Math.min(max, grid.contentY - step));
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        z: -1
+                        acceptedButtons: Qt.RightButton
+                        onClicked: mouse => {
+                            var p = mapToItem(view, mouse.x, mouse.y);
+                            view.openMenu(view.dir, true, p.x, p.y);
+                        }
+                    }
+
+                    delegate: Rectangle {
+                        id: tile
+                        required property int index
+                        required property var model
+
+                        width: grid.cellWidth - 6
+                        height: grid.cellHeight - 6
+                        radius: 14
+                        readonly property bool dropTarget:
+                            tile.model.eType === "d" && tileDrop.containsDrag
+
+                        color: tile.dropTarget
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                         view.sys.colOn.b, 0.28)
+                             : index === view.current ? Qt.rgba(1, 1, 1, 0.09)
+                             : (tileMa.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        border.color: view.sys.colOn
+                        border.width: tile.dropTarget ? 1 : 0
+
+                        DropArea {
+                            id: tileDrop
+                            anchors.fill: parent
+                            keys: ["text/uri-list"]
+                            enabled: tile.model.eType === "d"
+                            onDropped: drop => {
+                                var p = view.mapFromItem(tile, drop.x, drop.y);
+                                view.takeDrop(drop, view.fullPath(tile.model.eName), p.x, p.y);
+                            }
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 8
+                            anchors.leftMargin: 6
+                            anchors.rightMargin: 6
+                            spacing: 6
+
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: view.iconFor(tile.model)
+                                color: tile.model.eType === "d" ? view.sys.colOn
+                                                                : view.sys.colMuted
+                                font { family: view.sys.fontFam; pixelSize: 34 }
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                text: tile.model.eName
+                                color: view.sys.colFg
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.Wrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                            }
+                        }
+
+                        MouseArea {
+                            id: tileMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                            property bool dragging: false
+                            property real pressX: 0
+                            property real pressY: 0
+
+                            onPressed: mouse => { pressX = mouse.x; pressY = mouse.y; }
+                            onReleased: dragging = false
+                            onPositionChanged: mouse => {
+                                if (dragging || !pressed || mouse.buttons !== Qt.LeftButton) return;
+                                if (Math.abs(mouse.x - pressX) < 12
+                                    && Math.abs(mouse.y - pressY) < 12) return;
+                                view.current = tile.index;
+                                dragging = true;
+                                view.sys.startFileDrag(view.fullPath(tile.model.eName),
+                                                       view.windowMode);
+                            }
+
+                            onClicked: mouse => {
+                                if (tileMa.dragging) return;
+                                view.current = tile.index;
+                                view.forceActiveFocus();
+                                if (mouse.button === Qt.RightButton) {
+                                    var p = mapToItem(view, mouse.x, mouse.y);
+                                    view.openMenu(view.fullPath(tile.model.eName),
+                                                  tile.model.eType === "d", p.x, p.y);
+                                }
+                            }
+                            onDoubleClicked: view.activate(tile.index)
                         }
                     }
                 }
