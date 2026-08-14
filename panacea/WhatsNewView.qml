@@ -39,6 +39,12 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "files: list what is inside gvfs, not the gvfs mount itself":
+            "Проводник: в съёмных больше не висит пустая запись gvfs",
+        "files: a grid view beside the list, and no scrolling by drag":
+            "Проводник: вид сеткой рядом со списком, и список больше не уезжает при перетаскивании",
+        "launcher: restart straight into another installed system":
+            "Лаунчер: перезагрузка сразу в другую установленную систему",
         "agents: plans and limits for every installed AI agent":
             "Агенты: тарифы и лимиты установленных ИИ-агентов",
         "install: ask about the AUR helper up front, mask rival notifiers":

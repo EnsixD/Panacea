@@ -75,6 +75,70 @@ FocusScope {
               + "агенты агент лимиты тариф подписка нагрузка"
     }]
 
+    // ------------------------------------------------- другие системы на диске
+    // Появляются в списке только если они на машине действительно есть:
+    // bootos.sh ищет их сам, и пустой ответ означает пустой список. На машине
+    // с одной системой в лаунчере не будет ни одной такой строки — ни серой,
+    // ни отключённой, никакой.
+    //
+    // Список не фиксирован двумя пунктами: сколько систем нашлось, столько
+    // строк и появится.
+    property var systems: []
+
+    Process {
+        id: pSystems
+        command: ["sh", view.sys.scriptDir + "/bootos.sh", "list"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var out = [];
+                var lines = String(text).trim().split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var p = lines[i].split("|");
+                    if (p.length < 3) continue;
+                    out.push({
+                        builtin: "bootos",
+                        bootId: p[0],
+                        // Недавние помнят систему по её идентификатору в
+                        // загрузчике, а не по названию: название приходит от
+                        // os-prober и меняется вместе с ним.
+                        id: "panacea:bootos:" + p[0],
+                        glyph: view.osGlyph(p[2]),
+                        name: p[1],
+                        genericName: view.sys.tr("Перезагрузиться в эту систему"),
+                        keys: "reboot restart boot " + p[1].toLowerCase() + " " + p[2]
+                              + " перезагрузка загрузиться система"
+                    });
+                }
+                view.systems = out;
+            }
+        }
+    }
+
+    function osGlyph(kind) {
+        switch (String(kind)) {
+        case "windows": return String.fromCodePoint(0xF05B3);   // md-microsoft_windows
+        case "linux":   return String.fromCodePoint(0xF033D);   // md-linux
+        case "mac":     return String.fromCodePoint(0xF0035);   // md-apple
+        }
+        return String.fromCodePoint(0xF02CA);                   // md-harddisk
+    }
+
+    Process { id: pBootOs }
+    function bootInto(app) {
+        // pkexec, потому что и grub-reboot, и запись BootNext правят состояние
+        // загрузчика. Пароль здесь заодно и есть подтверждение: перезагрузка
+        // необратима, а отдельного «вы уверены?» на пути к ней быть не должно —
+        // человек попросил перезагрузиться, а не поговорить об этом.
+        pBootOs.command = ["pkexec", view.sys.scriptDir + "/bootos.sh",
+                           "boot", String(app.bootId)];
+        pBootOs.running = true;
+        sys.closeLauncher();
+    }
+
+    // Всё, что лаунчер показывает помимо приложений.
+    readonly property var extras: view.builtins.concat(view.systems)
+
     function builtinMatches(b, q) {
         if (q.length === 0) return false;   // с пустым запросом список — приложения
         if (String(b.name).toLowerCase().indexOf(q) >= 0) return true;
@@ -90,12 +154,16 @@ FocusScope {
         // сортируется по алфавиту, и «Агенты» уехали бы в середину выдачи.
         // Их спрашивают по имени, прицельно, поэтому место у них первое.
         var pinned = [];
-        for (var b = 0; b < view.builtins.length; b++) {
-            var bi = view.builtins[b];
-            // С пустым запросом строка идёт в общий список и встаёт по
+        for (var b = 0; b < view.extras.length; b++) {
+            var bi = view.extras[b];
+            // С пустым запросом своя строка идёт в общий список и встаёт по
             // давности наравне с приложениями: открыли её последней — она и
             // первая. С запросом место у неё всегда первое.
-            if (q.length === 0) starts.push(bi);
+            //
+            // Кроме систем: их в списке «всё подряд» нет вовсе. Там их строка
+            // стояла бы вплотную к браузеру, и промах по Enter уводил бы в
+            // перезагрузку. Систему вызывают намеренно, набрав её имя.
+            if (q.length === 0) { if (bi.builtin !== "bootos") starts.push(bi); }
             else if (view.builtinMatches(bi, q)) pinned.push(bi);
         }
         for (var i = 0; i < all.length; i++) {
@@ -168,6 +236,11 @@ FocusScope {
         // из того же списка и тем же Enter, и в следующий раз она должна
         // ждать сверху, а не на своём месте по алфавиту.
         if (app.builtin === "agents") { rememberApp(app); sys.openAgents(); return; }
+        // Систему в недавние НЕ записываем. Недавние — это «чем я пользуюсь»,
+        // а перезагрузка в другую систему случается раз в неделю и после неё
+        // висела бы первой строкой в пустом лаунчере до конца времён. Причём
+        // первой строкой, которую легче всего задеть случайным Enter.
+        if (app.builtin === "bootos") { bootInto(app); return; }
         rememberApp(app);
         app.execute();
         sys.closeLauncher();
