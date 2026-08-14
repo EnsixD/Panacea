@@ -586,6 +586,42 @@ install_grub() {
     else
         sudo grub2-mkconfig -o "$out" >/dev/null 2>&1 && ok "boot theme installed → $dst"
     fi
+
+    check_grub_prefix
+}
+
+# Всё выше могло отработать вхолостую.
+#
+# У EFI-образа grubx64.efi внутри зашит prefix — каталог, откуда загрузчик
+# берёт grub.cfg, модули и темы. Если он указывает не туда, куда мы только что
+# писали, GRUB прочитает совсем другой конфиг, а мы этого не заметим: и копия
+# темы, и grub-mkconfig отработают успешно, просто их результат никто не
+# откроет. Снаружи это выглядит как «тема не применяется и пункты меню не
+# меняются», без единой ошибки, — и ищется такое долго.
+#
+# Классический случай — ESP, смонтированный в /boot поверх непустого каталога.
+# Внутри ESP тема лежит по пути /grub, а prefix при этом остаётся из прошлой
+# установки — (,gptN)/boot/grub, то есть в каталоге, спрятанном под точкой
+# монтирования. Отсюда и проверка: prefix с /boot/grub при ESP на /boot почти
+# наверняка означает именно это.
+check_grub_prefix() {
+    command -v strings >/dev/null 2>&1 || return 0
+    mountpoint -q /boot 2>/dev/null || return 0
+
+    local efi prefix
+    for efi in /boot/EFI/*/grubx64.efi /boot/efi/EFI/*/grubx64.efi; do
+        [ -f "$efi" ] || continue
+        prefix="$(sudo strings "$efi" 2>/dev/null | grep -m1 -E '^\([^)]*\)/')" || true
+        [ -n "$prefix" ] || continue
+        case "$prefix" in
+            */boot/grub)
+                warn "GRUB читает конфиг не оттуда, куда мы пишем"
+                printf '        %s → prefix %s\n' "$efi" "$prefix"
+                printf '        тема и меню не применятся, пока это не исправлено:\n'
+                printf '        sudo grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB\n'
+                ;;
+        esac
+    done
 }
 
 # set_grub_key <файл> <ключ> <значение>
