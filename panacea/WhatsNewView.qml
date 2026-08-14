@@ -39,6 +39,58 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "agents: plans and limits for every installed AI agent":
+            "Агенты: тарифы и лимиты установленных ИИ-агентов",
+        "install: ask about the AUR helper up front, mask rival notifiers":
+            "Установщик: спрашивает про помощник AUR заранее и убирает чужой демон уведомлений",
+        "terminals: keep foot, drop kitty and ghostty":
+            "Терминалы: остался один foot, kitty и ghostty убраны",
+        "settings: drop the Plugins tab and the task pad":
+            "Настройки: убран раздел Plugins вместе с блокнотом задач",
+        "install: check where GRUB actually reads its config from":
+            "Установщик: проверяет, откуда GRUB на самом деле читает конфиг",
+        "fish: hide dotfiles unless -a asks for them":
+            "Терминал: скрытые файлы показываются только по -a",
+        "monitors: put the saved screen mode into the compositor config":
+            "Экраны: сохранённый режим прописывается в конфиг компоновщика",
+        "install: start the shell with the threaded render loop after installing":
+            "Установщик: оболочка запускается с потоковым циклом отрисовки",
+        "island: stop restarting the height animation while the page settles":
+            "Остров: анимация высоты не дёргается, пока страница устаканивается",
+        "controls: sliders land on exact values instead of fighting the hardware":
+            "Быстрые настройки: ползунки встают на точные значения",
+        "display: write the vibrance shader atomically and wait for the slider to settle":
+            "Экран: шейдер насыщенности пишется целиком, без баннера с ошибкой",
+        "grub: name the theme fonts the way they are stored inside the .pf2":
+            "GRUB: имена шрифтов темы совпадают с тем, как они лежат в .pf2",
+        "i18n: english strings for the new settings":
+            "Перевод: английские строки для новых настроек",
+        "install: build an AUR helper, add missing deps, offer fish as the login shell":
+            "Установщик: собирает помощник AUR, ставит недостающее и предлагает fish оболочкой входа",
+        "cursor: software cursors on NVIDIA, and a black minimal theme":
+            "Курсор: программные курсоры на NVIDIA и чёрная минималистичная тема",
+        "clock: 24-hour format everywhere, not just in the shell":
+            "Часы: 24-часовой формат везде, а не только в оболочке",
+        "fish: show dotfiles, add c/upd/ins, and stop fastfetch on startup":
+            "Терминал: скрытые файлы, алиасы c/upd/ins и fastfetch больше не лезет при запуске",
+        "files: fill the window and show dotfiles":
+            "Проводник: список занимает всё окно и показывает скрытые файлы",
+        "controls: hide the battery and power profiles on a desktop machine":
+            "Быстрые настройки: на стационарной машине нет батареи и режимов питания",
+        "controls: volume and brightness share one row":
+            "Быстрые настройки: громкость и яркость встали в одну строку",
+        "controls: show the wired network instead of Wi-Fi when a cable is in":
+            "Быстрые настройки: при подключённом кабеле видно проводную сеть, а не Wi-Fi",
+        "settings: language switch for the shell and the system":
+            "Настройки: переключение языка оболочки и системы",
+        "settings: pointer speed and raw input":
+            "Настройки: скорость указателя и прямой ввод",
+        "display: digital vibrance through a compositor shader":
+            "Экран: цифровая насыщенность через шейдер компоновщика",
+        "brightness: one control for the laptop backlight and desktop monitors":
+            "Яркость: одна настройка для подсветки ноутбука и внешних мониторов",
+        "settings: new keys for hidden files, screen colour and the pointer":
+            "Настройки: новые ключи для скрытых файлов, цвета экрана и указателя",
         "install: kernel headers, or the Nvidia module never gets built":
             "Установщик: заголовки ядра, без которых модуль Nvidia не собирается",
         "install: open modules for Turing and newer, vendors by PCI id":
