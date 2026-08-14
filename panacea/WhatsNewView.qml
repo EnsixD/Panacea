@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "install: make the shell the default handler for files it can open":
+            "Установщик: оболочка становится обработчиком по умолчанию для того, что умеет открывать",
         "files: open-with actually opens, and stops filling the whole panel":
             "Проводник: «чем открыть» действительно открывает, список стал уже и слушается стрелок",
         "agents: follow the account, and refresh whenever the panel opens":

@@ -941,6 +941,74 @@ setup_time_format() {
     fi
 }
 
+# Чем система открывает файлы.
+#
+# Без этого шага умолчаний нет вовсе, и решают запасные варианты, собранные
+# из чужих .desktop: картинки открывались браузером, каталоги — файловым
+# менеджером KDE, которым здесь никто не пользуется. При этом у оболочки есть
+# и просмотрщик, и проводник, просто система про них не знала.
+#
+# Три ярлыка кладём в ~/.local/share/applications: они зовут уже работающую
+# оболочку через её же ipc, а не запускают вторую копию. @HOME@ подставляем
+# при установке — в .desktop нет способа сослаться на домашний каталог, а
+# абсолютный путь у каждого свой.
+setup_mime() {
+    command -v xdg-mime >/dev/null 2>&1 || {
+        warn "xdg-mime not found — default applications left as they are"; return; }
+    [ -d "$SRC/applications" ] || return
+
+    local dst="$HOME/.local/share/applications"
+    mkdir -p "$dst"
+    local f name
+    for f in "$SRC/applications"/*.desktop; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f")"
+        sed "s|@HOME@|$HOME|g" "$f" > "$dst/$name"
+    done
+    command -v update-desktop-database >/dev/null 2>&1 &&
+        update-desktop-database "$dst" >/dev/null 2>&1
+
+    # Браузер — тем, что и так открывается браузером.
+    local browser="firefox.desktop"
+    [ -f "/usr/share/applications/$browser" ] || browser=""
+    if [ -n "$browser" ]; then
+        for m in text/html application/xhtml+xml application/pdf \
+                 x-scheme-handler/http x-scheme-handler/https; do
+            xdg-mime default "$browser" "$m" 2>/dev/null
+        done
+    fi
+
+    # Картинки и видео — просмотрщику самой оболочки: он умеет обрезку и
+    # кадрирование, а браузер умеет только показать.
+    for m in image/png image/jpeg image/gif image/webp image/bmp image/tiff \
+             image/svg+xml; do
+        xdg-mime default panacea-media.desktop "$m" 2>/dev/null
+    done
+
+    # Видео и звук — mpv, если он есть: у него это основная работа.
+    if [ -f /usr/share/applications/mpv.desktop ]; then
+        for m in video/mp4 video/webm video/x-matroska video/quicktime \
+                 audio/mpeg audio/flac audio/ogg audio/x-wav; do
+            xdg-mime default mpv.desktop "$m" 2>/dev/null
+        done
+    else
+        for m in video/mp4 video/webm video/x-matroska; do
+            xdg-mime default panacea-media.desktop "$m" 2>/dev/null
+        done
+    fi
+
+    for m in text/plain text/markdown application/x-shellscript text/x-python \
+             text/x-lua application/json text/csv; do
+        xdg-mime default panacea-text.desktop "$m" 2>/dev/null
+    done
+    xdg-mime default panacea-files.desktop inode/directory 2>/dev/null
+
+    ok "default applications set"
+}
+
+step "Default applications"
+setup_mime
+
 step "Clock format"
 setup_time_format
 

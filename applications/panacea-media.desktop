@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Panacea — Viewer
+Name[ru]=Panacea — просмотр
+Comment=Images and video in the dynamic island, with trim and crop
+Comment[ru]=Изображения и видео в динамическом острове, с обрезкой и кадрированием
+Exec=qs -c @HOME@/.config/panacea ipc call pill media %f
+Icon=@HOME@/.config/panacea/assets/logo-128.png
+Terminal=false
+Categories=Graphics;
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/tiff;image/svg+xml;video/mp4;video/webm;video/x-matroska;video/quicktime;

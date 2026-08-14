@@ -214,8 +214,17 @@ sddm/      login theme
 bin/       standalone helper scripts
 fish/      shell config and prompt
 foot/      terminal
+applications/  desktop entries that make the shell the default handler
 fastfetch/ nano/
 ```
+
+Nothing on a fresh Arch install decides what opens a file, so the fallbacks
+decide instead: images end up in the browser and folders in a KDE file manager
+that is not otherwise used here. The installer fixes that by pointing images,
+video and directories at the shell's own viewer and file manager — they reach
+the running instance over its IPC rather than starting a second copy — and
+leaves the browser handling what belongs to a browser. Set them by hand with
+`xdg-mime default`, or skip the whole step by not running the installer.
 
 Shortcuts live in `panacea/settings.json` and compile into
 `hypr/lua/binds_data.lua` from the settings panel; that generated file is

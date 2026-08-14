@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Panacea — Files
+Name[ru]=Panacea — проводник
+Comment=The file manager built into the shell
+Comment[ru]=Проводник, встроенный в оболочку
+Exec=qs -c @HOME@/.config/panacea ipc call pill filesAt %f
+Icon=@HOME@/.config/panacea/assets/logo-128.png
+Terminal=false
+Categories=System;
+MimeType=inode/directory;

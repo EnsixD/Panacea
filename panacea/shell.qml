@@ -2955,6 +2955,10 @@ PanelWindow {
         function theme(): void { root.toggleWalls(); }
         function record(): void { root.togglePage("record"); }
         function files(): void { root.togglePage("files"); }
+        // Открыть проводник сразу в нужном каталоге. Нужно, чтобы система
+        // могла назначить его обработчиком inode/directory: без пути «открыть
+        // папку» приводило бы всегда в один и тот же каталог.
+        function filesAt(path: string): void { root.openFilesAt(path); }
         function passwords(): void { root.togglePage("vault"); }
         function agents(): void { root.openAgents(); }
         function media(path: string): void { root.openMedia(path); }
