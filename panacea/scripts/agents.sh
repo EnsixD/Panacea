@@ -53,21 +53,50 @@ claude_json() {
         *)                 plan="$(printf '%s' "$raw" | sed 's/_/ /g' | sed 's/\b\(.\)/\u\1/g')" ;;
     esac
 
-    # limits[] — готовый список, каким его прислал сервер: и пятичасовое окно,
-    # и недельное, и всё, что добавят потом. Берём его целиком, а не два
-    # заранее известных поля, чтобы новые лимиты появились здесь сами.
+    # Кэш нагрузки принадлежит КОНКРЕТНОМУ аккаунту, и это записано в нём
+    # самом. При смене аккаунта Claude Code либо стирает кэш целиком, либо
+    # какое-то время держит старый — до первого запроса от нового. Показать
+    # его как текущий значило бы приписать одному аккаунту расход другого,
+    # поэтому сверяем accountUuid и при несовпадении считаем, что данных нет.
+    local acct cacheAcct
+    acct="$(jq -r '.oauthAccount.accountUuid // ""' "$cfg" 2>/dev/null)"
+    cacheAcct="$(jq -r '.cachedUsageUtilization.accountUuid // ""' "$cfg" 2>/dev/null)"
+
     local limits='[]'
-    if [ -f "$cfg" ]; then
+    if [ -f "$cfg" ] && [ -n "$cacheAcct" ] && [ "$cacheAcct" = "$acct" ]; then
+        # limits[] — готовый список, каким его прислал сервер: и пятичасовое
+        # окно, и недельное, и всё, что добавят потом. Берём его целиком, а не
+        # два заранее известных поля, чтобы новые лимиты появились сами.
+        #
+        # Запасной путь — те самые two поля: у старых версий Claude Code
+        # массива limits ещё нет, а five_hour и seven_day уже есть.
         limits="$(jq -c '
-            [ (.cachedUsageUtilization.utilization.limits // [])[]
-              | select(.percent != null)
-              | { kind: (.kind // "unknown"),
-                  percent: (.percent | floor),
-                  severity: (.severity // "normal"),
-                  resetsAtIso: (.resets_at // "") } ]
+            (.cachedUsageUtilization.utilization) as $u
+            | if (($u.limits // []) | length) > 0 then
+                [ $u.limits[]
+                  | select(.percent != null)
+                  | { kind: (.kind // "unknown"),
+                      percent: (.percent | floor),
+                      severity: (.severity // "normal"),
+                      resetsAtIso: (.resets_at // "") } ]
+              else
+                [ { kind: "session",    v: $u.five_hour },
+                  { kind: "weekly_all", v: $u.seven_day } ]
+                | map(select(.v != null and .v.utilization != null))
+                | map({ kind: .kind,
+                        percent: (.v.utilization | floor),
+                        severity: "normal",
+                        resetsAtIso: (.v.resets_at // "") })
+              end
         ' "$cfg" 2>/dev/null)" || limits='[]'
     fi
     [ -n "$limits" ] && [ "$limits" != "null" ] || limits='[]'
+
+    # Почему лимитов нет — вопрос не праздный: «агент их не отдаёт» и «данных
+    # ещё не приехало» выглядят одинаково, а значат противоположное. Первое
+    # навсегда, второе пройдёт само, как только агент поработает.
+    local note=""
+    [ "$limits" = "[]" ] && note="nodata"
 
     # Дату превращаем в число здесь: в jq нет разбора дробных секунд.
     local out='[]' i=0 n
@@ -83,9 +112,10 @@ claude_json() {
     done
 
     jq -cn --arg name "Claude Code" --arg ver "$ver" --arg plan "$plan" \
+           --arg note "$note" \
            --argjson fetched "${fetched:-0}" --argjson limits "$out" '
         { id: "claude", name: $name, version: $ver, plan: $plan,
-          fetchedAt: $fetched, limits: $limits }'
+          note: $note, fetchedAt: $fetched, limits: $limits }'
 }
 
 # -------------------------------------------------------------------- codex
@@ -131,7 +161,7 @@ other_agent() {
     local ver; ver="$("$bin" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
     jq -cn --arg id "$bin" --arg name "$name" --arg ver "$ver" --arg plan "$plan" '
         { id: $id, name: $name, version: $ver, plan: $plan,
-          fetchedAt: 0, limits: [] }'
+          note: "unsupported", fetchedAt: 0, limits: [] }'
 }
 
 agents='[]'
