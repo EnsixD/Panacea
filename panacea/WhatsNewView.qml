@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "launcher: keep the reboot alive after the launcher closes":
+            "Лаунчер: перезагрузка в другую систему больше не срывается при закрытии окна",
         "files: no menu when a drop changes nothing, and ask before overwriting":
             "Проводник: меню не появляется, если файл отпустили там же, а совпавшие имена теперь спрашивают",
         "files: list what is inside gvfs, not the gvfs mount itself":
