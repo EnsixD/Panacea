@@ -210,6 +210,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     text: page.sys.updBusy
                           ? page.sys.tr("Обновление…") + " " + page.stepName(page.sys.updStep)
+                          : page.sys.updChecking ? page.sys.tr("Проверка…")
                           : page.sys.updateAvailable ? page.sys.tr("Доступна новая версия")
                           : page.sys.updStatus === "current" ? page.sys.tr("Установлена последняя версия")
                           : page.sys.updStatus === "offline" ? page.sys.tr("Нет связи с GitHub")
@@ -245,16 +246,47 @@ ColumnLayout {
                        : Qt.rgba(page.sys.colFg.r, page.sys.colFg.g, page.sys.colFg.b, 0.06)
                 Behavior on color { ColorAnimation { duration: page.sys.animFade } }
 
-                Text {
+                // Пока идёт проверка — вместо надписи крутится стрелка.
+                // Проверка занимает секунду-другую, и всё это время кнопка
+                // обязана показывать, что её нажатие дошло: если версия
+                // окажется прежней, в карточке больше ничего не изменится, и
+                // без крутилки нажатие выглядело бы проигнорированным.
+                RowLayout {
                     anchors.centerIn: parent
-                    text: page.sys.tr("Проверить")
-                    color: page.sys.colMuted
-                    font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 3 }
+                    spacing: 6
+
+                    Glyph {
+                        id: checkSpin
+                        visible: page.sys.updChecking
+                        glyph: String.fromCodePoint(0xF0450)   // md-refresh
+                        color: page.sys.colOn
+                        fontFam: page.sys.fontFam
+                        size: 13
+
+                        RotationAnimator {
+                            target: checkSpin
+                            running: page.sys.updChecking
+                            from: 0; to: 360
+                            duration: 900
+                            loops: Animation.Infinite
+                        }
+                        // Оборвали на полпути — возвращаем в исходное
+                        // положение, иначе значок замирал под случайным углом.
+                        onVisibleChanged: if (!visible) checkSpin.rotation = 0
+                    }
+
+                    Text {
+                        text: page.sys.updChecking ? page.sys.tr("Проверка…")
+                                                   : page.sys.tr("Проверить")
+                        color: page.sys.updChecking ? page.sys.colFg : page.sys.colMuted
+                        font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 3 }
+                    }
                 }
                 MouseArea {
                     id: checkMa
                     anchors.fill: parent
                     hoverEnabled: true
+                    enabled: !page.sys.updChecking
                     cursorShape: Qt.PointingHandCursor
                     onClicked: page.sys.checkUpdate()
                 }
@@ -286,6 +318,55 @@ ColumnLayout {
                     enabled: !page.sys.updBusy
                     cursorShape: Qt.PointingHandCursor
                     onClicked: page.sys.applyUpdate()
+                }
+            }
+        }
+
+        // Ход обновления: полоса и этапы.
+        //
+        // Байты не считаем — update.sh их не знает. Зато знает свои этапы, и их
+        // ровно столько, сколько есть: полоса идёт по ним, а не по времени.
+        // Ползти вслепую по таймеру было бы враньём — на медленной сети она
+        // добралась бы до конца задолго до самого обновления.
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            visible: page.sys.updBusy
+            spacing: 6
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 6
+                radius: 3
+                color: Qt.rgba(page.sys.colFg.r, page.sys.colFg.g, page.sys.colFg.b, 0.10)
+
+                Rectangle {
+                    height: parent.height
+                    radius: parent.radius
+                    width: parent.width * page.sys.updStepPercent / 100
+                    color: page.sys.colOn
+                    Behavior on width {
+                        NumberAnimation { duration: page.sys.animMs; easing.type: Easing.OutQuint }
+                    }
+                }
+            }
+
+            // Этапы подписью, а не только процентом: «скачивание» и «установка»
+            // объясняют паузу, а «73%» — нет.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Text {
+                    Layout.fillWidth: true
+                    text: page.stepName(page.sys.updStep)
+                    color: page.sys.colMuted
+                    elide: Text.ElideRight
+                    font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+                }
+                Text {
+                    text: page.sys.updStepPercent + "%"
+                    color: page.sys.colMuted
+                    font { family: page.sys.fontFam; pixelSize: page.sys.fontSize - 4 }
                 }
             }
         }

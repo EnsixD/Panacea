@@ -41,6 +41,8 @@ Item {
     readonly property var dictRu: ({
         "launcher: keep the reboot alive after the launcher closes":
             "Лаунчер: перезагрузка в другую систему больше не срывается при закрытии окна",
+        "settings: show the update check spinning and the download progressing":
+            "Настройки: видно, что проверка обновления идёт, и как оно скачивается",
         "files: no menu when a drop changes nothing, and ask before overwriting":
             "Проводник: меню не появляется, если файл отпустили там же, а совпавшие имена теперь спрашивают",
         "files: list what is inside gvfs, not the gvfs mount itself":

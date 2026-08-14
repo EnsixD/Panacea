@@ -601,8 +601,17 @@ PanelWindow {
         }
     }
 
+    // Идёт ли сейчас проверка. Отдельно от updBusy: обновление длится минуты и
+    // показывается в острове, а проверка — секунду-другую и живёт только в
+    // окне настроек. Без этого флага нажатие на «Проверить» не отвечало ничем:
+    // ответ приходил, когда человек уже решил, что кнопка сломана, — и если
+    // версия оказывалась прежней, не менялось вообще ничего.
+    property bool updChecking: false
+
     function checkUpdate() {
-        if (root.updBusy) return;
+        if (root.updBusy || root.updChecking) return;
+        root.updChecking = true;
+        root.updError = "";
         pUpdCheck.running = false;
         pUpdCheck.running = true;
     }
@@ -657,6 +666,9 @@ PanelWindow {
         id: pUpdCheck
         command: [root.scriptDir + "/update.sh", "check"]
         stdout: StdioCollector { onStreamFinished: root.updParse(text, true) }
+        // Снимаем флаг по выходу процесса, а не по концу вывода: скрипт может
+        // упасть, ничего не напечатав, и тогда крутилка осталась бы навсегда.
+        onExited: root.updChecking = false
     }
 
     Process {
