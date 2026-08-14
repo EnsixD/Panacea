@@ -28,6 +28,7 @@ QtObject {
         "д назад": "d ago",
         "Лимиты этот агент наружу не отдаёт": "This agent does not expose its limits",
         "Данных пока нет — появятся, когда агент поработает": "No data yet — it will appear once the agent has run",
+        "Данных пока нет — выполните /usage в Claude Code": "No data yet — run /usage in Claude Code",
         "данные агента от": "agent data from",
         "Ни одного агента не найдено": "No agents found",
 

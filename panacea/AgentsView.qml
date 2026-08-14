@@ -279,9 +279,18 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         visible: (card.modelData.limits || []).length === 0
-                        text: String(card.modelData.note) === "nodata"
-                              ? view.sys.tr("Данных пока нет — появятся, когда агент поработает")
-                              : view.sys.tr("Лимиты этот агент наружу не отдаёт")
+                        // Для Claude подсказка конкретная. Он записывает
+                        // нагрузку в свой файл, только когда сам сходит за ней
+                        // на сервер, а делает это редко и по своему
+                        // расписанию: после смены аккаунта ключа может не быть
+                        // часами, и перезапуск ничего не меняет. Команда
+                        // /usage идёт за ней принудительно — это и есть способ
+                        // получить цифры сейчас, а не ждать.
+                        text: String(card.modelData.note) !== "nodata"
+                              ? view.sys.tr("Лимиты этот агент наружу не отдаёт")
+                              : String(card.modelData.id) === "claude"
+                              ? view.sys.tr("Данных пока нет — выполните /usage в Claude Code")
+                              : view.sys.tr("Данных пока нет — появятся, когда агент поработает")
                         color: view.sys.colMuted
                         wrapMode: Text.WordWrap
                         font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5 }
