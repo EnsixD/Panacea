@@ -55,11 +55,49 @@ FocusScope {
         return i < 0 ? 999 : i;
     }
 
+    // Свои строки лаунчера: не приложения из системы, а страницы острова.
+    // Живут в общем списке и ищутся вместе со всем остальным — иначе про них
+    // пришлось бы помнить отдельно.
+    //
+    // keys — то, по чему строка находится, помимо имени: и по-русски, и
+    // по-английски, и по именам самих агентов, чтобы «claude» тоже приводил
+    // сюда.
+    readonly property var builtins: [{
+        builtin: "agents",
+        // Ключ для списка недавних задан явно и по-английски: он же имя строки
+        // в файле, а имя переводится. Через язык интерфейса «Агенты» и «Agents»
+        // стали бы двумя разными записями, и недавнее терялось при переключении.
+        id: "panacea:agents",
+        glyph: String.fromCodePoint(0xF1719),      // md-robot_outline
+        name: view.sys.tr("Агенты"),
+        genericName: view.sys.tr("Тарифы и лимиты установленных ИИ-агентов"),
+        keys: "agents agent ai claude codex gemini copilot cursor limits usage plan "
+              + "агенты агент лимиты тариф подписка нагрузка"
+    }]
+
+    function builtinMatches(b, q) {
+        if (q.length === 0) return false;   // с пустым запросом список — приложения
+        if (String(b.name).toLowerCase().indexOf(q) >= 0) return true;
+        return String(b.keys).toLowerCase().indexOf(q) >= 0;
+    }
+
     // Отбор и сортировка: сперва совпадения с начала имени, потом остальные.
     readonly property var results: {
         var q = query.trim().toLowerCase();
         var all = DesktopEntries.applications ? DesktopEntries.applications.values : [];
         var starts = [], contains = [];
+        // Свои строки держим отдельным списком, а не в starts: тот в конце
+        // сортируется по алфавиту, и «Агенты» уехали бы в середину выдачи.
+        // Их спрашивают по имени, прицельно, поэтому место у них первое.
+        var pinned = [];
+        for (var b = 0; b < view.builtins.length; b++) {
+            var bi = view.builtins[b];
+            // С пустым запросом строка идёт в общий список и встаёт по
+            // давности наравне с приложениями: открыли её последней — она и
+            // первая. С запросом место у неё всегда первое.
+            if (q.length === 0) starts.push(bi);
+            else if (view.builtinMatches(bi, q)) pinned.push(bi);
+        }
         for (var i = 0; i < all.length; i++) {
             var a = all[i];
             if (!a || a.noDisplay) continue;
@@ -83,7 +121,7 @@ FocusScope {
             return starts;
         }
         starts.sort(byName); contains.sort(byName);
-        return starts.concat(contains);
+        return pinned.concat(starts, contains);
     }
 
     // ------------------------------------------------------------ калькулятор
@@ -125,6 +163,11 @@ FocusScope {
         if (view.mathResult.length > 0) { copyResult(); return; }
         var app = results[index];
         if (!app) return;
+        // Свою строку не запускаем как программу — она открывает страницу
+        // острова. Но в недавние попадает наравне с приложениями: её открыли
+        // из того же списка и тем же Enter, и в следующий раз она должна
+        // ждать сверху, а не на своём месте по алфавиту.
+        if (app.builtin === "agents") { rememberApp(app); sys.openAgents(); return; }
         rememberApp(app);
         app.execute();
         sys.closeLauncher();
@@ -300,8 +343,19 @@ FocusScope {
                             visible: !appIcon.visible
                             radius: 7
                             color: Qt.rgba(1, 1, 1, 0.10)
+                            // у своих строк иконки в теме нет и быть не может —
+                            // рисуем глиф, а буквой обходятся только приложения
+                            Glyph {
+                                anchors.centerIn: parent
+                                visible: String(row.modelData.glyph || "").length > 0
+                                glyph: row.modelData.glyph || ""
+                                color: view.sys.colFg
+                                fontFam: view.sys.fontFam
+                                size: 15
+                            }
                             Text {
                                 anchors.centerIn: parent
+                                visible: String(row.modelData.glyph || "").length === 0
                                 text: String(row.modelData.name || "?").charAt(0).toUpperCase()
                                 color: view.sys.colFg
                                 font { family: view.sys.fontFam; pixelSize: 12; bold: true }

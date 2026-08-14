@@ -10,6 +10,26 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        // окно «Агенты»: тарифы и лимиты
+        "Агенты": "Agents",
+        "Тарифы и лимиты установленных ИИ-агентов": "Plans and limits of the AI agents you have installed",
+        "5 часов": "5 hours",
+        "Неделя": "Week",
+        "Opus, неделя": "Opus, week",
+        "Sonnet, неделя": "Sonnet, week",
+        "обновится через": "resets in",
+        "окно уже обновилось": "window has already reset",
+        "д": "d",
+        "ч": "h",
+        "мин": "min",
+        "только что": "just now",
+        "мин назад": "min ago",
+        "ч назад": "h ago",
+        "д назад": "d ago",
+        "Лимиты этот агент наружу не отдаёт": "This agent does not expose its limits",
+        "данные агента от": "agent data from",
+        "Ни одного агента не найдено": "No agents found",
+
         // строки нового окна настроек
         "и ещё": "and",
         "Монитор не сообщил свои режимы — обычно это значит, что не установлен драйвер видеокарты.":

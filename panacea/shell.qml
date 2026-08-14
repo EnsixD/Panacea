@@ -1373,6 +1373,13 @@ PanelWindow {
         if (launcherOpen) closeLauncher(); else openLauncher();
     }
 
+    // Агенты открываются из лаунчера, как приложение, — своей строкой в общем
+    // списке. Отдельной кнопки в быстрых настройках нет намеренно: туда ходят
+    // за переключателями, а это справка, к которой обращаются, когда о ней
+    // вспомнили. Искать её там же, где всё остальное, — короче, чем помнить
+    // ещё одно сочетание клавиш.
+    function openAgents() { togglePage("agents"); }
+
     // Настройки — единственная страница, которая отрывается от верхней кромки
     // и встаёт по центру экрана: содержимого много, у верха оно было тесным.
     // Страницы, которые отрываются от верхней кромки и встают по центру:
@@ -2849,6 +2856,7 @@ PanelWindow {
         function record(): void { root.togglePage("record"); }
         function files(): void { root.togglePage("files"); }
         function passwords(): void { root.togglePage("vault"); }
+        function agents(): void { root.openAgents(); }
         function media(path: string): void { root.openMedia(path); }
         // переключить выделение области в плеере (то же, что кнопка «Кроп»)
         function mediaCrop(): void { root.mediaCropToggle(); }
@@ -4075,6 +4083,7 @@ PanelWindow {
                            : root.page === "auth"     ? authComp
                            : root.page === "vault"    ? vaultComp
                            : root.page === "vaultsave" ? vaultSaveComp
+                           : root.page === "agents"   ? agentsComp
                                                       : controlsComp
         }
 
@@ -4092,6 +4101,7 @@ PanelWindow {
         Component { id: authComp;     AuthView { sys: root } }
         Component { id: vaultComp;     VaultView { sys: root } }
         Component { id: vaultSaveComp; VaultSaveView { sys: root } }
+        Component { id: agentsComp;    AgentsView { sys: root } }
     }
 
     // ------------------------------------------------------- общий тултип
