@@ -50,17 +50,6 @@ PanelWindow {
             // узкую полоску у самого края.
             property bool   pillAutoHide: false
 
-            // ------------------------------------------------------ плагины
-            // Задачи: вторая капсула у кромки, рядом с островом. Выключена
-            // по умолчанию — плагин ставят, когда он нужен, а не получают
-            // вместе с оболочкой.
-            property bool   todoEnabled: false
-            // Своя кромка, как у острова. Совпала с его — встают рядом,
-            // блокнот левее (а на боковых кромках выше); разошлись — каждый
-            // держится середины своей.
-            property string todoPos: "top"
-            property int    todoW: 300
-            property int    todoH: 380
             // Настройки мониторов из вкладки Display, JSON вида
             // {"eDP-1":{w,h,rr,scale,transform,vrr,pos}}. Hyprland их не
             // запоминает: hyprctl правит живое состояние, и после перезагрузки
@@ -265,7 +254,6 @@ PanelWindow {
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
         pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false,
-        todoEnabled: false, todoPos: "top", todoW: 300, todoH: 380,
         pillDrag: false, panelW: 540,
         monOverrides: "",
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
@@ -4330,79 +4318,6 @@ LazyLoader {
                 opacity: root.keysWindowOpen ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animMs } }
             }
-        }
-    }
-}
-
-// Плагин «Задачи»: вторая капсула у кромки экрана.
-//
-// Живёт по тем же правилам, что остров: прижимается к своей кромке, у самой
-// кромки углы срезаны, у смотрящей в экран — скруглены. Если кромка та же,
-// что у острова, блокнот встаёт рядом с ним; если своя — держится середины.
-//
-// Слой Top, а не Overlay: остров всегда сверху, потому что он и есть шелл, а
-// блокнот — заметка на полях, и спорить с панелями оболочки ему незачем.
-// Места под себя не резервирует: окна раскладываются так, будто его нет.
-LazyLoader {
-    activeAsync: root.cfg.todoEnabled
-
-    PanelWindow {
-        anchors { top: true; bottom: true; left: true; right: true }
-        screen: root.screen
-        color: "transparent"
-        visible: root.cfg.todoEnabled && !root.fullscreenActive
-        exclusionMode: ExclusionMode.Ignore
-        WlrLayershell.layer: WlrLayer.Top
-        // Клавиатура нужна для ввода задач, но забирать её насовсем нельзя:
-        // блокнот висит всё время, и с Exclusive печатать было бы негде.
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-        // Ввод ловим только там, где нарисован сам блокнот: остальной экран
-        // сквозной, иначе окна под ним перестали бы нажиматься.
-        mask: Region { item: todoBody }
-
-        TodoWidget {
-            id: todoBody
-            sys: root
-            // размер задаёт сам блокнот: свёрнутый — короткая капсула,
-            // развёрнутый — список во всю заданную высоту
-            width: implicitWidth
-            height: implicitHeight
-
-            readonly property bool atTop:    root.cfg.todoPos === "top"
-            readonly property bool atBottom: root.cfg.todoPos === "bottom"
-            readonly property bool atLeft:   root.cfg.todoPos === "left"
-            readonly property bool atRight:  root.cfg.todoPos === "right"
-            // на одной кромке с островом — встаём рядом, а не поверх
-            readonly property bool besideIsland: root.cfg.todoPos === root.cfg.pillPos
-            // К кромке вплотную, без зазора: блокнот — её продолжение, а не
-            // отдельная плашка рядом. Отступ острова (islandGap) здесь не
-            // повторяем — он про сам остров.
-            readonly property real edgeGap: 0
-            // Небольшой просвет до острова: вплотную они сливались в одну
-            // капсулу, и было не разобрать, где кончается одна и начинается
-            // другая. Курсор в такой просвет попасть не должен — потому он
-            // и мал.
-            readonly property real sideGap: 8
-
-            x: {
-                if (todoBody.atLeft)  return todoBody.edgeGap;
-                if (todoBody.atRight) return parent.width - todoBody.width - todoBody.edgeGap;
-                if (!todoBody.besideIsland) return (parent.width - todoBody.width) / 2;
-                // левее острова, но не за краем экрана
-                return Math.max(todoBody.edgeGap,
-                                root.pillRectX - todoBody.width - todoBody.sideGap);
-            }
-            y: {
-                if (todoBody.atTop)    return todoBody.edgeGap;
-                if (todoBody.atBottom) return parent.height - todoBody.height - todoBody.edgeGap;
-                if (!todoBody.besideIsland) return (parent.height - todoBody.height) / 2;
-                // выше острова: на боковых кромках он вытянут по вертикали
-                return Math.max(todoBody.edgeGap,
-                                root.pillRectY - todoBody.height - todoBody.sideGap);
-            }
-
-            Behavior on x { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
-            Behavior on y { NumberAnimation { duration: root.animMs; easing.type: Easing.OutQuint } }
         }
     }
 }
