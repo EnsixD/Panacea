@@ -319,6 +319,27 @@ install_aur_helper() {
     return 1
 }
 
+# Отдельный шаг вместо молчаливой проверки внутри установки пакетов.
+#
+# Раньше про помощника вспоминали в середине установки — когда доходило до
+# первого пакета из AUR. Выглядело это так, будто установка вдруг споткнулась
+# и просит собрать что-то постороннее; согласиться или отказаться приходилось,
+# уже начав. Теперь про него спрашивают до того, как что-либо ставится, и с
+# понятным ответом на оба исхода: помощник есть — говорим какой и идём дальше,
+# нет — предлагаем собрать.
+#
+# Отказ не прерывает установку: из AUR приезжают quickshell и mpvpaper, без
+# них оболочка беднее, но всё остальное встанет. Что именно не доедет, скажет
+# следующий шаг.
+check_aur_helper() {
+    local h; h=$(aur_helper)
+    if [ -n "$h" ]; then
+        ok "AUR helper: $h — skipping"
+        return 0
+    fi
+    install_aur_helper || warn "no AUR helper — packages from the AUR will be skipped"
+}
+
 install_deps() {
     command -v pacman >/dev/null 2>&1 || {
         warn "not an Arch system — install these yourself, then rerun with --no-deps:"
@@ -517,6 +538,36 @@ enable_services() {
     done
     # soft-unblock radios so Bluetooth/Wi-Fi come up without a manual rfkill
     command -v rfkill >/dev/null 2>&1 && rfkill unblock all 2>/dev/null
+
+    mask_rival_notifiers
+}
+
+# Остров сам служит демоном уведомлений, а имя org.freedesktop.Notifications на
+# шине может занимать только один процесс. Проигрыш в этой гонке не выглядит
+# поломкой: уведомления приходят, просто рисует их не оболочка, а чужой демон —
+# своим окном, мимо острова и мимо палитры.
+#
+# Гонку легко проиграть. Ни dunst, ни mako не надо запускать: их поднимает сама
+# шина по запросу, и первое же уведомление, отправленное раньше, чем оболочка
+# успела зарегистрироваться, включает чужой демон навсегда — до конца сеанса.
+# Поэтому мало остановить процесс, надо закрыть путь к запуску: маска юнита это
+# и делает, а dbus-активация без юнита не проходит.
+#
+# Пакет не трогаем: он мог прийти зависимостью или остаться от прошлой сборки.
+# Маска снимается одной командой, и она напечатана рядом.
+mask_rival_notifiers() {
+    local svc
+    for svc in dunst mako; do
+        systemctl --user list-unit-files "$svc.service" >/dev/null 2>&1 || continue
+        [ "$(systemctl --user is-enabled "$svc.service" 2>/dev/null)" = "masked" ] && continue
+        systemctl --user stop "$svc.service" >/dev/null 2>&1
+        if systemctl --user mask "$svc.service" >/dev/null 2>&1; then
+            ok "$svc masked — the island is the notification daemon"
+            printf '        bring it back with: systemctl --user unmask %s\n' "$svc.service"
+        else
+            warn "$svc is installed and will take notifications away from the island"
+        fi
+    done
 }
 
 # ------------------------------------------------------------- SDDM login theme
@@ -773,6 +824,8 @@ ask "Continue?" || { echo "Nothing done."; exit 0; }
 step "Checking dependencies"
 check_deps
 if [ "$DO_DEPS" = "1" ]; then
+    step "AUR helper"
+    check_aur_helper
     step "Installing packages"
     install_deps || warn "some packages are missing — the shell may be degraded until they are installed"
 fi
