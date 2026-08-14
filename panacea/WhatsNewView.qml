@@ -39,6 +39,18 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "files: open-with actually opens, and stops filling the whole panel":
+            "Проводник: «чем открыть» действительно открывает, список стал уже и слушается стрелок",
+        "agents: follow the account, and refresh whenever the panel opens":
+            "Агенты: следят за аккаунтом и перечитывают статистику при каждом открытии",
+        "i18n: russian titles for the newest changes":
+            "Перевод: русские заголовки для свежих изменений",
+        "agents: say how to make the numbers appear, not just that they are missing":
+            "Агенты: сказано, как получить цифры, а не только что их нет",
+        "settings: read the update output as it arrives, not when it ends":
+            "Настройки: ход обновления виден сразу, а не после его конца",
+        "install: fonts for emoji and the scripts Noto covers":
+            "Установщик: шрифты для эмодзи и письменностей, которые закрывает Noto",
         "launcher: keep the reboot alive after the launcher closes":
             "Лаунчер: перезагрузка в другую систему больше не срывается при закрытии окна",
         "settings: show the update check spinning and the download progressing":
