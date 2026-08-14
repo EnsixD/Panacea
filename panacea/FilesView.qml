@@ -382,11 +382,11 @@ Item {
 
     function openWith(desktopFile) {
         if (!view.openWithFile.length) return;
-        pAction.command = desktopFile.length
-            ? ["sh", "-c", view.scripts + " open \"$1\" \"$2\"", "_",
-               view.openWithFile, desktopFile]
-            : ["sh", "-c", view.scripts + " open \"$1\"", "_", view.openWithFile];
-        pAction.running = true;
+        // Запускаем НЕ отсюда: следующей строкой панель закрывается, а вместе
+        // с ней уничтожается вид и всё, что в нём объявлено, — включая
+        // Process. Он умирал раньше, чем успевал запустить программу, и
+        // проводник просто закрывался, ничего не открыв.
+        view.sys.openFileWith(view.openWithFile, desktopFile || "");
         view.openWithFile = "";
         view.leave();
     }
@@ -596,8 +596,13 @@ Item {
         if (n === 0) return;
         view.current = Math.max(0, Math.min(n - 1, view.current + delta));
     }
-    Keys.onUpPressed:    view.step(view.mode === "grid" ? -view.gridCols : -1)
-    Keys.onDownPressed:  view.step(view.mode === "grid" ?  view.gridCols :  1)
+    // Пока открыт список «чем открыть», стрелки ходят по нему: он и есть то,
+    // с чем сейчас работают. Ходить в это время по спрятанному списку файлов
+    // бессмысленно — его не видно.
+    Keys.onUpPressed:    view.openWithFile.length ? appList.step(-1)
+                       : view.step(view.mode === "grid" ? -view.gridCols : -1)
+    Keys.onDownPressed:  view.openWithFile.length ? appList.step(1)
+                       : view.step(view.mode === "grid" ?  view.gridCols :  1)
     Keys.onLeftPressed:  if (view.mode === "grid") view.step(-1)
     Keys.onRightPressed: if (view.mode === "grid") view.step(1)
     Keys.onReturnPressed: view.openWithFile.length ? view.openWith(appList.currentFile())
@@ -1578,12 +1583,30 @@ Item {
         // -------------------------------------------------- чем открыть
         ColumnLayout {
             id: appList
+            // Не во всю ширину: проводник занимает 78% экрана, и список из
+            // пяти программ, растянутый на всю эту ширину, читался как
+            // случайно раскрытая таблица. Список выбора должен быть узким и по
+            // центру — глаз идёт по именам сверху вниз, а не слева направо.
             Layout.fillWidth: true
+            Layout.maximumWidth: 520
+            Layout.alignment: Qt.AlignHCenter
             spacing: 3
             visible: view.openWithFile.length > 0
 
+            // Какая программа сейчас выбрана. Раньше Enter всегда запускал
+            // ПЕРВУЮ: выбранной строки не существовало, а currentFile()
+            // возвращал apps.get(0). Стрелками выбрать было нечего.
+            property int index: 0
+            onVisibleChanged: if (visible) appList.index = 0
+
             function currentFile() {
-                return apps.count > 0 ? apps.get(0).aFile : "";
+                if (apps.count === 0) return "";
+                var i = Math.max(0, Math.min(apps.count - 1, appList.index));
+                return apps.get(i).aFile;
+            }
+            function step(d) {
+                if (apps.count === 0) return;
+                appList.index = Math.max(0, Math.min(apps.count - 1, appList.index + d));
             }
 
             RowLayout {
@@ -1644,8 +1667,11 @@ Item {
                     width: ListView.view.width
                     height: 44
                     radius: 12
-                    color: appMa.containsMouse ? view.sys.colHover
-                         : (appRow.index === 0 ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
+                    // Выделена выбранная строка, а не первая: раньше подсветка
+                    // стояла на программе по умолчанию и не двигалась, из-за
+                    // чего было не видно, что именно запустит Enter.
+                    color: appRow.index === appList.index ? Qt.rgba(1, 1, 1, 0.11)
+                         : (appMa.containsMouse ? view.sys.colHover : "transparent")
                     Behavior on color { ColorAnimation { duration: 120 } }
 
                     RowLayout {
@@ -1671,7 +1697,7 @@ Item {
                             font {
                                 family: view.sys.fontFam
                                 pixelSize: view.sys.fontSize
-                                bold: appRow.index === 0
+                                bold: appRow.index === appList.index
                             }
                         }
                         Text {
@@ -1687,6 +1713,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onEntered: appList.index = appRow.index
                         onClicked: view.openWith(appRow.model.aFile)
                     }
                 }

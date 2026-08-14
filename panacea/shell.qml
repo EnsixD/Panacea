@@ -560,6 +560,23 @@ PanelWindow {
     }
     Process { id: pBootOsSay }
 
+    // ------------------------------------ открыть файл выбранной программой
+    // Живёт здесь по той же причине, что и перезагрузка в другую систему:
+    // проводник закрывается сразу после выбора, и Process, объявленный внутри
+    // него, умирал вместе с видом — раньше, чем успевал запустить программу.
+    // Снаружи это выглядело как «выбрал программу, проводник закрылся, ничего
+    // не открылось».
+    Process { id: pOpenWith }
+    function openFileWith(path, desktopFile) {
+        if (!path) return;
+        var s = root.scriptDir + "/files.sh";
+        pOpenWith.command = desktopFile && desktopFile.length
+            ? ["sh", "-c", s + ' open "$1" "$2"', "_", String(path), String(desktopFile)]
+            : ["sh", "-c", s + ' open "$1"', "_", String(path)];
+        pOpenWith.running = false;
+        pOpenWith.running = true;
+    }
+
     function bootIntoSystem(id) {
         if (!id) return;
         pBootOs.command = ["pkexec", root.scriptDir + "/bootos.sh", "boot", String(id)];
