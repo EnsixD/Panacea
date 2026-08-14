@@ -292,14 +292,37 @@ disks)
         printf '%s|%s|%s|%s|%s|%s\n' "$kind" "$target" "$label" "$size" "$used" "$src"
     done
 
-    # Телефоны и всё, что примонтировано через gvfs/mtp — блочного
+    # Телефоны и всё, что примонтировано через mtp напрямую: блочного
     # устройства у них нет, размер тоже обычно не отдаётся.
-    awk '$3 ~ /^(fuse\.(mtpfs|jmtpfs|gvfsd-fuse|simple-mtpfs)|mtpfs)$/ {print $2}' \
+    awk '$3 ~ /^(fuse\.(mtpfs|jmtpfs|simple-mtpfs)|mtpfs)$/ {print $2}' \
         /proc/mounts 2>/dev/null |
     while read -r mp; do
         mp=$(printf '%b' "$mp")
         [ -d "$mp" ] || continue
         printf 'removable|%s|%s|0|0|mtp\n' "$mp" "$(basename "$mp")"
+    done
+
+    # gvfs разбираем отдельно, и вот почему. Его точка монтирования —
+    # /run/user/1000/gvfs — не устройство, а корень виртуальной файловой
+    # системы: он существует всё время, пока запущен демон gvfs, и пуст, пока
+    # ничего не подключено. Раньше он попадал в список наравне с mtp, и в
+    # «Съёмных» вечно висела запись «gvfs», за которой ничего не стоит.
+    #
+    # Настоящие устройства лежат ВНУТРИ него отдельными каталогами вида
+    # mtp:host=Samsung_Galaxy_1234. Их и показываем — по одному на устройство,
+    # с именем, приведённым к читаемому виду.
+    awk '$3 == "fuse.gvfsd-fuse" {print $2}' /proc/mounts 2>/dev/null |
+    while read -r root; do
+        root=$(printf '%b' "$root")
+        [ -d "$root" ] || continue
+        for dev in "$root"/*; do
+            [ -d "$dev" ] || continue
+            name=$(basename "$dev")
+            pretty=$(printf '%s' "$name" \
+                | sed 's/^[a-zA-Z0-9+.-]*:host=//; s/%2C.*$//; s/%20/ /g; s/_/ /g')
+            [ -n "$pretty" ] || pretty="$name"
+            printf 'removable|%s|%s|0|0|gvfs\n' "$dev" "$pretty"
+        done
     done
     ;;
 
