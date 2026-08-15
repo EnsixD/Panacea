@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "install: keep only the last few backups of a config directory":
+            "Установщик: хранит три последние копии конфигов вместо всех — иначе за десяток установок в ~/.config набегали сотни мегабайт",
         "screenshot: crop the captured frame instead of shooting the screen twice":
             "Скриншот: область вырезается из снятого кадра — цвета ровно те, что были на экране, и снимок сохраняется файлом",
         "screenshot: freeze the screen before selecting a region":
