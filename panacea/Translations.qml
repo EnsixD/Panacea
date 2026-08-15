@@ -10,6 +10,9 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        // уведомление после Super+Shift+S
+        "Скриншот": "Screenshot",
+        "В буфере обмена": "Copied to the clipboard",
         // окно «Агенты»: тарифы и лимиты
         "Агенты": "Agents",
         "Тарифы и лимиты установленных ИИ-агентов": "Plans and limits of the AI agents you have installed",

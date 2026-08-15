@@ -1489,10 +1489,13 @@ PanelWindow {
     // выделения пропала — и всё. Уведомление здесь, а не в скрипте, потому
     // что текст переводится вместе с остальной оболочкой.
     Process { id: pShotSay }
-    function shotCopied(): void {
-        pShotSay.command = ["notify-send", "-a", "Panacea", "-i",
-                            Quickshell.env("HOME") + "/.config/panacea/assets/logo-128.png",
-                            root.tr("Скриншот"), root.tr("Область скопирована")];
+    function shotCopied(path: string): void {
+        // Значком берём сам снимок: уведомление показывает, что именно сняли,
+        // и промах по рамке видно, не открывая файл.
+        var name = String(path).split("/").pop();
+        pShotSay.command = ["notify-send", "-a", "Panacea", "-i", String(path),
+                            root.tr("Скриншот"),
+                            root.tr("В буфере обмена") + " · " + name];
         pShotSay.running = false;
         pShotSay.running = true;
     }
@@ -2969,7 +2972,7 @@ PanelWindow {
         // Стоп-кадр под выделение области, см. scripts/shot.sh
         function freeze(path: string): void { root.freezeShot = "file://" + path; }
         function unfreeze(): void { root.freezeShot = ""; }
-        function shotCopied(): void { root.shotCopied(); }
+        function shotCopied(path: string): void { root.shotCopied(path); }
         function notifications(): void { root.togglePage("notif"); }
         function audio(): void { root.togglePage("audio"); }
         function calendar(): void { root.togglePage("cal"); }

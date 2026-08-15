@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "screenshot: crop the captured frame instead of shooting the screen twice":
+            "Скриншот: область вырезается из снятого кадра — цвета ровно те, что были на экране, и снимок сохраняется файлом",
         "screenshot: freeze the screen before selecting a region":
             "Скриншот: экран замирает на время выделения — снять можно и то, что закрывается от движения мыши",
         "install: make the shell the default handler for files it can open":
