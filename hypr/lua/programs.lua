@@ -16,7 +16,10 @@ programs.fileManagerTui = "footclient yazi" -- в терминале, на Super
 -- частоте экрана (на 144 Гц — 6.94 мс на кадр).
 programs.bar = "env QSG_RENDER_LOOP=threaded qs -c "
                .. os.getenv("HOME") .. "/.config/panacea"   -- пилюля
-programs.screenshot = 'grim -g "$(slurp)" - | wl-copy'
+-- Скриншот области по стоп-кадру: скрипт замораживает экран снимком, а уже по
+-- нему идёт выделение. Иначе меню и подсказки закрываются раньше, чем успеешь
+-- обвести их рамкой. Путь абсолютный: exec без шелла тильду не раскрывает.
+programs.screenshot = os.getenv("HOME") .. "/.config/panacea/scripts/shot.sh"
 programs.browser = "firefox"
 programs.lock = "/home/ensi/.config/panacea/scripts/lock.sh"
 programs.note = "obsidian"

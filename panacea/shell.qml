@@ -1480,6 +1480,23 @@ PanelWindow {
         togglePage("agents");
     }
 
+    // ----------------------------------------------------- стоп-кадр экрана
+    // Путь к снимку всего экрана, который scripts/shot.sh показывает поверх
+    // всего, пока идёт выделение области. Пусто — слоя нет.
+    property string freezeShot: ""
+
+    // Скриншот кладётся в буфер обмена, и по экрану этого не видно: рамка
+    // выделения пропала — и всё. Уведомление здесь, а не в скрипте, потому
+    // что текст переводится вместе с остальной оболочкой.
+    Process { id: pShotSay }
+    function shotCopied(): void {
+        pShotSay.command = ["notify-send", "-a", "Panacea", "-i",
+                            Quickshell.env("HOME") + "/.config/panacea/assets/logo-128.png",
+                            root.tr("Скриншот"), root.tr("Область скопирована")];
+        pShotSay.running = false;
+        pShotSay.running = true;
+    }
+
     // Настройки — единственная страница, которая отрывается от верхней кромки
     // и встаёт по центру экрана: содержимого много, у верха оно было тесным.
     // Страницы, которые отрываются от верхней кромки и встают по центру:
@@ -2949,6 +2966,10 @@ PanelWindow {
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }
         function cancelCapture(): void { root.cancelCaptureRequested(); }
+        // Стоп-кадр под выделение области, см. scripts/shot.sh
+        function freeze(path: string): void { root.freezeShot = "file://" + path; }
+        function unfreeze(): void { root.freezeShot = ""; }
+        function shotCopied(): void { root.shotCopied(); }
         function notifications(): void { root.togglePage("notif"); }
         function audio(): void { root.togglePage("audio"); }
         function calendar(): void { root.togglePage("cal"); }
@@ -4482,6 +4503,53 @@ Instantiator {
             // в оконном режиме закрывать надо своё окно, а не пилюлю
             windowMode: true
             windowId: model.wid
+        }
+    }
+}
+
+// Стоп-кадр под выделение области скриншота.
+//
+// Обычное «выдели область и сними» выделяет по живому экрану, и снять то,
+// что закрывается от первого движения мыши — меню, всплывающую подсказку,
+// список автодополнения — нечем: пока тянешь рамку, снимать уже нечего.
+// Поэтому shot.sh сначала снимает экран целиком, показывает снимок этим
+// слоем поверх всего, и только потом запускает выделение. Итоговый кадр
+// снимается с замершего слоя, так что обрезать исходный файл не нужно —
+// иначе понадобился бы ещё и ImageMagick.
+//
+// Слой на каждый экран, а не один на root.screen: grim снимает всю раскладку
+// одной картинкой, и каждое окно показывает свой её кусок, сдвинув снимок на
+// начало своего экрана.
+Variants {
+    model: root.freezeShot !== "" ? Quickshell.screens : []
+
+    PanelWindow {
+        id: freezeWin
+        required property var modelData
+
+        screen: freezeWin.modelData
+        anchors { top: true; bottom: true; left: true; right: true }
+        color: "black"
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: WlrLayer.Overlay
+        // Кадр только показывается. Клавиатура и мышь целиком достаются
+        // выделению: с непустой областью ввода клики уходили бы в этот слой,
+        // и рамку было бы нечем тянуть.
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        mask: Region {}
+
+        Image {
+            // сдвиг на начало экрана: снимок один на всю раскладку
+            x: -freezeWin.modelData.x
+            y: -freezeWin.modelData.y
+            source: root.freezeShot
+            // Кадр пиксель в пиксель: масштабировать нечего, а сглаживание на
+            // такой картинке только мылит текст.
+            fillMode: Image.Pad
+            smooth: false
+            // Файл временный и каждый раз новый, но имя может повториться —
+            // кэш отдал бы прошлый снимок.
+            cache: false
         }
     }
 }
