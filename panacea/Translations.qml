@@ -666,6 +666,7 @@ QtObject {
         "Нет jq": "jq is missing",
         "Ответ сервиса не разобрать": "Could not parse the service reply",
         "Сервис ответил отказом": "The service refused",
+        "Нет данных": "No data",
         "Влажность": "Humidity",
         "Ветер": "Wind",
         "Ощущается как": "Feels like",

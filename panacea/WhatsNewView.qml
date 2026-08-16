@@ -41,6 +41,10 @@ Item {
     readonly property var dictRu: ({
         "island: actually shrink the wired icon in the collapsed bar":
             "Значок сети в свёрнутом острове наконец уменьшился: размер задавался мимо раскладки, и та его не замечала",
+        "widgets: date, weather and clock cards on the desktop":
+            "Настольные виджеты для темы Nothing: число с месяцем, погода со значком точками, влажность и ветер кружками, часы. Включаются во вкладке Appearance",
+        "weather: accept a postcode as well as a city name":
+            "В поле города принимается и почтовый индекс — сплошные цифры оболочка отличает от названия сама",
         "theme: two themes instead of eight":
             "В Appearance остались Default и Nothing: шесть остальных отличались лишь оттенком акцента, который правится ползунками там же",
         "weather: a Weather tab, and the temperature in the island":

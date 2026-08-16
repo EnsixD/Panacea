@@ -540,7 +540,17 @@ PanelWindow {
         pGreeterLocale.running = false;
         pGreeterLocale.running = true;
     }
-    onIsEnChanged: syncGreeterLocale()
+    // Один обработчик на сигнал: QML второго не допускает, поэтому всё, что
+    // должно случиться на смене языка, собрано здесь.
+    //
+    // Погоду переспрашиваем потому, что описание словами приходит от сервиса
+    // уже переведённым — язык передаётся в запросе. Свои подписи оболочка
+    // переключает сразу, а это одно осталось бы на прежнем языке до
+    // следующего опроса, то есть до четверти часа.
+    onIsEnChanged: {
+        root.syncGreeterLocale();
+        if (root.cfg.featWidgets) root.refreshWeather();
+    }
 
     // ------------------------------------ перезагрузка в другую систему
     // Процесс живёт ЗДЕСЬ, в корне, а не в лаунчере, откуда его вызывают.
@@ -2791,6 +2801,15 @@ PanelWindow {
     // они нужны всегда: там это мелкое число сбоку от крупных часов, а не
     // часть их. Смешивать эти два случая в одной строке нельзя.
     property string secText: ""
+    // Число месяца и выходной ли он — для карточки даты на рабочем столе.
+    // Держим отдельно от dateLong: тот собирается по выбранному формату и
+    // числа из него уже не выковырять.
+    property string dayNum: ""
+    property bool   weekend: false
+    // Месяц своим списком, а не через Qt.formatDateTime: тот берёт язык из
+    // системной локали, а подписи оболочки идут за её собственной настройкой
+    // языка — иначе на английском интерфейсе месяц оставался бы русским.
+    property string monthText: ""
     Timer {
         interval: 1000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: {
@@ -2808,6 +2827,13 @@ PanelWindow {
             root.dayText = root.isEn
                 ? ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]
                 : ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][d.getDay()];
+            root.dayNum = String(d.getDate());
+            root.weekend = d.getDay() === 0 || d.getDay() === 6;
+            root.monthText = (root.isEn
+                ? ["January","February","March","April","May","June","July",
+                   "August","September","October","November","December"]
+                : ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль",
+                   "Август","Сентябрь","Октябрь","Ноябрь","Декабрь"])[d.getMonth()];
         }
     }
 
@@ -5033,6 +5059,44 @@ Instantiator {
 // снимается с замершего слоя, так что обрезать исходный файл не нужно —
 // иначе понадобился бы ещё и ImageMagick.
 //
+// ---------------------------------------------------- настольные виджеты
+// Карточки на обоях: дата, погода, часы. Живут при теме Nothing и при
+// включённом тумблере в Appearance — и то и другое проверяется здесь, а не
+// внутри самих карточек: незачем строить слой, чтобы он ничего не показал.
+//
+// Слой Bottom: над обоями, но под окнами. На Overlay они висели бы поверх
+// всего, включая полноэкранное видео, а это украшение рабочего стола, а не
+// оболочка.
+//
+// Область ввода пустая. Карточки ничего не ловят мышью: перехватывать клики
+// по рабочему столу значило бы отбирать их у окон и у самих обоев, а нажимать
+// здесь не на что.
+PanelWindow {
+    id: widgetsWin
+
+    visible: root.themeNothing && root.cfg.featWidgets
+    screen: root.screen
+    anchors { top: true; left: true }
+    implicitWidth:  widgets.implicitWidth + 56
+    implicitHeight: widgets.implicitHeight + 56
+    color: "transparent"
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.layer: WlrLayer.Bottom
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    mask: Region {}
+
+    WidgetsView {
+        id: widgets
+        sys: root
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.leftMargin: 28
+        // ниже острова: тот стоит по центру верхней кромки и до левого
+        // угла не достаёт, но запас нужен под его вогнутый уголок
+        anchors.topMargin: 28
+    }
+}
+
 // Слой на каждый экран, а не один на root.screen: grim снимает всю раскладку
 // одной картинкой, и каждое окно показывает свой её кусок, сдвинув снимок на
 // начало своего экрана.
