@@ -110,7 +110,11 @@ Item {
                     width: 17; height: 17; radius: 9
                     y: 2
                     x: parent.parent.parent.checked ? parent.width - width - 2 : 2
-                    color: "#ffffff"
+                    // Включённая дорожка налита акцентом, и белый кружок на
+                    // ней пропадает — тумблер выглядит просто белой плашкой.
+                    // На выключенной дорожка тёмная, там белый и нужен.
+                    color: parent.parent.parent.checked
+                           ? view.sys.fgOn(view.sys.colOn) : "#ffffff"
                     Behavior on x {
                         NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
                     }

@@ -112,6 +112,12 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     x: sl.pos * sl.usable
                     color: "#ffffff"
+                    // Ручка едет по границе залитой части, и на светлом
+                    // акценте белое по белому сливается. Обводка цветом фона
+                    // очерчивает её с обеих сторон разом — перекрашивать
+                    // саму ручку нельзя, слева от неё дорожка тёмная.
+                    border.color: view.sys.colBg
+                    border.width: view.sys.themeNothing ? 2 : 0
                     scale: drag.pressed ? 1.25 : (drag.containsMouse ? 1.1 : 1.0)
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
                 }

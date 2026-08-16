@@ -41,6 +41,10 @@ Item {
     readonly property var dictRu: ({
         "island: actually shrink the wired icon in the collapsed bar":
             "Значок сети в свёрнутом острове наконец уменьшился: размер задавался мимо раскладки, и та его не замечала",
+        "toggles: keep the knob visible on a light track":
+            "Кружок тумблера и ручка ползунка громкости перестали пропадать на белой дорожке — включённый тумблер выглядел сплошной белой плашкой",
+        "controls: a recorder panel with a button and a timer on the Nothing theme":
+            "Запись экрана в быстрых настройках: круглая кнопка, подпись и отсчёт точками вместо частоты кадров",
         "theme: status colours follow the theme everywhere":
             "Зелёный замок, янтарная пауза и синяя раскладка больше не прописаны числом: на теме Nothing всё это белое, красный «внимание» остаётся",
         "net: a smaller wired icon again":
