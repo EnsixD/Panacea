@@ -4171,11 +4171,16 @@ PanelWindow {
                 // Кабель нарисован фигурой, а не взят из шрифта: дерево сети
                 // в Nerd Font идёт с перекладиной шире самих квадратов, и на
                 // этом размере она читается полосой поперёк значка.
+                // Размер задаётся через Layout.*, а не width/height: в
+                // раскладке своя ширина элемента ничего не решает, её ставит
+                // сама раскладка — по preferred, а без него по implicit.
+                // Отсюда значок и оставался прежним, сколько ему ни
+                // прописывай width.
                 LanGlyph {
                     Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: root.iconSize - 6
+                    Layout.preferredHeight: root.iconSize - 6
                     visible: root.wiredOn
-                    width: root.iconSize - 6
-                    height: root.iconSize - 6
                     color: root.colFg
                 }
                 Text {
