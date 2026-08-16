@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "island: a longer collapsed bar on Nothing, and corners without a seam":
+            "Свёрнутый остров на теме Nothing стал длиннее, а вогнутые уголки по бокам перестали отходить от него серой щёлкой",
         "net: a cable plug for the wired connection, not a network tree":
             "Проводная сеть показывается штекером: прежний значок рисовал схему сети из кружков и читался как что угодно, кроме кабеля",
         "controls: an active tile turns solid on the Nothing theme":

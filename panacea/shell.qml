@@ -3319,12 +3319,33 @@ PanelWindow {
         // collapsedW задаёт нижнюю границу, а не саму ширину: содержимое
         // свёрнутого острова меняется (часы, трек, всплеск громкости), и
         // жёсткая ширина обрезала бы его.
+        // Nothing носит остров заметно длиннее: там по краям стоят точки
+        // столов и три показателя сразу, и на общей нижней границе всё это
+        // жалось к часам вплотную.
+        readonly property int collapsedMin: root.themeNothing
+                ? Math.max(root.cfg.collapsedW, 420) : root.cfg.collapsedW
+
+        // Округляем до чётного числа пикселей. Остров стоит по центру экрана,
+        // то есть его x равен половине разности ширин: при нечётной или
+        // дробной длине он попадает на полпикселя, и вогнутые уголки по бокам
+        // — отдельные элементы со своими координатами — приезжают на ту же
+        // половину. На стыке остаётся сглаженная серая щель, и правый уголок
+        // начинает читаться как приклеенный отдельно.
+        //
+        // Раньше до этого не доходило: содержимое было уже нижней границы, и
+        // длиной работало ровное число из настроек. Точечные цифры шире, и
+        // дробная ширина содержимого стала попадать наружу.
+        function evenUp(v) { return Math.round(v / 2) * 2; }
+
         readonly property real idleLen: root.toastActive ? 440
-                : root.osdActive ? osdCapsule.implicitWidth + 32
-                : root.pillSide  ? Math.max(vertCapsule.implicitHeight + 30, root.cfg.collapsedW)
+                : root.osdActive ? capsule.evenUp(osdCapsule.implicitWidth + 32)
+                : root.pillSide  ? capsule.evenUp(Math.max(vertCapsule.implicitHeight + 30,
+                                                           capsule.collapsedMin))
                 : root.themeNothing
-                                 ? Math.max(nothingCapsule.implicitWidth + 28, root.cfg.collapsedW)
-                                 : Math.max(idleCapsule.implicitWidth + 32, root.cfg.collapsedW)
+                                 ? capsule.evenUp(Math.max(nothingCapsule.implicitWidth + 28,
+                                                           capsule.collapsedMin))
+                                 : capsule.evenUp(Math.max(idleCapsule.implicitWidth + 32,
+                                                           capsule.collapsedMin))
         readonly property real idleThick: root.toastActive
                 ? toastCapsule.implicitHeight + 24 : root.pillH
 
@@ -4559,9 +4580,11 @@ PanelWindow {
             origin.y: root.cornerR / 2
             yScale: root.pillSide ? -1 : (root.pillAtBottom ? -1 : 1)
         }
+        // Округляем: уголок — отдельный элемент со своими координатами, и на
+        // полпикселя от капсулы он расходится с ней сглаженной серой щелью.
         x: root.pillAtLeft  ? 0
          : root.pillAtRight ? parent.width - width
-                            : capsule.x - width
+                            : Math.round(capsule.x) - width
         y: root.pillSide ? capsule.y - height
          : root.pillAtBottom ? parent.height - height : 0
         // Уголки уходят вместе с островом: в настройках он отрывается от
@@ -4579,9 +4602,11 @@ PanelWindow {
             origin.y: root.cornerR / 2
             yScale: root.pillSide ? 1 : (root.pillAtBottom ? -1 : 1)
         }
+        // Здесь дробность копится вдвое — из x капсулы и из её ширины, —
+        // поэтому именно правый уголок и отходил заметнее левого.
         x: root.pillAtLeft  ? 0
          : root.pillAtRight ? parent.width - width
-                            : capsule.x + capsule.width
+                            : Math.round(capsule.x + capsule.width)
         y: root.pillSide ? capsule.y + capsule.height
          : root.pillAtBottom ? parent.height - height : 0
         opacity: root.settingsMode || root.wallsOpen || root.pillHidden ? 0 : 1
