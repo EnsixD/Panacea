@@ -4174,8 +4174,8 @@ PanelWindow {
                 LanGlyph {
                     Layout.alignment: Qt.AlignVCenter
                     visible: root.wiredOn
-                    width: root.iconSize - 2
-                    height: root.iconSize - 2
+                    width: root.iconSize - 4
+                    height: root.iconSize - 4
                     color: root.colFg
                 }
                 Text {

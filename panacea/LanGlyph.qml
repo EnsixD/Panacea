@@ -5,91 +5,83 @@ import QtQuick
 // Нарисован, а не взят из шрифта. У всех сетевых глифов Nerd Font
 // соединитель один и тот же — отросток вниз и горизонтальная перекладина
 // между нижними квадратами, — и на размерах острова эта перекладина шире
-// самих квадратов и читается сплошной полосой поперёк значка. Толщину
-// линий в глифе не поправить, это часть его формы.
+// самих квадратов и читается сплошной полосой поперёк значка. Толщину линий
+// в глифе не поправить, это часть его формы.
 //
-// Здесь толщина задаётся отдельно от размера, поэтому фигура остаётся
-// разборчивой и в плитке быстрых настроек, и в свёрнутом острове, где она
-// вдвое мельче. Заодно она чётко ложится на пиксели в любом масштабе, чего
-// от шрифтового глифа на 15 пикселях не добиться.
-Item {
+// Ветки идут наискось от одной точки, а не углами через перекладину: угол
+// даёт вилку о трёх зубьях, а нужна именно Y. Отсюда Canvas, а не
+// прямоугольники: наклонную линию со сглаженными краями и скруглёнными
+// концами прямоугольниками не сложить.
+Canvas {
     id: lan
 
     property color color: "#ffffff"
-    // Толщина линий целым числом пикселей, а не долей высоты: дробная
-    // обводка размазывается сглаживанием, и при размерах острова фигура из
-    // тонких линий превращается в серое пятно. Порог подобран по двум
-    // местам, где значок стоит: в плитке он крупный, в острове вдвое мельче.
-    property real stroke: lan.height <= 20 ? 1 : 2
+    // Толщина линий целым числом пикселей: дробная размазывается
+    // сглаживанием, и в острове, где значок вдвое мельче, фигура из тонких
+    // линий превращается в серое пятно.
+    property real stroke: lan.height <= 18 ? 1 : 2
 
-    implicitWidth: 18
-    implicitHeight: 18
+    implicitWidth: 16
+    implicitHeight: 16
 
-    // Квадраты одинаковой ширины: верхний по центру, два внизу по краям.
-    // Ширина в две пятых значка — тогда между нижними остаётся просвет, и
-    // перекладина видна как перекладина, а не как их общая крышка.
-    readonly property real boxW: lan.width * 0.40
-    readonly property real boxH: lan.height * 0.26
+    // Доли от размера значка. Квадраты чуть уже трети — тогда между нижними
+    // остаётся просвет, и развилка видна как развилка.
+    readonly property real boxW: 0.36
+    readonly property real boxH: 0.26
+    // где сходятся ветки: ниже середины, чтобы скос был заметно наклонным,
+    // а не почти горизонтальным
+    readonly property real forkY: 0.54
 
-    // Верхний квадрат
-    Rectangle {
-        x: (lan.width - lan.boxW) / 2
-        y: 0
-        width: lan.boxW
-        height: lan.boxH
-        color: "transparent"
-        border.color: lan.color
-        border.width: lan.stroke
-        radius: lan.stroke
-    }
+    onColorChanged:  requestPaint()
+    onStrokeChanged: requestPaint()
+    onWidthChanged:  requestPaint()
+    onHeightChanged: requestPaint()
 
-    // Отросток вниз от верхнего квадрата — вертикаль перевёрнутой Y
-    Rectangle {
-        x: (lan.width - lan.stroke) / 2
-        y: lan.boxH
-        width: lan.stroke
-        height: lan.height / 2 - lan.boxH
-        color: lan.color
-    }
+    onPaint: {
+        var ctx = getContext("2d");
+        ctx.reset();
 
-    // Перекладина. Идёт ровно от середины левого нижнего квадрата до
-    // середины правого и не выходит за них: перехлёст и превращал бы её в
-    // полосу поперёк значка.
-    Rectangle {
-        x: lan.boxW / 2 - lan.stroke / 2
-        y: lan.height / 2 - lan.stroke / 2
-        width: lan.width - lan.boxW + lan.stroke
-        height: lan.stroke
-        color: lan.color
-    }
+        var w = lan.width, h = lan.height, s = lan.stroke;
+        var bw = w * lan.boxW, bh = h * lan.boxH;
+        var cx = w / 2;
+        var fy = h * lan.forkY;
 
-    // Спуски к нижним квадратам — концы перевёрнутой Y
-    Repeater {
-        model: [0, 1]
-        Rectangle {
-            required property int modelData
-            x: modelData === 0 ? lan.boxW / 2 - lan.stroke / 2
-                               : lan.width - lan.boxW / 2 - lan.stroke / 2
-            y: lan.height / 2
-            width: lan.stroke
-            height: lan.height - lan.boxH - lan.height / 2
-            color: lan.color
-        }
-    }
+        ctx.strokeStyle = lan.color;
+        ctx.lineWidth = s;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
 
-    // Нижние квадраты
-    Repeater {
-        model: [0, 1]
-        Rectangle {
-            required property int modelData
-            x: modelData === 0 ? 0 : lan.width - lan.boxW
-            y: lan.height - lan.boxH
-            width: lan.boxW
-            height: lan.boxH
-            color: "transparent"
-            border.color: lan.color
-            border.width: lan.stroke
-            radius: lan.stroke
-        }
+        // Обводка рисуется по средней линии, поэтому прямоугольники ужимаем
+        // на половину толщины: иначе фигура вылезает за свои границы и в
+        // плотном ряду задевает соседей.
+        var o = s / 2;
+
+        // верхний квадрат
+        ctx.beginPath();
+        ctx.rect(cx - bw / 2 + o, o, bw - s, bh - s);
+        ctx.stroke();
+
+        // отросток вниз до развилки
+        ctx.beginPath();
+        ctx.moveTo(cx, bh);
+        ctx.lineTo(cx, fy);
+        ctx.stroke();
+
+        // две наклонные ветки к серединам нижних квадратов
+        var lx = bw / 2 + o;
+        var rx = w - bw / 2 - o;
+        var by = h - bh;
+        ctx.beginPath();
+        ctx.moveTo(cx, fy);
+        ctx.lineTo(lx, by);
+        ctx.moveTo(cx, fy);
+        ctx.lineTo(rx, by);
+        ctx.stroke();
+
+        // нижние квадраты
+        ctx.beginPath();
+        ctx.rect(o, by + o, bw - s, bh - s);
+        ctx.rect(w - bw + o, by + o, bw - s, bh - s);
+        ctx.stroke();
     }
 }
