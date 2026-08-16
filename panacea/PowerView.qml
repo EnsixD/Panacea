@@ -32,7 +32,12 @@ Item {
                                  : view.allActions.filter(a => a.id !== "lock")
     readonly property var allActions: [
         { icon: String.fromCodePoint(0xF0904), label: view.sys.tr("Сон"),          cmd: "systemctl suspend",     accent: view.sys.tint("#38bdf8") },  // md-power_sleep
-        { id: "lock", icon: String.fromCodePoint(0xF0341), label: view.sys.tr("Блокировка"), cmd: view.sys.scriptDir + "/lock.sh", accent: view.sys.tint("#a78bfa") },  // md-lock_outline
+        // instant: срабатывает с первого нажатия. Подтверждение нужно там, где
+        // ошибка стоит несохранённой работы, — выключение, перезагрузка, сон.
+        // Блокировка не стоит ничего: она отменяется тем же паролем, которым
+        // и снимается. Требовать на неё второе нажатие значило делать вид,
+        // что кнопка не работает: первое-то не делает ничего.
+        { id: "lock", instant: true, icon: String.fromCodePoint(0xF0341), label: view.sys.tr("Блокировка"), cmd: view.sys.scriptDir + "/lock.sh", accent: view.sys.tint("#a78bfa") },  // md-lock_outline
         { icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),        cmd: "out=$(hyprctl dispatch 'hl.dsp.exit()' 2>&1); "
               + "case \"$out\" in ok*) ;; *) hyprctl dispatch exit ;; esac", accent: view.sys.colWarn },  // md-logout
         { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",      accent: view.sys.tint("#fb923c") },  // md-restart
@@ -41,7 +46,7 @@ Item {
 
     function trigger(i) {
         if (i < 0 || i >= actions.length) return;
-        if (view.armed !== i) {
+        if (!actions[i].instant && view.armed !== i) {
             view.armed = i;
             view.current = i;
             disarm.restart();
