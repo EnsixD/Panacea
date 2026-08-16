@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "controls: bluetooth and the recorder take their accent from the theme":
+            "Плитки Bluetooth и записи больше не держат свой цвет числом: на теме Nothing синий уступает белому, а красный у записи берётся у темы",
         "controls: readable labels on a light accent":
             "Значок включённой плитки и число на колокольчике больше не пропадают: на светлом акценте они рисуются тёмным, а не белым по белому",
         "island: smaller dotted numerals":

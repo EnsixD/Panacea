@@ -1231,7 +1231,10 @@ Item {
                              : view.sys.tr("Подключено"))
                           : view.sys.tr("Нет подключений"))
                     on: view.sys.btOn
-                    accent: "#0ea5e9"
+                    // Синий у Bluetooth — примета его собственного значка, но
+                    // на теме Nothing цветного акцента нет вовсе, и одна
+                    // голубая плитка среди чёрно-белых выбивается.
+                    accent: view.sys.themeNothing ? view.sys.colOn : "#0ea5e9"
                     onIconClicked: view.sys.toggleBt()
                     onBodyClicked: {
                         if (!view.sys.btOn || !view.sys.cfg.featBluetooth) return;
@@ -1630,7 +1633,11 @@ Item {
                          : (view.sys.recPaused ? view.sys.tr("Пауза")
                                                : view.sys.recFile.split("/").pop())
                     on: view.sys.recActive
-                    accent: "#ef4444"
+                    // Красный у записи остаётся на всех темах — это цвет
+                    // «идёт съёмка», а не украшение. Но берём его у темы:
+                    // у Default это тот же самый #ef4444, что стоял здесь
+                    // числом, а у остальных — их собственный тревожный.
+                    accent: view.sys.colCrit
                     onIconClicked: view.sys.toggleRecord()
                     onBodyClicked: view.sys.togglePage("record")
                 }
