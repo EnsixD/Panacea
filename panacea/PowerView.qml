@@ -31,13 +31,13 @@ Item {
     readonly property var actions: view.sys.cfg.featLock ? view.allActions
                                  : view.allActions.filter(a => a.id !== "lock")
     readonly property var allActions: [
-        { icon: String.fromCodePoint(0xF0904), label: view.sys.tr("Сон"),          cmd: "systemctl suspend",     accent: view.sys.tint("#38bdf8") },  // md-power_sleep
+        { id: "sleep", icon: "", label: view.sys.tr("Сон"),          cmd: "systemctl suspend",     accent: view.sys.tint("#38bdf8") },  // рисуется буквами, см. ниже
         // instant: срабатывает с первого нажатия. Подтверждение нужно там, где
         // ошибка стоит несохранённой работы, — выключение, перезагрузка, сон.
         // Блокировка не стоит ничего: она отменяется тем же паролем, которым
         // и снимается. Требовать на неё второе нажатие значило делать вид,
         // что кнопка не работает: первое-то не делает ничего.
-        { id: "lock", instant: true, icon: String.fromCodePoint(0xF0341), label: view.sys.tr("Блокировка"), cmd: view.sys.scriptDir + "/lock.sh", accent: view.sys.tint("#a78bfa") },  // md-lock_outline
+        { id: "lock", instant: true, icon: String.fromCodePoint(0xF033E), label: view.sys.tr("Блокировка"), cmd: view.sys.scriptDir + "/lock.sh", accent: view.sys.tint("#a78bfa") },  // md-lock_outline
         { icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),        cmd: "out=$(hyprctl dispatch 'hl.dsp.exit()' 2>&1); "
               + "case \"$out\" in ok*) ;; *) hyprctl dispatch exit ;; esac", accent: view.sys.colWarn },  // md-logout
         { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",      accent: view.sys.tint("#fb923c") },  // md-restart
@@ -130,42 +130,52 @@ Item {
                         anchors.centerIn: parent
                         spacing: 9
 
-                        // иконка в круге своего цвета — читается лучше голого глифа
-                        Rectangle {
+                        // Голый значок без круга под ним. Круг со своей
+                        // заливкой, обводкой и свечением спорил с плиткой, на
+                        // которой стоит: два вложенных выделения одного и того
+                        // же действия. Взведённость показывает сама плитка.
+                        Item {
                             Layout.alignment: Qt.AlignHCenter
                             Layout.preferredWidth: 40
                             Layout.preferredHeight: 40
-                            radius: 20
-                            color: body.parent.isArmed
-                                   ? modelData.accent
-                                   : Qt.rgba(modelData.accent.r, modelData.accent.g,
-                                             modelData.accent.b, btnMa.containsMouse ? 0.34 : 0.20)
-                            border.color: Qt.rgba(modelData.accent.r, modelData.accent.g,
-                                                  modelData.accent.b,
-                                                  body.parent.isArmed ? 0 : 0.45)
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: 180 } }
-                            Behavior on border.color { ColorAnimation { duration: 180 } }
 
-                            // мягкое свечение под кругом
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: parent.width + 10
-                                height: parent.height + 10
-                                radius: width / 2
-                                z: -1
-                                color: Qt.rgba(modelData.accent.r, modelData.accent.g,
-                                               modelData.accent.b,
-                                               btnMa.containsMouse || body.parent.isArmed ? 0.10 : 0)
-                                Behavior on color { ColorAnimation { duration: 220 } }
+                            readonly property color ink: modelData.accent
+
+                            // Сон рисуется буквами, а не глифом: у месяца в
+                            // Nerd Font нет пары к остальным — он про ночь, а
+                            // не про сон, и рядом с замком и стрелкой читался
+                            // как погода. Три «z» треугольником говорят прямо.
+                            Item {
+                                anchors.fill: parent
+                                visible: modelData.id === "sleep"
+
+                                Text {
+                                    x: 1; y: 15
+                                    text: "Z"
+                                    color: parent.parent.ink
+                                    font { family: view.sys.fontBody; pixelSize: 19; bold: true }
+                                }
+                                Text {
+                                    x: 17; y: 1
+                                    text: "z"
+                                    color: parent.parent.ink
+                                    font { family: view.sys.fontBody; pixelSize: 10; bold: true }
+                                }
+                                Text {
+                                    x: 24; y: 8
+                                    text: "z"
+                                    color: parent.parent.ink
+                                    font { family: view.sys.fontBody; pixelSize: 14; bold: true }
+                                }
                             }
 
                             Glyph {
                                 anchors.fill: parent
+                                visible: modelData.id !== "sleep"
                                 glyph: modelData.icon
-                                color: body.parent.isArmed ? view.sys.fgOn(modelData.accent) : modelData.accent
+                                color: parent.ink
                                 fontFam: view.sys.fontFam
-                                size: view.sys.iconSize + 6
+                                size: view.sys.iconSize + 8
                             }
                         }
 
