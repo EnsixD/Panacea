@@ -179,6 +179,20 @@ ColumnLayout {
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
 
+        // Отдельно от настольных виджетов: остров виден всегда, а стол
+        // закрыт окнами, и включают их не за одно и то же.
+        SetToggle {
+            sys: page.sys
+            label: page.sys.tr("Погода в острове")
+            sub: page.sys.tr("Значок и градусы в свёрнутом острове, рядом с рабочими столами.")
+            on: page.sys.cfg.weatherOnIsland
+            onToggled: v => {
+                page.sys.cfg.weatherOnIsland = v;
+                page.sys.saveCfg();
+                if (v) page.sys.refreshWeather();
+            }
+        }
+
         SetSelect {
             sys: page.sys
             label: page.sys.tr("Шкала")

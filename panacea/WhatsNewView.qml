@@ -117,6 +117,14 @@ Item {
             "Быстрые настройки на теме Nothing: звук встал третьим к сети и Bluetooth, часы набраны точками, секунды — мелким числом сбоку",
         "island: workspace dots and a dotted clock on the Nothing theme":
             "Остров на теме Nothing: точки столов вместо номера, часы точками по центру, справа сеть, звук и заряд",
+        "update: keep the changelog fetch the same size however far behind you are":
+            "Обновление: список изменений больше не тянет диффы — при большом отставании оно ускорилось втрое и перестало обрезаться на 250 коммитах",
+        "update: fill the progress bar smoothly instead of jumping":
+            "Обновление: полоса заполняется плавно — этапы взвешены по длительности, и внутри долгого шага она подползает сама",
+        "weather: a toggle for the temperature in the island":
+            "Погода в острове включается отдельным тумблером во вкладке Weather",
+        "controls: no duplicate seconds in the panel clock":
+            "Быстрые настройки: секунды не показываются дважды, когда они включены в настройках часов",
         "theme: a black-and-white Nothing palette":
             "Тема Nothing: чёрно-белая палитра без цветного акцента — выбирается в настройках, вкладка Appearance",
         "display: match the shader version Hyprland actually uses":

@@ -667,6 +667,9 @@ QtObject {
         "Ответ сервиса не разобрать": "Could not parse the service reply",
         "Сервис ответил отказом": "The service refused",
         "Нет данных": "No data",
+        "Погода в острове": "Weather in the island",
+        "Значок и градусы в свёрнутом острове, рядом с рабочими столами.":
+            "An icon and the temperature in the collapsed island, next to the workspaces.",
         "Влажность": "Humidity",
         "Ветер": "Wind",
         "Ощущается как": "Feels like",

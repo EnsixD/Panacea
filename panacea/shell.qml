@@ -188,6 +188,10 @@ PanelWindow {
             property string weatherKey: ""
             property string weatherCity: ""
             property string weatherUnits: "metric"   // metric | imperial
+            // Погода в свёрнутом острове. Включена: место она занимает
+            // небольшое, а смотрят на остров чаще, чем на рабочий стол,
+            // который закрыт окнами.
+            property bool   weatherOnIsland: true
             // Настольные виджеты. Выключены по умолчанию: они рисуются
             // поверх обоев и меняют вид рабочего стола, а такое включают
             // сами, а не обнаруживают после обновления.
@@ -285,7 +289,8 @@ PanelWindow {
         vaultCapture: true,
         vibrance: 50, mouseSens: 0, mouseRaw: false,
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
-        weatherKey: "", weatherCity: "", weatherUnits: "metric", featWidgets: false
+        weatherKey: "", weatherCity: "", weatherUnits: "metric",
+        weatherOnIsland: true, featWidgets: false
     })
 
     function resetCfg() {
@@ -549,7 +554,7 @@ PanelWindow {
     // следующего опроса, то есть до четверти часа.
     onIsEnChanged: {
         root.syncGreeterLocale();
-        if (root.cfg.featWidgets) root.refreshWeather();
+        if (root.cfg.featWidgets || root.cfg.weatherOnIsland) root.refreshWeather();
     }
 
     // ------------------------------------ перезагрузка в другую систему
@@ -1897,7 +1902,8 @@ PanelWindow {
     // собой все программы, куда его вписали.
     Timer {
         interval: 900000
-        running: root.cfg.featWidgets && root.cfg.weatherKey.length > 0
+        running: (root.cfg.featWidgets || root.cfg.weatherOnIsland)
+                 && root.cfg.weatherKey.length > 0
         repeat: true
         triggeredOnStart: true
         onTriggered: root.refreshWeather()
@@ -4179,7 +4185,7 @@ PanelWindow {
             // видна, поэтому она здесь, а не только на Nothing.
             RowLayout {
                 spacing: 5
-                visible: root.weatherReady
+                visible: root.weatherReady && root.cfg.weatherOnIsland
 
                 Text {
                     Layout.alignment: Qt.AlignVCenter
@@ -4407,7 +4413,7 @@ PanelWindow {
                 RowLayout {
                     Layout.leftMargin: 6
                     spacing: 5
-                    visible: root.weatherReady
+                    visible: root.weatherReady && root.cfg.weatherOnIsland
 
                     DotIcon {
                         Layout.alignment: Qt.AlignVCenter
