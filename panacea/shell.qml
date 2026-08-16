@@ -930,6 +930,7 @@ PanelWindow {
     readonly property real dotHBig:   root.fontSize + 10   // часы в панели
     readonly property real dotHClock: root.fontSize - 1    // часы в острове
     readonly property real dotHSmall: root.fontSize - 3    // числа при значках
+    readonly property real dotHTiny:  root.fontSize - 5    // сводка нагрузки
 
     // Цвет надписи поверх заливки акцентом. На светлом акценте белым по
     // белому не видно ничего — а на теме Nothing акцент именно белый.
