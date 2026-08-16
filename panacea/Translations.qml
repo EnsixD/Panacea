@@ -646,9 +646,9 @@ QtObject {
         "Хранится в settings.json открытым текстом.":
             "Stored in settings.json as plain text.",
         "Город": "City",
-        "Например: Moscow или Moscow,RU": "For example: Moscow or Moscow,RU",
-        "Одинаковых названий на свете много. Если нашёлся не тот город, допишите через запятую страну — Moscow,RU.":
-            "Plenty of places share a name. If the wrong one turns up, add the country after a comma — Moscow,RU.",
+        "Название или индекс: Gusev,RU или 238050": "A name or a postcode: Gusev,RU or 238050",
+        "Годится и почтовый индекс — сплошные цифры оболочка отличает от названия сама и без страны считает российскими. Одинаковых названий на свете много: если нашёлся не тот город, допишите через запятую страну — Gusev,RU. По названию сервис ищет надёжнее, чем по индексу.":
+            "A postcode works too — all-digits input is told apart from a name automatically, and without a country it is read as Russian. Plenty of places share a name: if the wrong one turns up, add the country after a comma — Gusev,RU. The service finds places by name more reliably than by postcode.",
         "Шкала": "Scale",
         "Цельсий": "Celsius",
         "Фаренгейт": "Fahrenheit",

@@ -124,7 +124,7 @@ ColumnLayout {
                     anchors.fill: parent
                     verticalAlignment: Text.AlignVCenter
                     visible: cityInput.text.length === 0
-                    text: page.sys.tr("Например: Moscow или Moscow,RU")
+                    text: page.sys.tr("Название или индекс: Gusev,RU или 238050")
                     color: page.sys.colMuted
                     elide: Text.ElideRight
                     font: cityInput.font
@@ -134,7 +134,7 @@ ColumnLayout {
 
         Text {
             Layout.fillWidth: true
-            text: page.sys.tr("Одинаковых названий на свете много. Если нашёлся не тот город, допишите через запятую страну — Moscow,RU.")
+            text: page.sys.tr("Годится и почтовый индекс — сплошные цифры оболочка отличает от названия сама и без страны считает российскими. Одинаковых названий на свете много: если нашёлся не тот город, допишите через запятую страну — Gusev,RU. По названию сервис ищет надёжнее, чем по индексу.")
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
