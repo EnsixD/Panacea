@@ -46,7 +46,13 @@ ColumnLayout {
         Layout.fillWidth: true
         implicitHeight: 18
 
-        readonly property real span: Math.max(1, sl.to - sl.from)
+        // Защита от деления на ноль, а не «не меньше единицы».
+        //
+        // Math.max(1, ...) ломал любой ползунок с диапазоном уже единицы:
+        // прозрачность от 0.5 до 1.0 делилась на 1 вместо 0.5, и правый край
+        // шкалы оказывался её серединой — ручка упиралась на половине пути и
+        // дальше не шла. Досталось и приглушённому тексту с его 0.2…1.0.
+        readonly property real span: Math.max(1e-6, sl.to - sl.from)
         readonly property real frac: Math.max(0, Math.min(1, (sl.value - sl.from) / span))
 
         function pick(px) {
