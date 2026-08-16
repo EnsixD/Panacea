@@ -611,11 +611,39 @@ PanelWindow {
         pTermRestart.running = true;
     }
 
+    // Фон терминала под тему.
+    //
+    // На Nothing он совпадает с карточками виджетов — тем же тёмно-серым,
+    // чтобы терминал читался частью набора, а не чужим окном. На остальных
+    // темах файл пустой, и цвет остаётся тот, что задаёт общая палитра: она
+    // правится руками и о темах оболочки не знает.
+    //
+    // Пишем в свой файл, а не в тот, что генерирует palette.sh: у одного
+    // файла не бывает двух хозяев без спора. foot.ini подключает оба, наш
+    // вторым — побеждает подключённый позже.
+    readonly property string termBg: "171717"
+    Process {
+        id: pTermTheme
+        command: ["sh", "-c",
+            "f=\"$HOME/.config/foot/panacea-theme\"; mkdir -p \"$(dirname \"$f\")\" || exit 0; " +
+            "if [ -n \"$1\" ]; then " +
+            "printf '[colors-dark]\\nbackground=%s\\n' \"$1\" > \"$f\"; " +
+            "else : > \"$f\"; fi",
+            "_", root.themeNothing ? root.termBg : ""]
+    }
+    function syncTermTheme() {
+        pTermTheme.running = false;
+        pTermTheme.running = true;
+    }
+
     function syncGreeterTheme() {
         pGreeterTheme.running = false;
         pGreeterTheme.running = true;
     }
-    onThemeChanged: root.syncGreeterTheme()
+    onThemeChanged: {
+        root.syncGreeterTheme();
+        root.syncTermTheme();
+    }
 
     // ------------------------------------------------------------ язык
     // Язык оболочки меняется мгновенно — это её собственный словарь. Язык
@@ -1403,6 +1431,7 @@ PanelWindow {
         syncGreeterLocale();
         monReplayTimer.restart();
         syncGreeterTheme();
+        syncTermTheme();
         root.cornersOn = root.cornersWanted;
         // Первое заполнение списка столов: дальше его ведёт onWsRawChanged, а
         // тот срабатывает только на изменение — стартовое значение он бы
