@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "controls: coffee mode lights up in the theme colour":
+            "Coffee mode на теме Nothing загорается белым, а не янтарным, и кружок переключателя на белой дорожке остаётся виден",
         "hypr: a monochrome window border":
             "Рамка активного окна больше не уходит в красный: белый с серым вместо синего с красным",
         "island: content spans the collapsed bar instead of huddling in the middle":

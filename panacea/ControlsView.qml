@@ -1727,14 +1727,23 @@ Item {
             spacing: 8
 
             Rectangle {
+                id: awakeRow
+                // Янтарный «не спать» — цвет кофе, и на прочих темах он к
+                // месту. На Nothing цветного акцента нет вовсе, и одна
+                // оранжевая полоса внизу чёрно-белой панели бросается в
+                // глаза сильнее, чем сам режим того стоит.
+                readonly property color tint: view.sys.themeNothing
+                                              ? view.sys.colOn : "#f59e0b"
+
                 Layout.fillWidth: true
                 Layout.preferredHeight: 44
                 radius: 12
                 color: view.sys.keepAwake
-                       ? Qt.rgba(0.96, 0.62, 0.04, 0.16)
+                       ? Qt.rgba(awakeRow.tint.r, awakeRow.tint.g, awakeRow.tint.b, 0.16)
                        : (awakeMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05))
-                border.color: view.sys.keepAwake ? Qt.rgba(0.96, 0.62, 0.04, 0.40)
-                                                 : view.sys.colLine
+                border.color: view.sys.keepAwake
+                              ? Qt.rgba(awakeRow.tint.r, awakeRow.tint.g, awakeRow.tint.b, 0.40)
+                              : view.sys.colLine
                 border.width: 1
                 Behavior on color { ColorAnimation { duration: 160 } }
                 Behavior on border.color { ColorAnimation { duration: 160 } }
@@ -1749,7 +1758,7 @@ Item {
                         Layout.preferredWidth: 26
                         Layout.preferredHeight: 26
                         glyph: String.fromCodePoint(view.sys.keepAwake ? 0xF0176 : 0xF0177)
-                        color: view.sys.keepAwake ? "#f59e0b" : view.sys.colMuted
+                        color: view.sys.keepAwake ? awakeRow.tint : view.sys.colMuted
                         fontFam: view.sys.fontFam
                         size: view.sys.iconSize + 2
                     }
@@ -1767,13 +1776,15 @@ Item {
                         Layout.preferredWidth: 38
                         Layout.preferredHeight: 21
                         radius: 11
-                        color: view.sys.keepAwake ? "#f59e0b" : Qt.rgba(1, 1, 1, 0.14)
+                        color: view.sys.keepAwake ? awakeRow.tint : Qt.rgba(1, 1, 1, 0.14)
                         Behavior on color { ColorAnimation { duration: 180 } }
                         Rectangle {
                             width: 17; height: 17; radius: 9
                             y: 2
                             x: view.sys.keepAwake ? parent.width - width - 2 : 2
-                            color: "#ffffff"
+                            // на белой дорожке белый кружок пропадает
+                            color: view.sys.keepAwake
+                                   ? view.sys.fgOn(awakeRow.tint) : "#ffffff"
                             Behavior on x {
                                 NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
                             }
