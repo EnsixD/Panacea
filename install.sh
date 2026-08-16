@@ -655,6 +655,26 @@ install_sddm() {
     sudo chown "$(id -un):$(id -gn)" /var/lib/panacea
     sudo chmod 755 /var/lib/panacea
 
+    # Раскладки экрану входа — те же, что у оболочки.
+    #
+    # Hyprland задаёт свои раскладки только своему сеансу, а greeter берёт
+    # системные X11. Там оставалась одна us: русской для пароля не было, и
+    # Alt+Shift нечего было переключать — на экране входа мог висеть индикатор
+    # раскладки, который никогда не менялся.
+    #
+    # Значения читаем из hypr/lua/input.lua, чтобы не завести им вторую
+    # копию, которая разойдётся с первой.
+    if command -v localectl >/dev/null 2>&1 && [ -f "$SRC/hypr/lua/input.lua" ]; then
+        local kbl kbo
+        kbl="$(sed -n 's/.*kb_layout *= *"\([^"]*\)".*/\1/p' "$SRC/hypr/lua/input.lua" | head -1)"
+        kbo="$(sed -n 's/.*kb_options *= *"\([^"]*\)".*/\1/p' "$SRC/hypr/lua/input.lua" | head -1)"
+        if [ -n "$kbl" ]; then
+            sudo localectl set-x11-keymap "$kbl" "" "" "$kbo" 2>/dev/null \
+                && ok "login screen keyboard: $kbl${kbo:+ ($kbo)}" \
+                || warn "could not set the login screen keyboard layout"
+        fi
+    fi
+
     ok "SDDM login theme installed and selected"
 }
 
