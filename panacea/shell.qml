@@ -4127,7 +4127,7 @@ PanelWindow {
                 // Wi-Fi поверх работающего кабеля только сбивал бы с толку.
                 Text {
                     Layout.alignment: Qt.AlignVCenter
-                    text: root.wiredOn ? "󰈀"
+                    text: root.wiredOn ? "󰈁"
                         : root.wifiOn ? (root.wifiQuality > 66 ? "󰤨"
                                        : root.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
                     color: (root.wiredOn || root.wifiOn) ? root.colFg : root.colMuted

@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "net: a cable plug for the wired connection, not a network tree":
+            "Проводная сеть показывается штекером: прежний значок рисовал схему сети из кружков и читался как что угодно, кроме кабеля",
         "controls: an active tile turns solid on the Nothing theme":
             "Включённая плитка на теме Nothing наливается белым целиком, кружок значка выворачивается в чёрный, подписи становятся тёмными",
         "dots: size the numerals by height instead of by dot diameter":

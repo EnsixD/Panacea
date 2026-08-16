@@ -1221,7 +1221,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: 56
-                    icon: view.sys.wiredOn ? "󰈀"
+                    icon: view.sys.wiredOn ? "󰈁"
                         : view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
                                            : view.sys.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
                     // подключены — в заголовке имя сети, иначе обычное «Wi-Fi»
