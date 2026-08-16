@@ -1370,8 +1370,11 @@ Item {
                         }
 
                         // тонкая линия по низу: без неё пустые паузы в звуке
-                        // выглядели бы обрывом полосы
+                        // выглядели бы обрывом полосы.
+                        // На теме Nothing её нет: там дорожка — только сам
+                        // спектр, и подчёркивание снизу спорит с ним.
                         Rectangle {
+                            visible: !view.sys.themeNothing
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
@@ -1386,15 +1389,22 @@ Item {
                             }
                         }
 
-                        // ручка — вертикальная риска на позиции
+                        // Ручка — вертикальная риска на позиции.
+                        //
+                        // На теме Nothing она не висит постоянно, а появляется
+                        // под курсором. Совсем убрать её нельзя: перемотка
+                        // осталась, а без всякого отклика непонятно, куда
+                        // попадёшь, — и промах слышен сразу. Пока мышь мимо,
+                        // никакой черты поверх спектра нет.
                         Rectangle {
                             x: seek.width * seek.frac - width / 2
                             width: seekMa.pressed ? 3 : 2
                             height: parent.height
                             radius: 1.5
                             color: "#ffffff"
-                            opacity: seek.usable ? (seekMa.containsMouse || seekMa.pressed
-                                                    ? 1 : 0.75) : 0.3
+                            opacity: !seek.usable ? (view.sys.themeNothing ? 0 : 0.3)
+                                   : (seekMa.containsMouse || seekMa.pressed) ? 1
+                                   : (view.sys.themeNothing ? 0 : 0.75)
                             Behavior on opacity { NumberAnimation { duration: 140 } }
                             Behavior on width { NumberAnimation { duration: 120 } }
                         }
@@ -1432,15 +1442,31 @@ Item {
                         Layout.topMargin: -6
                         visible: seek.visible && seek.dur > 0
                         Text {
+                            visible: !view.sys.themeNothing
                             text: view.fmtTime(seek.pos)
                             color: view.sys.colMuted
                             font { family: view.sys.fontFam; pixelSize: 10 }
                         }
+                        DotText {
+                            visible: view.sys.themeNothing
+                            value: view.fmtTime(seek.pos)
+                            dotSize: view.sys.dotSmall
+                            gap: view.sys.dotSmall * 0.5
+                            color: view.sys.colMuted
+                        }
                         Item { Layout.fillWidth: true }
                         Text {
+                            visible: !view.sys.themeNothing
                             text: view.fmtTime(seek.dur)
                             color: Qt.rgba(1, 1, 1, 0.28)
                             font { family: view.sys.fontFam; pixelSize: 10 }
+                        }
+                        DotText {
+                            visible: view.sys.themeNothing
+                            value: view.fmtTime(seek.dur)
+                            dotSize: view.sys.dotSmall
+                            gap: view.sys.dotSmall * 0.5
+                            color: Qt.rgba(1, 1, 1, 0.28)
                         }
                     }
                 }
