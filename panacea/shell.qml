@@ -4407,6 +4407,13 @@ PanelWindow {
                         // полосу без анимации — просто подмена картинки.
                         property real len: here ? 17 : 6
 
+                        // Анимация включается после того, как точка встала на
+                        // место. Иначе появление нового стола проигрывается
+                        // как выезжающая полоса — а это не изменение, это
+                        // первый кадр, и показывать его движением не за чем.
+                        property bool settled: false
+                        Component.onCompleted: settled = true
+
                         Layout.preferredWidth: len
                         Layout.preferredHeight: 6
                         Layout.alignment: Qt.AlignVCenter
@@ -4415,9 +4422,13 @@ PanelWindow {
                         opacity: here ? 1 : (wsMa.containsMouse ? 0.6 : 0.3)
 
                         Behavior on len {
+                            enabled: settled
                             NumberAnimation { duration: root.animMs; easing.type: Easing.OutCubic }
                         }
-                        Behavior on opacity { NumberAnimation { duration: root.animFast } }
+                        Behavior on opacity {
+                            enabled: settled
+                            NumberAnimation { duration: root.animFast }
+                        }
 
                         MouseArea {
                             id: wsMa

@@ -411,7 +411,11 @@ Item {
         //
         // Кружок значка при этом становится чёрным — выворачивается вместе
         // с плиткой, иначе белое на белом сливается в пятно.
-        readonly property bool solid: view.sys.themeNothing && tile.on
+        // Залитой плитка не становится, пока по ней идёт волна: волна и есть
+        // указание, что заряжается, и на белой заливке она пропадала —
+        // рисуется она полупрозрачным поверх фона, а поверх белого белым не
+        // видно ничего. Двух указаний на одно и то же и не нужно.
+        readonly property bool solid: view.sys.themeNothing && tile.on && !tile.wave
         // цвет подписей: на залитой плитке они тёмные
         readonly property color ink: tile.solid ? view.sys.fgOn(tile.accent)
                                                 : view.sys.colFg

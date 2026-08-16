@@ -117,6 +117,10 @@ Item {
             "Быстрые настройки на теме Nothing: звук встал третьим к сети и Bluetooth, часы набраны точками, секунды — мелким числом сбоку",
         "island: workspace dots and a dotted clock on the Nothing theme":
             "Остров на теме Nothing: точки столов вместо номера, часы точками по центру, справа сеть, звук и заряд",
+        "island: stop the workspace dots flickering on an empty desktop":
+            "Точки столов больше не мигают при переходе на пустой рабочий стол",
+        "controls: let the charging wave show through on the battery tile":
+            "Плитка батареи при зарядке не заливается белым — волна снова видна",
         "update: keep the changelog fetch the same size however far behind you are":
             "Обновление: список изменений больше не тянет диффы — при большом отставании оно ускорилось втрое и перестало обрезаться на 250 коммитах",
         "update: fill the progress bar smoothly instead of jumping":
