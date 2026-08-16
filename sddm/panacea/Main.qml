@@ -226,14 +226,56 @@ Rectangle {
                     Text {
                         id: capsuleIcon
                         anchors.centerIn: parent
-                        text: String.fromCodePoint(root.busy ? 0xF0772 : 0xF033E)
-                        color: root.errorText.length ? "#ef4444" : root.accent
+                        visible: !root.busy
+                        text: String.fromCodePoint(0xF033E)
+                        color: root.errorText.length ? root.crit : root.accent
                         font { family: root.fontFam; pixelSize: 20 }
+                    }
 
-                        RotationAnimator on rotation {
-                            running: root.busy
+                    // Кружок загрузки нарисован, а не взят из шрифта.
+                    //
+                    // Глиф вращался вокруг середины строки, а чернила у него
+                    // сидят не по центру своей коробки — круг выходил кривым
+                    // и вихлял. Дуга же описана вокруг настоящего центра и
+                    // остаётся ровной в любом кадре.
+                    Canvas {
+                        id: spinner
+                        anchors.centerIn: parent
+                        width: 20; height: 20
+                        visible: root.busy
+                        antialiasing: true
+
+                        property real angle: 0
+                        property color tint: root.errorText.length ? root.crit : root.accent
+                        onAngleChanged: requestPaint()
+                        onTintChanged: requestPaint()
+
+                        onPaint: {
+                            var ctx = getContext("2d");
+                            ctx.reset();
+                            var r = width / 2 - 2;
+                            // подложка — всё кольцо, чтобы дуга не висела в
+                            // пустоте и было видно, сколько ей ещё идти
+                            ctx.beginPath();
+                            ctx.arc(width / 2, height / 2, r, 0, Math.PI * 2);
+                            ctx.lineWidth = 2;
+                            ctx.strokeStyle = Qt.rgba(spinner.tint.r, spinner.tint.g,
+                                                      spinner.tint.b, 0.22);
+                            ctx.stroke();
+                            // сама дуга: три четверти круга
+                            ctx.beginPath();
+                            ctx.arc(width / 2, height / 2, r,
+                                    spinner.angle, spinner.angle + Math.PI * 1.5);
+                            ctx.lineWidth = 2;
+                            ctx.lineCap = "round";
+                            ctx.strokeStyle = spinner.tint;
+                            ctx.stroke();
+                        }
+
+                        NumberAnimation on angle {
+                            running: root.busy && spinner.visible
                             loops: Animation.Infinite
-                            from: 0; to: 360; duration: 900
+                            from: 0; to: Math.PI * 2; duration: 900
                         }
                     }
                 }
@@ -418,17 +460,30 @@ Rectangle {
 
             Rectangle {
                 width: 46; height: 46; radius: 23
-                color: pwrMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.05)
-                border.color: root.line
+                // Подложка и обводка заметнее прежних: на чёрном фоне
+                // пятипроцентная заливка с двенадцатипроцентной рамкой
+                // читалась как пустое место, и три кнопки внизу экрана
+                // попросту не находились глазом.
+                color: pwrMa.containsMouse ? Qt.rgba(1, 1, 1, 0.18)
+                                           : Qt.rgba(1, 1, 1, 0.09)
+                border.color: pwrMa.containsMouse
+                              ? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.45)
+                              : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.22)
                 border.width: 1
                 Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
                 scale: pwrMa.pressed ? 0.92 : 1.0
                 Behavior on scale { NumberAnimation { duration: 130 } }
 
                 Text {
                     anchors.centerIn: parent
                     text: modelData.glyph
-                    color: pwrMa.containsMouse ? root.fg : root.muted
+                    // Значок в полную яркость и без наведения: приглушённым
+                    // он сливался с подложкой. Наведение теперь показывает
+                    // сама кнопка, а не пропажа её содержимого.
+                    color: root.fg
+                    opacity: pwrMa.containsMouse ? 1 : 0.75
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
                     font { family: root.fontFam; pixelSize: 18 }
                 }
 
@@ -448,15 +503,46 @@ Rectangle {
         }
     }
 
-    // раскладка клавиатуры — мелочь, но без неё легко ввести пароль не в той
-    Text {
+    // Раскладка клавиатуры — мелочь, но без неё легко ввести пароль не в той.
+    //
+    // С перелистыванием, а не подменой буквы: раскладку переключают вслепую,
+    // уже начав набирать, и подтверждение нужно заметить краем глаза.
+    // Неподвижная надпись меняется незаметно — а цена незамеченной смены
+    // здесь целая неудачная попытка входа.
+    Item {
+        id: kbBox
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.margins: 22
-        text: keyboard.layouts.length > 0
+        width: kbText.implicitWidth
+        height: kbText.implicitHeight
+        clip: true
+
+        readonly property string value: keyboard.layouts.length > 0
               ? keyboard.layouts[keyboard.currentLayout].shortName.toUpperCase() : ""
-        color: root.muted
-        font { family: root.fontFam; pixelSize: 12; bold: true; letterSpacing: 1 }
+        property string shown: kbBox.value
+
+        onValueChanged: if (kbBox.value !== kbBox.shown) kbFlip.restart()
+
+        Text {
+            id: kbText
+            text: kbBox.shown
+            color: root.fg
+            opacity: 0.75
+            font { family: root.fontFam; pixelSize: 12; bold: true; letterSpacing: 1 }
+        }
+
+        SequentialAnimation {
+            id: kbFlip
+            NumberAnimation { target: kbText; property: "opacity"; to: 0; duration: 90 }
+            NumberAnimation { target: kbText; property: "y"
+                              to: -kbBox.height; duration: 0 }
+            ScriptAction { script: kbBox.shown = kbBox.value }
+            NumberAnimation { target: kbText; property: "y"; to: 0
+                              duration: 150; easing.type: Easing.OutCubic }
+            NumberAnimation { target: kbText; property: "opacity"; to: 0.75
+                              duration: 150 }
+        }
     }
 
     // --------------------------------------------------------------- логин
