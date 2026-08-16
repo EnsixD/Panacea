@@ -4234,6 +4234,15 @@ PanelWindow {
 
             // просвет между часами и крайними группами
             readonly property real armGap: 22
+
+            // Место под точки столов: пять слотов по шесть пикселей, просветы
+            // между ними и надбавка на текущий стол — он растекается в полосу
+            // и шире остальных.
+            readonly property int wsSlots: 5
+            readonly property real wsReserve:
+                nothingCapsule.wsSlots * 6
+                + (nothingCapsule.wsSlots - 1) * nLeft.spacing
+                + (17 - 6)
             // Обе группы получают ширину по большей из них: без этого часы
             // считались бы центром пустого места, а не острова.
             readonly property real arm:
@@ -4269,6 +4278,25 @@ PanelWindow {
                 // на острове всё равно никто не читал как число, важно лишь
                 // «который по счёту из скольких», а это точки показывают
                 // прямо, без чтения.
+                //
+                // Под них резервируется место на пять столов, даже когда их
+                // меньше. Hyprland заводит и убирает столы на ходу, а от
+                // числа точек зависела длина всего острова: часы стоят по его
+                // центру, правая группа прижата к его краю — и на каждом
+                // открытии четвёртого стола весь остров переставлялся. Пока
+                // столов не больше пяти, теперь не меняется ничего.
+                Item {
+                    Layout.preferredWidth: Math.max(wsRow.implicitWidth,
+                                                    nothingCapsule.wsReserve)
+                    Layout.preferredHeight: 6
+                    Layout.alignment: Qt.AlignVCenter
+
+                    RowLayout {
+                        id: wsRow
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: nLeft.spacing
+
                 Repeater {
                     model: root.wsList
 
@@ -4304,6 +4332,8 @@ PanelWindow {
                         }
                     }
                 }
+                    }
+                }
 
                 // Погода сразу за точками. Значок и градусы, без города и
                 // слов: город человек и так знает, а описание словами на
@@ -4327,7 +4357,7 @@ PanelWindow {
                         Layout.alignment: Qt.AlignVCenter
                         text: root.weatherTemp + "°"
                         color: root.colFg
-                        font { family: root.fontFam; pixelSize: root.fontSize - 2 }
+                        font { family: root.fontFam; pixelSize: root.fontSize }
                     }
                 }
             }
