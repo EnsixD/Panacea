@@ -32,8 +32,7 @@ its text letter under letter, so nothing has to be read with a tilted head.
 
 
 
-https://github.com/user-attachments/assets/4eaa0e05-9295-472a-943b-70260d7e5961
-
+https://github.com/user-attachments/assets/854260b8-e96e-4773-8267-2decab779d6e
 
 
 <sub>A short tour recorded with the pill's own screen recorder. The same clip is
