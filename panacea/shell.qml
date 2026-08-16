@@ -928,7 +928,7 @@ PanelWindow {
     // рядом с цифрой всегда стоит подпись, и разница между ними должна
     // оставаться одинаковой, а не растягиваться вместе с ползунком.
     readonly property real dotHBig:   root.fontSize + 10   // часы в панели
-    readonly property real dotHClock: root.fontSize + 2    // часы в острове
+    readonly property real dotHClock: root.fontSize - 1    // часы в острове
     readonly property real dotHSmall: root.fontSize - 3    // числа при значках
 
     // Цвет надписи поверх заливки акцентом. На светлом акценте белым по
