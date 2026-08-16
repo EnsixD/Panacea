@@ -171,9 +171,14 @@ Item {
 
             // Градусы, значок и город. Единственное место, где показана
             // температура.
+            // Высота ровно та, что складывается справа: карточка описания
+            // 62, просвет 12 и кружки 66. Было 132 против 140, и правый
+            // столбец на восемь пикселей не сходился с левым — в наборе из
+            // прямоугольников такой перекос видно сразу.
             Card {
                 Layout.preferredWidth: view.col
-                Layout.preferredHeight: 132
+                Layout.preferredHeight: 62 + view.gap + 66
+                Layout.alignment: Qt.AlignTop
 
                 ColumnLayout {
                     anchors.centerIn: parent
@@ -211,6 +216,7 @@ Item {
 
             ColumnLayout {
                 Layout.preferredWidth: view.col
+                Layout.alignment: Qt.AlignTop
                 spacing: view.gap
 
                 // Что за погода — словами. Градусов здесь нет намеренно:
