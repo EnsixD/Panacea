@@ -383,6 +383,11 @@ Item {
     component MiniTile: Rectangle {
         id: tile
         property string icon: ""
+        // Значок фигурой вместо знака шрифта. Нужен там, где подходящего
+        // глифа просто нет: проводная сеть в Nerd Font рисуется деревом с
+        // перекладиной шире самих квадратов, и на этих размерах она читается
+        // полосой поперёк значка. Пусто — берётся icon, как раньше.
+        property Component iconItem: null
         property string label: ""
         property string sub: ""
         property bool on: false
@@ -451,16 +456,37 @@ Item {
                 scale: miniIconMa.pressed ? 0.9 : (miniIconMa.containsMouse ? 1.07 : 1.0)
                 Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutBack } }
 
+                // Значок лежит прямо на кружке, и цвет берётся от него: на
+                // акцентном кружке белый по белому не виден вовсе, а на
+                // вывернутом чёрном — наоборот, только белый и виден.
+                readonly property color ink: tile.solid ? "#ffffff"
+                                           : tile.on ? view.sys.fgOn(tile.accent)
+                                                     : "#ffffff"
+
                 Text {
                     anchors.centerIn: parent
+                    visible: tile.iconItem === null
                     text: tile.icon
-                    // Значок лежит прямо на кружке, и цвет берётся от него:
-                    // на акцентном кружке белый по белому не виден вовсе, а
-                    // на вывернутом чёрном — наоборот, только белый и виден.
-                    color: tile.solid ? "#ffffff"
-                         : tile.on ? view.sys.fgOn(tile.accent)
-                                   : "#ffffff"
+                    color: miniIcon.ink
                     font { family: view.sys.fontFam; pixelSize: 17 }
+                }
+
+                Loader {
+                    id: iconLoader
+                    anchors.centerIn: parent
+                    active: tile.iconItem !== null
+                    sourceComponent: tile.iconItem
+                }
+
+                // Цвет фигуре — тот же, что достался бы знаку. Отдельным
+                // Binding, а не присваиванием в onLoaded: цвет меняется,
+                // когда плитку включают, и разовой записи при загрузке не
+                // хватило бы.
+                Binding {
+                    target: iconLoader.item
+                    property: "color"
+                    value: miniIcon.ink
+                    when: iconLoader.item !== null
                 }
                 MouseArea {
                     id: miniIconMa
@@ -955,6 +981,13 @@ Item {
         }
     }
 
+    // Фигура значка проводной сети. Одна на всю панель: Loader создаёт по
+    // своей копии там, где она понадобилась.
+    Component {
+        id: lanShape
+        LanGlyph { width: 19; height: 19 }
+    }
+
     // ------------------------------------------------- нагрузка машины
     // Три строки: процессор, память, видео. Проценты — полоской и числом
     // сразу: полоска показывает «много или мало» с одного взгляда, число
@@ -1221,8 +1254,11 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: 56
-                    icon: view.sys.wiredOn ? "󰈁"
-                        : view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
+                    // Кабель рисуется фигурой, Wi-Fi остаётся знаком шрифта:
+                    // антенна в Nerd Font сделана хорошо, а дерева сети без
+                    // перекладины во всю ширину там просто нет.
+                    iconItem: view.sys.wiredOn ? lanShape : null
+                    icon: view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
                                            : view.sys.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
                     // подключены — в заголовке имя сети, иначе обычное «Wi-Fi»
                     label: view.sys.wiredOn ? view.sys.tr("Проводная сеть")

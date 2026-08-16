@@ -4167,12 +4167,23 @@ PanelWindow {
 
                 // Кабель вытесняет антенну: связь идёт по нему, и значок
                 // Wi-Fi поверх работающего кабеля только сбивал бы с толку.
+                //
+                // Кабель нарисован фигурой, а не взят из шрифта: дерево сети
+                // в Nerd Font идёт с перекладиной шире самих квадратов, и на
+                // этом размере она читается полосой поперёк значка.
+                LanGlyph {
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: root.wiredOn
+                    width: root.iconSize - 2
+                    height: root.iconSize - 2
+                    color: root.colFg
+                }
                 Text {
                     Layout.alignment: Qt.AlignVCenter
-                    text: root.wiredOn ? "󰈁"
-                        : root.wifiOn ? (root.wifiQuality > 66 ? "󰤨"
+                    visible: !root.wiredOn
+                    text: root.wifiOn ? (root.wifiQuality > 66 ? "󰤨"
                                        : root.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
-                    color: (root.wiredOn || root.wifiOn) ? root.colFg : root.colMuted
+                    color: root.wifiOn ? root.colFg : root.colMuted
                     font { family: root.fontFam; pixelSize: root.iconSize - 2 }
                 }
 
