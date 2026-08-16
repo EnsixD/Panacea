@@ -330,6 +330,11 @@ Item {
 
         onPhaseChanged: requestPaint()
         onLevelChanged: requestPaint()
+        // Без этого волна остаётся того цвета, каким её нарисовали в первый
+        // раз: канва сама себя не перерисовывает, а цвет приходит от темы и
+        // меняется на ходу — после переключения на Nothing заливка оставалась
+        // зелёной от прежней темы.
+        onTintChanged: requestPaint()
 
         Timer {
             interval: 45
@@ -1832,7 +1837,10 @@ Item {
                 MiniTile {
                     visible: view.sys.showBattery || view.sys.showPowerProfiles
                     Layout.fillWidth: true
-                    Layout.preferredWidth: 1
+                    // Та же доля, что у сводки нагрузки на настольной машине:
+                    // батарея встаёт ровно на её место, и строка не меняет
+                    // сложения от того, есть в машине аккумулятор или нет.
+                    Layout.preferredWidth: 1.35
                     Layout.preferredHeight: powerRow.tileH
                     icon: view.sys.batteryPresent ? view.sys.batteryLevelIcon
                                                   : String.fromCodePoint(0xF0241)
@@ -1852,10 +1860,16 @@ Item {
                     onBodyClicked: view.sys.openSub("battery")
                 }
 
+                // Сводка нагрузки стоит только на настольной машине. На
+                // ноутбуке её место занимает батарея: заряд там меняется сам
+                // и решает, что делать дальше, а загрузка процессора — нет.
+                // Три карточки в ряд ужимают каждую до нечитаемого.
+                //
                 // Доля больше единицы: здесь три строки с полосками, и им
                 // нужнее ширина, чем плитке записи с двумя короткими
                 // подписями.
                 LoadCard {
+                    visible: !view.sys.batteryPresent
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1.35
                     Layout.preferredHeight: powerRow.tileH
