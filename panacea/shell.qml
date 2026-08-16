@@ -585,9 +585,25 @@ PanelWindow {
     // так что торопиться ему некуда.
     Process { id: pDetached }
     function runDetached(cmd) {
-        pDetached.command = ["setsid", "-f", "sh", "-c", String(cmd)];
-        pDetached.running = false;
-        pDetached.running = true;
+        // Через компоновщик, а не своим Process.
+        //
+        // Даже отвязанный setsid потомок не переживал закрытия панели:
+        // блокировка успевала дойти до запуска экрана — это видно по следу в
+        // lock.log, — и тут же умирала, не оставив ни строчки в stderr и ни
+        // своего файла журнала. Так выглядит убитый процесс, а не упавший.
+        //
+        // Hyprland запускает программы своим потомком — тем же способом,
+        // каким их открывают горячие клавиши, — и оболочка ему в этом не
+        // родитель. Дальше процесс живёт сам по себе.
+        //
+        // Одинарные кавычки внутри команды экранируем: путь их не содержит,
+        // но команда приходит извне, и молча испорченная строка хуже явной.
+        if (Hyprland.usingLua) {
+            var safe = String(cmd).replace(/'/g, "\\'");
+            Hyprland.dispatch("hl.dsp.exec_cmd('" + safe + "')");
+        } else {
+            Hyprland.dispatch("exec " + String(cmd));
+        }
     }
 
     function restartTerminalServer() {

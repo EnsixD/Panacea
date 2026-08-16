@@ -117,6 +117,10 @@ Item {
             "Быстрые настройки на теме Nothing: звук встал третьим к сети и Bluetooth, часы набраны точками, секунды — мелким числом сбоку",
         "island: workspace dots and a dotted clock on the Nothing theme":
             "Остров на теме Nothing: точки столов вместо номера, часы точками по центру, справа сеть, звук и заряд",
+        "power: let the compositor start the lock screen":
+            "Блокировка из меню питания работает: её запускает компоновщик, и она больше не умирает вместе с закрывшейся панелью",
+        "lock: leave a trace of the last launch":
+            "Экран блокировки оставляет след последнего запуска — из панели не видно ни вывода, ни кода возврата",
         "greeter: draw sleep as zZz, like the power menu":
             "Сон на экране входа обозначен буквами zZz — тем же рисунком, что и в меню питания оболочки",
         "power: launch actions from the shell root so they survive the panel closing":
