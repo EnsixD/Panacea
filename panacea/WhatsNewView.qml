@@ -41,6 +41,8 @@ Item {
     readonly property var dictRu: ({
         "island: actually shrink the wired icon in the collapsed bar":
             "Значок сети в свёрнутом острове наконец уменьшился: размер задавался мимо раскладки, и та его не замечала",
+        "weather: a cloud with two bumps, not a single rise":
+            "Точечное облако перерисовано: два небольших бугорка на плоском теле вместо одного склона",
         "widgets: date, weather and clock cards on the desktop":
             "Настольные виджеты для темы Nothing: число с месяцем, погода со значком точками, влажность и ветер кружками, часы. Включаются во вкладке Appearance",
         "weather: accept a postcode as well as a city name":
