@@ -1620,9 +1620,15 @@ Item {
                 // бы разной высоты.
                 readonly property int tileH: view.sys.themeNothing ? 76 : 56
 
+                // Доли, а не свободный рост. RowLayout раздаёт лишнее место
+                // пропорционально желаемой ширине, а у плитки она своя (140),
+                // тогда как у сводки — ноль: её содержимое прижато якорями.
+                // Без явных долей плитка забирала строку целиком, а от сводки
+                // оставалась полоска в несколько пикселей у самого края.
                 MiniTile {
                     visible: view.sys.cfg.featRecord
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     Layout.preferredHeight: powerRow.tileH
                     icon: String.fromCodePoint(view.sys.recActive ? 0xF04DB : 0xF044A)
                     label: view.sys.recActive
@@ -1648,6 +1654,7 @@ Item {
                 MiniTile {
                     visible: view.sys.showBattery || view.sys.showPowerProfiles
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     Layout.preferredHeight: powerRow.tileH
                     icon: view.sys.batteryPresent ? view.sys.batteryLevelIcon
                                                   : String.fromCodePoint(0xF0241)

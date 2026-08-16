@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "controls: give the load summary its share of the row":
+            "Сводка нагрузки больше не сплющена в полоску у края: плитка записи забирала строку целиком",
         "controls: bluetooth and the recorder take their accent from the theme":
             "Плитки Bluetooth и записи больше не держат свой цвет числом: на теме Nothing синий уступает белому, а красный у записи берётся у темы",
         "controls: readable labels on a light accent":
