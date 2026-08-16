@@ -496,6 +496,36 @@ PanelWindow {
             "\"$1\" > \"$d/locale.qml\" && chmod 644 \"$d/locale.qml\"",
             "_", root.cfg.lang]
     }
+    // Палитра для экрана входа — тем же способом и в тот же каталог.
+    //
+    // Раньше её писал hypr/scripts/palette.sh из $accent_color, а это
+    // палитра терминалов и редакторов, к теме оболочки отношения не имеющая.
+    // Совпадение было случайным: на чёрно-белой теме экран входа встречал
+    // терракотовым кружком аватара и таким же кружком загрузки.
+    //
+    // Пишем не один акцент, а всю четвёрку: у Nothing своя не только
+    // выделяющая краска, но и текст с фоном.
+    Process {
+        id: pGreeterTheme
+        command: ["sh", "-c",
+            "d=/var/lib/panacea; [ -w \"$d\" ] || exit 0; " +
+            "printf 'import QtQuick 2.15\\nQtObject {\\n" +
+            "  property color value: \"%s\"\\n" +
+            "  property color fg: \"%s\"\\n" +
+            "  property color muted: \"%s\"\\n" +
+            "  property color bg: \"%s\"\\n}\\n' " +
+            "\"$1\" \"$2\" \"$3\" \"$4\" > \"$d/accent.qml\" " +
+            "&& chmod 644 \"$d/accent.qml\"",
+            "_",
+            String(root.colOn), String(root.colFg),
+            String(root.colMuted), String(root.colBg)]
+    }
+    function syncGreeterTheme() {
+        pGreeterTheme.running = false;
+        pGreeterTheme.running = true;
+    }
+    onThemeChanged: root.syncGreeterTheme()
+
     // ------------------------------------------------------------ язык
     // Язык оболочки меняется мгновенно — это её собственный словарь. Язык
     // остального (приложений, меню, системных сообщений) живёт в LANG и
@@ -1256,6 +1286,7 @@ PanelWindow {
         fsProbe.restart();
         syncGreeterLocale();
         monReplayTimer.restart();
+        syncGreeterTheme();
         // Первое заполнение списка столов: дальше его ведёт onWsRawChanged, а
         // тот срабатывает только на изменение — стартовое значение он бы
         // пропустил, и до первого переключения точек не было бы вовсе.

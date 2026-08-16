@@ -27,6 +27,9 @@ Rectangle {
         source: "file:///var/lib/panacea/accent.qml"
         asynchronous: false
     }
+    // Палитру пишет сама оболочка при смене темы — она одна знает, какая
+    // тема выбрана. Значения читаем по одному и с запасными: файл мог
+    // остаться от прежней версии, где в нём был только акцент.
     readonly property color accent:
         accentLoader.item ? accentLoader.item.value : "#c65a47"
 
@@ -52,9 +55,16 @@ Rectangle {
         "Выключить": "Shut down"
     })
     function tr(k) { return isEn && dictEn[k] !== undefined ? dictEn[k] : k; }
-    readonly property color fg: "#f2f2f2"
-    readonly property color muted: "#8a8a8a"
-    readonly property color line: Qt.rgba(1, 1, 1, 0.12)
+    readonly property color fg:
+        (accentLoader.item && accentLoader.item.fg !== undefined)
+            ? accentLoader.item.fg : "#f2f2f2"
+    readonly property color muted:
+        (accentLoader.item && accentLoader.item.muted !== undefined)
+            ? accentLoader.item.muted : "#8a8a8a"
+    readonly property color line: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.12)
+    // Красный «неверный пароль» остаётся красным на любой теме: это цвет
+    // отказа, а не украшение.
+    readonly property color crit: "#ef4444"
 
     // Отображаемое имя. Системный логин уходит в sddm.login() как есть.
     readonly property string loginName: userModel.lastUser || "ensi"
@@ -250,7 +260,7 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: password.text.length === 0
                         text: root.errorText.length ? root.errorText : root.tr("Пароль")
-                        color: root.errorText.length ? "#ef4444" : Qt.rgba(1, 1, 1, 0.32)
+                        color: root.errorText.length ? root.crit : Qt.rgba(1, 1, 1, 0.32)
                         font { family: root.fontFam; pixelSize: 15 }
                     }
                 }
