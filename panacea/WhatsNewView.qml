@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "theme: a black-and-white Nothing palette":
+            "Тема Nothing: чёрно-белая палитра без цветного акцента — выбирается в настройках, вкладка Appearance",
         "display: match the shader version Hyprland actually uses":
             "Дисплей: шейдер вибранса пишется в той версии GLSL, что и у Hyprland",
         "install: keep only the last few backups of a config directory":

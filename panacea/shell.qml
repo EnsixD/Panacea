@@ -897,7 +897,16 @@ PanelWindow {
         { id: "amber",    name: "Amber",       bg: "#0c0a07", fg: "#f6f0e6", on: "#e8b464", ok: "#a8cf7e", crit: "#e5735f" },
         { id: "ice",      name: "Ice",         bg: "#070a0d", fg: "#e9f1f7", on: "#7fb6e0", ok: "#74ccb0", crit: "#e07b8a" },
         { id: "violet",   name: "Violet",      bg: "#0a080e", fg: "#f0ecf7", on: "#b39ae8", ok: "#86d0a8", crit: "#e6798f" },
-        { id: "mono",     name: "Mono",        bg: "#0a0a0a", fg: "#f2f2f2", on: "#bfbfbf", ok: "#bfbfbf", crit: "#e06c6c" }
+        { id: "mono",     name: "Mono",        bg: "#0a0a0a", fg: "#f2f2f2", on: "#bfbfbf", ok: "#bfbfbf", crit: "#e06c6c" },
+        // Nothing — не просто ещё одна палитра, а другой облик острова:
+        // точечные цифры, точки столов вместо номера, сводка нагрузки. За
+        // внешний вид отвечает themeNothing, за цвета — эта строка.
+        //
+        // Акцент здесь белый намеренно. У Nothing цветного акцента нет вовсе:
+        // выделяют яркостью, а не оттенком, и единственный цвет — красный —
+        // приберегается для записи и разряженной батареи. Поставить сюда
+        // синий значило бы сломать всю затею.
+        { id: "nothing",  name: "Nothing",     bg: "#000000", fg: "#ffffff", on: "#ffffff", ok: "#ffffff", crit: "#d71921" }
     ]
     function themeOf(id) {
         for (var i = 0; i < themes.length; i++)
