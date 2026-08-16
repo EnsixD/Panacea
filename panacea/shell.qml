@@ -13,6 +13,7 @@ import Quickshell.Services.Polkit
 import Quickshell.Services.Pam
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
+import "Themes.js" as Themes
 
 // Одна пилюля на всё.
 //
@@ -890,29 +891,8 @@ PanelWindow {
     // не картинка на столе. Тема «default» — то, что было раньше: фон чёрный,
     // а текст и акцент берутся из настроек, поэтому вручную выбранные цвета
     // никуда не деваются.
-    readonly property var themes: [
-        { id: "default",  name: "Default",     bg: "#000000", fg: "#ffffff", on: "#3b82f6", ok: "#22c55e", crit: "#ef4444" },
-        { id: "rose",     name: "Rose Quartz", bg: "#0d0a0b", fg: "#f6eef0", on: "#f0a8b4", ok: "#8fd3a6", crit: "#f2848c" },
-        { id: "matcha",   name: "Matcha",      bg: "#080b09", fg: "#eaf2ec", on: "#7fd1a0", ok: "#7fd1a0", crit: "#e88f7a" },
-        { id: "amber",    name: "Amber",       bg: "#0c0a07", fg: "#f6f0e6", on: "#e8b464", ok: "#a8cf7e", crit: "#e5735f" },
-        { id: "ice",      name: "Ice",         bg: "#070a0d", fg: "#e9f1f7", on: "#7fb6e0", ok: "#74ccb0", crit: "#e07b8a" },
-        { id: "violet",   name: "Violet",      bg: "#0a080e", fg: "#f0ecf7", on: "#b39ae8", ok: "#86d0a8", crit: "#e6798f" },
-        { id: "mono",     name: "Mono",        bg: "#0a0a0a", fg: "#f2f2f2", on: "#bfbfbf", ok: "#bfbfbf", crit: "#e06c6c" },
-        // Nothing — не просто ещё одна палитра, а другой облик острова:
-        // точечные цифры, точки столов вместо номера, сводка нагрузки. За
-        // внешний вид отвечает themeNothing, за цвета — эта строка.
-        //
-        // Акцент здесь белый намеренно. У Nothing цветного акцента нет вовсе:
-        // выделяют яркостью, а не оттенком, и единственный цвет — красный —
-        // приберегается для записи и разряженной батареи. Поставить сюда
-        // синий значило бы сломать всю затею.
-        { id: "nothing",  name: "Nothing",     bg: "#000000", fg: "#ffffff", on: "#ffffff", ok: "#ffffff", crit: "#d71921" }
-    ]
-    function themeOf(id) {
-        for (var i = 0; i < themes.length; i++)
-            if (themes[i].id === id) return themes[i];
-        return themes[0];
-    }
+    readonly property var themes: Themes.list
+    function themeOf(id) { return Themes.of(id); }
     readonly property var theme: themeOf(cfg.themeId)
     readonly property bool themeCustom: cfg.themeId === "default"
     // Единственный флаг на весь облик Nothing. Проверять cfg.themeId по строке
