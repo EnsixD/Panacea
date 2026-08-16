@@ -66,6 +66,16 @@ Rectangle {
     // отказа, а не украшение.
     readonly property color crit: "#ef4444"
 
+    // Цвет надписи поверх заливки акцентом: на светлом акценте белым по
+    // белому не видно ничего. Яркость по Rec. 709 — так же, как в оболочке.
+    function fgOn(c) {
+        return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) > 0.6
+               ? root.bg : "#ffffff";
+    }
+    readonly property color bg:
+        (accentLoader.item && accentLoader.item.bg !== undefined)
+            ? accentLoader.item.bg : "#050506"
+
     // Отображаемое имя. Системный логин уходит в sddm.login() как есть.
     readonly property string loginName: userModel.lastUser || "ensi"
     readonly property string nick:
@@ -317,7 +327,10 @@ Rectangle {
                     Text {
                         anchors.centerIn: parent
                         text: String.fromCodePoint(0xF0142)
-                        color: password.text.length ? "#ffffff" : root.muted
+                        // Кружок налит акцентом, а он на чёрно-белой теме
+                        // белый — белая стрелка на нём пропадала целиком, и
+                        // кнопка выглядела пустым белым пятном.
+                        color: password.text.length ? root.fgOn(root.accent) : root.muted
                         font { family: root.fontFam; pixelSize: 16 }
                     }
                     MouseArea {
