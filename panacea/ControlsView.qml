@@ -756,8 +756,10 @@ Item {
             anchors.leftMargin: 11
             anchors.rightMargin: 11
             anchors.topMargin: 7
-            anchors.bottomMargin: 8
-            spacing: 5
+            // Снизу больше, чем сверху: дорожка тоньше заголовка и при равных
+            // отступах садилась на кромку карточки, читаясь как её край.
+            anchors.bottomMargin: 11
+            spacing: 4
 
             RowLayout {
                 Layout.fillWidth: true
@@ -773,9 +775,14 @@ Item {
                         onClicked: view.sys.togglePage("audio")
                     }
                 }
-                Item { Layout.fillWidth: true }
+                // Имя устройства занимает остаток строки и обрезается по
+                // нему. Постоянные 130 пикселей подходили, пока имя короткое:
+                // «OnePlus Buds 3» в них не помещался и уезжал за край
+                // карточки — обрезать нечего, если ширина задана числом,
+                // которое больше доступного места.
                 Text {
-                    Layout.maximumWidth: 130
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignRight
                     text: view.sys.sinkName.length ? view.sys.sinkName
                                                    : view.sys.tr("Нет устройств")
                     color: view.sys.colMuted
@@ -1461,13 +1468,14 @@ Item {
                 // ползунков при этом освобождается — карточка не должна
                 // оказаться в панели дважды.
                 //
-                // Доля у него меньше единицы намеренно: имя сети и имя
-                // устройства длиннее слова «Звук» с процентами, и делить
-                // строку поровну значит обрезать именно их.
+                // Доля та же, что у соседей: строка делится на три равные
+                // части. Раньше звуку отводили меньше, чтобы не обрезать имена
+                // сети и устройства, — но обрезать их приходилось всё равно,
+                // только неровными карточками вместо честного многоточия.
                 VolCard {
                     visible: view.sys.cfg.featAudio
                     Layout.fillWidth: true
-                    Layout.preferredWidth: 0.8
+                    Layout.preferredWidth: 1
                     Layout.preferredHeight: 56
                 }
             }
@@ -1846,10 +1854,11 @@ Item {
                 MiniTile {
                     visible: view.sys.showBattery || view.sys.showPowerProfiles
                     Layout.fillWidth: true
-                    // Та же доля, что у сводки нагрузки на настольной машине:
-                    // батарея встаёт ровно на её место, и строка не меняет
-                    // сложения от того, есть в машине аккумулятор или нет.
-                    Layout.preferredWidth: 1.35
+                    // Пополам с записью: две карточки в строке делят её
+                    // поровну. Прежняя доля в 1.35 повторяла ширину сводки
+                    // нагрузки, но рядом с записью читалась просто как
+                    // перекос — одна карточка заметно шире другой без причины.
+                    Layout.preferredWidth: 1
                     Layout.preferredHeight: powerRow.tileH
                     icon: view.sys.batteryPresent ? view.sys.batteryLevelIcon
                                                   : String.fromCodePoint(0xF0241)
