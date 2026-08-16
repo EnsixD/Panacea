@@ -985,7 +985,7 @@ Item {
     // своей копии там, где она понадобилась.
     Component {
         id: lanShape
-        LanGlyph { width: 16; height: 16 }
+        LanGlyph { width: 13; height: 13 }
     }
 
     // ------------------------------------------------- нагрузка машины

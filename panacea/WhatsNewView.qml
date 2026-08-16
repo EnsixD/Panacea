@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "net: a smaller wired icon again":
+            "Значок проводной сети уменьшен ещё: в плитке 13 пикселей, в острове 11",
         "net: back to square branches on the wired icon":
             "Значок проводной сети снова с прямыми углами — наклонные ветки не прижились; уменьшенный размер оставлен",
         "net: branch the wired icon diagonally, and make it smaller":
