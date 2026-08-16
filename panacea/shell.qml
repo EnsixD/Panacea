@@ -662,6 +662,7 @@ PanelWindow {
         root.updBusy = true;
         root.updError = "";
         root.updStep = "download";
+        root.updCreepAt = 0;
         // Обновление идёт минуты и переживает закрытие настроек: показываем
         // его в острове, иначе о нём знало бы только открытое окно.
         root.beginBusy(root.tr("Обновление…"), "󰚰", root.updStepPercent);
@@ -670,20 +671,85 @@ PanelWindow {
 
     // Проценты у обновления считаются по этапам, которые печатает update.sh:
     // байтов и файлов оно не считает, а этапы известны наперёд.
-    readonly property var updSteps: ["download", "selfupdate", "backup",
-                                     "install", "restore", "restart", "done"]
-    // Считаем по НАЧАТЫМ этапам, а не по законченным.
     //
-    // Раньше «скачивание» давало ровно 0%: этап первый, законченных ноль. А
-    // скачивание — самый долгий шаг, минуты, и всё это время полоса стояла
-    // пустой. Пустая полоса читается как «ничего не происходит», хотя
-    // происходит как раз самое долгое.
-    readonly property int updStepPercent: {
-        var i = root.updSteps.indexOf(root.updStep);
-        if (i < 0) return 0;
-        return Math.round((i + 1) * 100 / root.updSteps.length);
+    // Веса, а не равные доли. Этапы длятся по-разному: скачивание идёт
+    // секунды, а сохранение настроек и отметка версии — доли секунды. При
+    // равных долях полоса замирала на первой седьмой, а потом за миг
+    // проскакивала остальные шесть — то есть скакала вместо того, чтобы
+    // заполняться. Числа взяты из замеров: клон около трёх секунд,
+    // установщик около одной, остальное — мгновения.
+    readonly property var updSteps: [
+        { id: "download",   w: 30 },
+        { id: "selfupdate", w: 2  },
+        { id: "backup",     w: 3  },
+        { id: "install",    w: 12 },
+        { id: "restore",    w: 3  },
+        { id: "restart",    w: 2  },
+        { id: "done",       w: 0  }
+    ]
+    readonly property real updWeightTotal: {
+        var t = 0;
+        for (var i = 0; i < root.updSteps.length; i++) t += root.updSteps[i].w;
+        return t > 0 ? t : 1;
     }
-    onUpdStepChanged: if (root.updBusy) root.busyProgress = root.updStepPercent;
+    function updStepIndex(id) {
+        for (var i = 0; i < root.updSteps.length; i++)
+            if (root.updSteps[i].id === id) return i;
+        return -1;
+    }
+    // Доля начатого этапа — то, что накоплено до него. Внутри самого этапа
+    // полосу двигает updCreep: сколько именно прошло, скрипт не знает.
+    readonly property int updStepPercent: {
+        var i = root.updStepIndex(root.updStep);
+        if (i < 0) return 0;
+        var acc = 0;
+        for (var k = 0; k < i; k++) acc += root.updSteps[k].w;
+        return Math.round(acc * 100 / root.updWeightTotal);
+    }
+    // Сколько отдать текущему этапу целиком: до этой границы его и подползаем.
+    readonly property int updStepCeil: {
+        var i = root.updStepIndex(root.updStep);
+        if (i < 0) return 0;
+        var acc = 0;
+        for (var k = 0; k <= i; k++) acc += root.updSteps[k].w;
+        return Math.round(acc * 100 / root.updWeightTotal);
+    }
+
+    // Полоса ползёт и внутри этапа, не дожидаясь следующего.
+    //
+    // Самый долгий шаг — скачивание, и его длительность зависит от связи:
+    // ни git, ни установщик о ходе работы не сообщают. Стоящая полоса на
+    // медленной сети читается как зависшее обновление. Поэтому она движется
+    // сама, замедляясь у границы этапа и никогда её не переступая: дойти до
+    // конца раньше настоящего конца было бы обманом.
+    // Своя дробная доля, а не busyProgress: тот целый, и приращение меньше
+    // единицы в нём терялось бы — полоса застревала бы у самой границы, куда
+    // подползает всё медленнее.
+    property real updCreepAt: 0
+
+    Timer {
+        id: updCreep
+        interval: 220
+        repeat: true
+        running: root.updBusy && root.updStep !== "done"
+        onTriggered: {
+            var to = root.updStepCeil;
+            if (root.updCreepAt >= to) return;
+            // шаг тем меньше, чем ближе граница
+            var left = to - root.updCreepAt;
+            root.updCreepAt = Math.min(to, root.updCreepAt + Math.max(0.25, left * 0.06));
+            root.busyProgress = Math.round(root.updCreepAt);
+        }
+    }
+    onUpdStepChanged: {
+        if (!root.updBusy) return;
+        // Назад полоса не ходит: этап мог начаться раньше, чем подполз
+        // предыдущий, и откат читался бы как сбой.
+        if (root.updStepPercent > root.updCreepAt)
+            root.updCreepAt = root.updStepPercent;
+        if (root.updStep === "done") root.updCreepAt = 100;
+        root.busyProgress = Math.round(root.updCreepAt);
+    }
 
     function updParse(text, done) {
         var lines = String(text).trim().split("\n");

@@ -1332,6 +1332,11 @@ Item {
                                 // как их часть
                                 Layout.alignment: Qt.AlignTop
                                 Layout.topMargin: 1
+                                // Только когда секунд нет в самих часах. С
+                                // включённой настройкой «показывать секунды»
+                                // они уже стоят в timeText, и это число
+                                // повторяло их второй раз: «19:36:42 42».
+                                visible: !view.sys.cfg.clockSeconds
                                 value: view.sys.secText
                                 size: view.sys.dotHSmall
                                 color: view.sys.colMuted
