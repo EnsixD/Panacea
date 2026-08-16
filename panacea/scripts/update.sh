@@ -41,6 +41,14 @@ KEEP=(
 )
 KEEP_DIRS=(
     "$CONF/hypr/wallpaper"
+)
+
+# То же, но мягко: возвращаем только то, чего нет в свежей установке. В
+# panacea/assets лежат и наши файлы (логотип, desktop-запись), и всё, что
+# человек положил туда сам. Возвращая каталог целиком, мы клали старый логотип
+# поверх нового — оболочка обновлялась, а значок в уведомлениях оставался
+# прежним.
+KEEP_DIRS_SOFT=(
     "$CONF/panacea/assets"
 )
 
@@ -138,13 +146,17 @@ restore_user_state() {
     # внутрь него вторым уровнем — обои человека уезжали в wallpaper/wallpaper.
     # Файлы из свежей установки при этом остаются: своё кладём поверх.
     local item base
-    for f in "${KEEP_DIRS[@]}"; do
+    for f in "${KEEP_DIRS[@]}" "${KEEP_DIRS_SOFT[@]}"; do
         [ -d "$STASH/${f#$HOME/}" ] || continue
+        # мягкий каталог: свежие файлы оболочки остаются на месте
+        local soft=0 d
+        for d in "${KEEP_DIRS_SOFT[@]}"; do [ "$d" = "$f" ] && soft=1; done
         mkdir -p "$f"
         # По одному и переносом: набор обоев так возвращается мгновенно.
         for item in "$STASH/${f#$HOME/}"/* "$STASH/${f#$HOME/}"/.[!.]*; do
             [ -e "$item" ] || continue
             base="$(basename "$item")"
+            [ "$soft" = "1" ] && [ -e "$f/$base" ] && continue
             rm -rf "$f/$base"
             mv "$item" "$f/$base" 2>/dev/null || cp -r "$item" "$f/$base"
         done

@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "update: stop restoring old shipped files over new ones":
+            "Обновление: свои файлы оболочки больше не перезаписываются сохранёнными копиями",
         "assets: a new logo":
             "Новый логотип: диафрагма из пяти лепестков вместо горизонтальной капсулы",
         "wifi: read the network name from whatever is available":
