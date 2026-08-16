@@ -572,6 +572,24 @@ PanelWindow {
             "pkill -x foot >/dev/null 2>&1; sleep 0.4; " +
             "setsid -f foot --server >/dev/null 2>&1"]
     }
+    // Запуск команды, переживающей закрытие панели.
+    //
+    // Process, объявленный внутри страницы, умирает вместе с ней: меню
+    // питания закрывает панель сразу после запуска, и страница уничтожается
+    // в тот же миг. Быстрым командам вроде systemctl хватало мгновения
+    // отделиться, а блокировке — нет: её скрипт сперва готовит фон из обоев,
+    // и Process убивали раньше, чем дело доходило до самого экрана. Со
+    // стороны это выглядело как неработающая кнопка.
+    //
+    // Здесь процесс живёт в корне оболочки, который не уничтожается никогда,
+    // так что торопиться ему некуда.
+    Process { id: pDetached }
+    function runDetached(cmd) {
+        pDetached.command = ["setsid", "-f", "sh", "-c", String(cmd)];
+        pDetached.running = false;
+        pDetached.running = true;
+    }
+
     function restartTerminalServer() {
         pTermRestart.running = false;
         pTermRestart.running = true;
