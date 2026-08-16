@@ -157,17 +157,52 @@ write_changelog() {
         return 0
     fi
     have curl || return 0
+
+    # Берём последние коммиты ветки, а не сравнение with...to.
+    #
+    # Сравнение возвращало заодно и полные диффы каждого файла в каждом
+    # коммите, поэтому ответ рос вместе с отставанием: 0.4 МБ на сорока
+    # коммитах, 2 МБ на двухстах. У кого оболочка не обновлялась полгода,
+    # обновление вставало на этом запросе на секунды. Хуже того, у сравнения
+    # есть предел в 250 коммитов — дальше список приходил молча урезанным.
+    #
+    # Список изменений всё равно обрезается сорока строками, так что просить
+    # больше шестидесяти коммитов незачем ни при каком отставании. Ответ на
+    # такой запрос всегда одного размера — около 0.3 МБ, — и не зависит от
+    # того, как давно человек обновлялся.
     local json
     json="$(curl -fsSL --max-time 10 \
-        "https://api.github.com/repos/$REPO/compare/$from...$to" 2>/dev/null)" || return 0
+        "https://api.github.com/repos/$REPO/commits?sha=$BRANCH&per_page=60" 2>/dev/null)" \
+        || return 0
     [ -n "$json" ] || return 0
+
+    # Идём от свежих к старым и останавливаемся на той версии, что стоит у
+    # человека: всё, что выше неё, — и есть новое. Не нашли (отстал больше
+    # чем на шестьдесят коммитов) — показываем всё, что пришло, и фильтр
+    # обрежет до сорока.
     {
         printf '%s\n' "$to"
-        # из каждого коммита берём только первую строку сообщения
-        printf '%s' "$json" \
-            | grep -o '"message": *"[^"]*"' \
-            | sed 's/"message": *"//; s/"$//; s/\\n.*//' \
-            | changelog_filter
+        if have jq; then
+            printf '%s' "$json" \
+                | jq -r '.[] | "\(.sha)\t\(.commit.message | split("\n")[0])"' 2>/dev/null \
+                | awk -F'\t' -v from="$from" '$1 == from { exit } { print $2 }' \
+                | changelog_filter
+        else
+            # Без jq — по строкам. Порядок полей в ответе постоянный: sha
+            # каждого коммита идёт раньше его message.
+            printf '%s' "$json" \
+                | grep -oE '"sha": *"[0-9a-f]{40}"|"message": *"[^"]*"' \
+                | sed 's/"sha": *"/S/; s/"message": *"/M/; s/"$//; s/\\n.*//' \
+                | awk -v from="$from" '
+                    /^S/ { sha = substr($0, 2); next }
+                    /^M/ {
+                        # у каждого коммита sha повторяется дважды подряд
+                        # (сам коммит и его дерево) — берём первое
+                        if (sha == from) exit
+                        print substr($0, 2)
+                    }' \
+                | changelog_filter
+        fi
     } > "$out"
 }
 
@@ -183,10 +218,22 @@ cmd_apply() {
     tmp="$(mktemp -d)"
     trap 'rm -rf "${tmp:-}"' EXIT
 
-    echo "step=download"
-    git clone --depth 1 --branch "$BRANCH" \
-        "$GIT_URL" "$tmp/src" >/dev/null 2>&1 \
-        || { echo "status=error"; echo "error=download"; exit 1; }
+    # Клон мог приехать от прежней копии скрипта — при самообновлении она
+    # уже всё скачала. Проверяем, что это действительно наш каталог, а не
+    # оставшийся от чужого запуска: без install.sh дальше делать нечего.
+    if [ -n "${PANACEA_SRC:-}" ] && [ -f "$PANACEA_SRC/install.sh" ]; then
+        echo "step=download"
+        rm -rf "$tmp"
+        tmp="$(dirname "$PANACEA_SRC")"
+        trap 'rm -rf "${tmp:-}"' EXIT
+    else
+        echo "step=download"
+        # --no-tags: метки в оболочке не используются, а тянутся вместе с
+        # ветками. Один коммит без истории — всё, что нужно для установки.
+        git clone --depth 1 --single-branch --no-tags --branch "$BRANCH" \
+            "$GIT_URL" "$tmp/src" >/dev/null 2>&1 \
+            || { echo "status=error"; echo "error=download"; exit 1; }
+    fi
 
     # Скрипт обновляет сам себя.
     #
@@ -202,12 +249,15 @@ cmd_apply() {
         echo "step=selfupdate"
         fresh="$(mktemp)"
         cp "$tmp/src/panacea/scripts/update.sh" "$fresh"
-        # свой временный каталог убираем сами: свежий скрипт склонирует свой
-        rm -rf "$tmp"
         trap - EXIT
-        PANACEA_SELFEXEC=1 bash "$fresh" apply
+        # Отдаём свежему скрипту уже скачанный клон, а не заставляем качать
+        # второй раз. Клонирование — самый долгий шаг обновления, и при смене
+        # самого update.sh оно шло дважды подряд, удваивая ожидание на ровном
+        # месте. Каталог за собой убирает тот, кто им закончил.
+        PANACEA_SRC="$tmp/src" PANACEA_SELFEXEC=1 bash "$fresh" apply
         rc=$?
         rm -f "$fresh"
+        rm -rf "$tmp"
         return $rc
     fi
 
