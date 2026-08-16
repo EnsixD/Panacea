@@ -556,6 +556,27 @@ PanelWindow {
     }
     function applyTermAlpha() { termAlphaFlush.restart(); }
 
+    // Перезапуск сервера терминала.
+    //
+    // Нужен там, где правило компоновщика бессильно: своя alpha у foot,
+    // цвета, шрифт — всё это сервер читает один раз при старте и раздаёт
+    // клиентам. Просто убить его нельзя: автозапуск отрабатывает один раз за
+    // сеанс и заново не поднимет, а без сервера терминал перестанет
+    // открываться вовсе. Поэтому убиваем и тут же поднимаем сами.
+    //
+    // Открытые окна при этом закроются — они и есть клиенты умершего
+    // сервера. Об этом сказано на кнопке.
+    Process {
+        id: pTermRestart
+        command: ["sh", "-c",
+            "pkill -x foot >/dev/null 2>&1; sleep 0.4; " +
+            "setsid -f foot --server >/dev/null 2>&1"]
+    }
+    function restartTerminalServer() {
+        pTermRestart.running = false;
+        pTermRestart.running = true;
+    }
+
     function syncGreeterTheme() {
         pGreeterTheme.running = false;
         pGreeterTheme.running = true;

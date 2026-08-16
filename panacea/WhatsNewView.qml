@@ -117,6 +117,8 @@ Item {
             "Быстрые настройки на теме Nothing: звук встал третьим к сети и Bluetooth, часы набраны точками, секунды — мелким числом сбоку",
         "island: workspace dots and a dotted clock on the Nothing theme":
             "Остров на теме Nothing: точки столов вместо номера, часы точками по центру, справа сеть, звук и заряд",
+        "appearance: a button that restarts the terminal server":
+            "Кнопка «Перезапустить терминал» в Appearance: убить сервер мало — без него терминал вообще перестаёт открываться",
         "install: say when the terminal server needs a restart":
             "Установщик говорит, что серверу терминала нужен перезапуск: без него свежие настройки до окон не доходят",
         "install: never spend sudo attempts when there is no terminal to ask in":

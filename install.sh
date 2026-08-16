@@ -557,7 +557,12 @@ install_configs() {
     # наследуют настройки от него. Убивать сервер сами не станем: вместе с
     # ним закроются все открытые терминалы, а в них бывает работа.
     if pgrep -x foot >/dev/null 2>&1; then
-        printf '  note: restart the terminal server for its new settings — pkill foot\n'
+        # Именно перезапуск, а не pkill: автозапуск компоновщика отрабатывает
+        # один раз за сеанс и убитый сервер заново не поднимет — терминал
+        # после этого перестанет открываться вовсе.
+        printf '  note: the terminal server holds settings from login; restart it for the new ones:\n'
+        printf '        pkill -x foot; setsid -f foot --server\n'
+        printf '        (or press "Restart the terminal" in Settings → Appearance)\n'
     fi
 
     # каталог живых обоев: карусель открывает его кнопкой, и он должен

@@ -667,8 +667,11 @@ QtObject {
         "Ответ сервиса не разобрать": "Could not parse the service reply",
         "Сервис ответил отказом": "The service refused",
         "Прозрачность терминала": "Terminal transparency",
-        "1.00 — сплошной фон. Терминал запускается сервером и читает свои настройки один раз при входе в систему: если ползунок ни на что не влияет, перезапустите сервер — pkill foot — или перезайдите.":
-            "1.00 is opaque. The terminal runs as a server and reads its own settings once, at login: if the slider does nothing, restart the server — pkill foot — or log back in.",
+        "1.00 — сплошной фон. Действует сразу; если нет — терминал держит свои настройки с прошлого входа, и его серверу нужен перезапуск.":
+            "1.00 is opaque. It applies at once; if it does not, the terminal is still holding settings from the last login and its server needs a restart.",
+        "Перезапустить терминал": "Restart the terminal",
+        "Открытые окна терминала при этом закроются: они работают от того же сервера.":
+            "Any open terminal windows will close: they run off that same server.",
         "Нет данных": "No data",
         "Погода в острове": "Weather in the island",
         "Значок и градусы в свёрнутом острове, рядом с рабочими столами.":

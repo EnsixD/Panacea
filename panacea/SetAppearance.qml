@@ -161,7 +161,28 @@ ColumnLayout {
 
         Text {
             Layout.fillWidth: true
-            text: page.sys.tr("1.00 — сплошной фон. Терминал запускается сервером и читает свои настройки один раз при входе в систему: если ползунок ни на что не влияет, перезапустите сервер — pkill foot — или перезайдите.")
+            text: page.sys.tr("1.00 — сплошной фон. Действует сразу; если нет — терминал держит свои настройки с прошлого входа, и его серверу нужен перезапуск.")
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Item { Layout.fillWidth: true }
+
+            SetButton {
+                sys: page.sys
+                text: page.sys.tr("Перезапустить терминал")
+                onClicked: page.sys.restartTerminalServer()
+            }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            text: page.sys.tr("Открытые окна терминала при этом закроются: они работают от того же сервера.")
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
