@@ -3420,9 +3420,30 @@ PanelWindow {
         function mediaCrop(): void { root.mediaCropToggle(); }
         function recordToggle(): void { root.toggleRecord(); }
         function dnd(): void { root.toggleDnd(); }
-        // яркость приходит от smart_brightness.sh: службы для неё нет
+        // Яркость приходит от smart_brightness.sh: службы для неё нет.
+        //
+        // Помимо накладки двигаем и сам ползунок в быстрых настройках. Он
+        // читает список экранов, а тот наполняется только по запросу — от
+        // клавиш ноутбука список не обновлялся, и ползунок оставался там,
+        // где его бросили в прошлый раз, показывая неправду.
         function brightness(pct: string): void {
-            root.showOsd("bright", parseFloat(pct) / 100.0, false);
+            var v = parseFloat(pct);
+            root.showOsd("bright", v / 100.0, false);
+
+            var l = root.brightList.slice();
+            var hit = false;
+            for (var i = 0; i < l.length; i++) {
+                // Клавиши правят подсветку встроенного экрана — у него в
+                // списке признак «bl:», — а внешние мониторы висят на DDC, и
+                // до них эти клавиши не достают.
+                if (String(l[i].id).indexOf("bl:") === 0 || l.length === 1) {
+                    l[i] = { id: l[i].id, name: l[i].name, pct: Math.round(v) };
+                    hit = true;
+                }
+            }
+            if (hit) root.brightList = l;
+            // Список ещё не собран — соберём: без него ползунка нет вовсе.
+            else if (l.length === 0) root.brightRefresh(false);
         }
         // Режим энергосбережения гасит движение и в оболочке: анимации —
         // самое дорогое, что она делает без спроса. Настройка та же, что на
