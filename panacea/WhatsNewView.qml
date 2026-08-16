@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "island: a bolder clock in the collapsed bar":
+            "Часы в свёрнутом острове набраны плотнее — точки крупнее при той же высоте, и цифра читается ярко-белой",
         "controls: smaller numerals in the load summary":
             "Проценты и температуры в сводке нагрузки стали мельче, а точки в них плотнее — иначе на такой высоте они расплываются",
         "controls: coffee mode lights up in the theme colour":
