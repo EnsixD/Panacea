@@ -924,6 +924,127 @@ Item {
         }
     }
 
+    // ------------------------------------------------- нагрузка машины
+    // Три строки: процессор, память, видео. Проценты — полоской и числом
+    // сразу: полоска показывает «много или мало» с одного взгляда, число
+    // отвечает «насколько именно», и одно другого не заменяет.
+    component LoadRow: RowLayout {
+        id: lrow
+        property string glyph: ""
+        property string name: ""
+        property int pct: -1
+        property int temp: -1
+
+        // Мерить нечем — строки нет совсем. Полоска в нуле читалась бы как
+        // «простаивает», а это другое утверждение.
+        visible: lrow.pct >= 0
+        spacing: 8
+
+        Glyph {
+            Layout.preferredWidth: 15
+            Layout.preferredHeight: 15
+            glyph: lrow.glyph
+            color: view.sys.colMuted
+            fontFam: view.sys.fontFam
+            size: 12
+        }
+
+        Text {
+            Layout.preferredWidth: 30
+            text: lrow.name
+            color: view.sys.colMuted
+            font { family: view.sys.fontFam; pixelSize: 9; letterSpacing: 0.6 }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 3
+            Layout.alignment: Qt.AlignVCenter
+            radius: 1.5
+            color: Qt.rgba(1, 1, 1, 0.12)
+
+            Rectangle {
+                width: parent.width * Math.max(0, Math.min(100, lrow.pct)) / 100
+                height: parent.height
+                radius: parent.radius
+                color: view.sys.colFg
+                Behavior on width {
+                    NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+                }
+            }
+        }
+
+        // Ширину под число резервируем по «100%», иначе полоска слева
+        // дёргалась бы на каждом переходе через десяток.
+        Item {
+            Layout.preferredWidth: 30
+            Layout.preferredHeight: 12
+            DotText {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                value: lrow.pct + "%"
+                dotSize: view.sys.dotSmall
+                gap: view.sys.dotSmall * 0.5
+                color: view.sys.colFg
+            }
+        }
+
+        // Датчик есть не у всех: у процессора он почти всегда, у видео —
+        // как повезёт с драйвером.
+        RowLayout {
+            spacing: 3
+            visible: lrow.temp >= 0
+
+            Glyph {
+                Layout.preferredWidth: 11
+                Layout.preferredHeight: 11
+                glyph: String.fromCodePoint(0xF0E01)
+                color: lrow.temp >= 80 ? view.sys.colCrit : view.sys.colMuted
+                fontFam: view.sys.fontFam
+                size: 10
+            }
+            DotText {
+                Layout.alignment: Qt.AlignVCenter
+                value: lrow.temp + "°"
+                dotSize: view.sys.dotSmall
+                gap: view.sys.dotSmall * 0.5
+                color: lrow.temp >= 80 ? view.sys.colCrit : view.sys.colMuted
+            }
+        }
+    }
+
+    component LoadCard: Rectangle {
+        radius: 14
+        color: Qt.rgba(1, 1, 1, 0.05)
+        border.color: view.sys.colLine
+        border.width: 1
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 11
+            anchors.rightMargin: 11
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
+            spacing: 4
+
+            LoadRow {
+                Layout.fillWidth: true
+                glyph: String.fromCodePoint(0xF0EE0); name: "CPU"
+                pct: view.sys.loadCpu; temp: view.sys.loadTempCpu
+            }
+            LoadRow {
+                Layout.fillWidth: true
+                glyph: String.fromCodePoint(0xF035B); name: "RAM"
+                pct: view.sys.loadMem
+            }
+            LoadRow {
+                Layout.fillWidth: true
+                glyph: String.fromCodePoint(0xF0379); name: "GPU"
+                pct: view.sys.loadGpu; temp: view.sys.loadTempGpu
+            }
+        }
+    }
+
     // ------------------------------------------------------------- страницы
     Item {
         id: stack
@@ -1477,16 +1598,22 @@ Item {
             // сегментов: они уехали на страницу батареи, а сюда встала одна
             // плитка рядом с записью.
             RowLayout {
+                id: powerRow
                 objectName: "cc-power"
                 Layout.row: view.ccRow("power")
                 Layout.column: 0
                 Layout.fillWidth: true
                 spacing: 8
 
+                // На теме Nothing в этой строке стоит ещё и сводка нагрузки в
+                // три строки — плитки растут под неё, иначе соседи оказались
+                // бы разной высоты.
+                readonly property int tileH: view.sys.themeNothing ? 76 : 56
+
                 MiniTile {
                     visible: view.sys.cfg.featRecord
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 56
+                    Layout.preferredHeight: powerRow.tileH
                     icon: String.fromCodePoint(view.sys.recActive ? 0xF04DB : 0xF044A)
                     label: view.sys.recActive
                            ? view.sys.tr("Запись") + " · " + view.sys.recTimeText
@@ -1507,7 +1634,7 @@ Item {
                 MiniTile {
                     visible: view.sys.showBattery || view.sys.showPowerProfiles
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 56
+                    Layout.preferredHeight: powerRow.tileH
                     icon: view.sys.batteryPresent ? view.sys.batteryLevelIcon
                                                   : String.fromCodePoint(0xF0241)
                     label: view.sys.batteryPresent
@@ -1524,6 +1651,16 @@ Item {
                             ? view.sys.colCrit : view.sys.colOk
                     onIconClicked: view.sys.openSub("battery")
                     onBodyClicked: view.sys.openSub("battery")
+                }
+
+                // Доля больше единицы: здесь три строки с полосками, и им
+                // нужнее ширина, чем плитке записи с двумя короткими
+                // подписями.
+                LoadCard {
+                    visible: view.sys.themeNothing
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1.35
+                    Layout.preferredHeight: powerRow.tileH
                 }
             }
 

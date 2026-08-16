@@ -1701,6 +1701,57 @@ PanelWindow {
         }
     }
 
+    // --------------------------------------------------------- нагрузка
+    // Сводка для быстрых настроек на теме Nothing. Минус означает «измерить
+    // не вышло»: строка тогда прячется, а не показывает ноль. Ноль здесь врёт
+    // слишком убедительно — «видеокарта простаивает» и «датчика нет» на глаз
+    // неразличимы.
+    property int loadCpu:  -1
+    property int loadMem:  -1
+    property int loadGpu:  -1
+    property int loadTempCpu: -1
+    property int loadTempGpu: -1
+
+    // Опрашиваем только пока панель раскрыта и только на той теме, где эта
+    // сводка есть. Постоянный процесс раз в две секунды ради чисел, которых
+    // никто не видит, — плата ни за что: скрипт будит nvidia-smi, а тот
+    // просыпается заметно дольше, чем читается файл.
+    readonly property bool loadWanted: root.themeNothing && root.expanded
+
+    Process {
+        id: pLoad
+        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/sysload.sh"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                // Сборщик копит вывод всех запусков подряд, поэтому берём
+                // последнюю законченную строку, а не начало текста.
+                var recs = String(text).trim().split("\n").filter(r => r.indexOf("|") >= 0);
+                if (!recs.length) return;
+                var a = recs[recs.length - 1].split("|");
+                function num(s) {
+                    s = String(s || "").trim();
+                    return s.length ? (+s) : -1;
+                }
+                root.loadCpu = num(a[0]);
+                root.loadMem = num(a[1]);
+                root.loadGpu = num(a[2]);
+                root.loadTempCpu = num(a[3]);
+                root.loadTempGpu = num(a[4]);
+            }
+        }
+    }
+
+    Timer {
+        interval: 2000
+        running: root.loadWanted
+        repeat: true
+        triggeredOnStart: true
+        // Перезапуск через сброс: присваивание running = true, пока процесс
+        // ещё не отметился завершённым, ничего не делает, и показания
+        // замирали бы на первом снимке.
+        onTriggered: { pLoad.running = false; pLoad.running = true; }
+    }
+
     // ------------------------------------------------------------- яркость
     // [{ id, name, pct }] — экраны, у которых яркость вообще управляется.
     // Пустой список на ПК означает «монитор не отвечает по DDC/CI», и вкладка
