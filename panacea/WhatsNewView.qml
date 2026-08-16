@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "wifi: read the network name from whatever is available":
+            "Wi-Fi: имя сети берётся у iw, iwd или NetworkManager — что есть, и сразу после подключения",
         "wifi: disconnect and forget a network from its own page":
             "Wi-Fi: по правой кнопке на сети — отключиться или забыть её",
         "wifi: find the interface, and re-ask once the link is up":

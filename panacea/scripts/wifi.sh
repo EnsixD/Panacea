@@ -9,13 +9,31 @@
 #   disconnect        -> отключиться от текущей сети
 #   forget SSID       -> забыть сеть (и отключиться, если она сейчас активна)
 
-# Имя беспроводного интерфейса спрашиваем у системы. Жёсткий wlan0 верен
-# только там, где ядро не переименовывает интерфейсы: на большинстве ноутбуков
-# это wlp2s0, wlp3s0 и подобное. Тогда `iw dev wlan0 link` молчал, и панель
-# показывала «не подключено» при работающей сети — имя сети взять было неоткуда.
-IFACE="${WIFI_IFACE:-}"
-[ -n "$IFACE" ] || IFACE=$(iw dev 2>/dev/null | awk '/^\s*Interface/{print $2; exit}')
-IFACE="${IFACE:-wlan0}"
+# Все беспроводные интерфейсы машины. Имя может быть любым: wlan0 там, где
+# ядро их не переименовывает, wlp2s0 и подобное — почти везде ещё, а на
+# машине с двумя адаптерами их и вовсе несколько. Список берём из sysfs:
+# каталог wireless есть ровно у беспроводных, и для этого не нужен ни iw,
+# ни права.
+iface_list() {
+    [ -n "${WIFI_IFACE:-}" ] && { printf '%s\n' "$WIFI_IFACE"; return; }
+    local d n
+    for d in /sys/class/net/*; do
+        [ -d "$d/wireless" ] || continue
+        n=$(basename "$d")
+        printf '%s\n' "$n"
+    done
+}
+
+# Тот, что сейчас связан; если связи нет ни у одного — первый по списку.
+# Спрашивать «какой интерфейс» бессмысленно без ответа «а что на нём»:
+# у ноутбука с внешним свистком угадывание по имени промахивается.
+active_iface() {
+    local i
+    for i in $(iface_list); do
+        [ -n "$(ssid_on "$i")" ] && { printf '%s' "$i"; return; }
+    done
+    iface_list | head -1
+}
 
 # iwctl раскрашивает вывод — убираем escape-последовательности
 strip() { sed 's/\x1b\[[0-9;]*m//g'; }
@@ -24,17 +42,48 @@ radio_state() {
     rfkill list wifi 2>/dev/null | grep -q 'Soft blocked: no' && echo on || echo off
 }
 
-current_ssid() {
-    iw dev "$IFACE" link 2>/dev/null \
-        | sed -n 's/.*SSID: //p' \
-        | sed 's/\\x20/ /g; s/ *$//'
+# Имя сети на конкретном интерфейсе. Спрашиваем по очереди у трёх источников:
+# они дают один и тот же ответ, но есть не везде. `iw` идёт первым — он читает
+# состояние прямо у ядра и не зависит от того, кто именно управляет сетью;
+# дальше iwd и NetworkManager, каждый знает только про себя.
+#
+# Порядок важен и тем, что `iw` отвечает сразу после установления связи, тогда
+# как остальные обновляют своё состояние с задержкой — из-за неё имя сети
+# появлялось только после ручного сканирования.
+ssid_on() {
+    local i="$1" out
+
+    out=$(iw dev "$i" link 2>/dev/null | sed -n 's/.*SSID: //p' | sed 's/ *$//')
+    [ -n "$out" ] && { printf '%s' "$out"; return; }
+
+    out=$(iwctl station "$i" show 2>/dev/null | strip \
+          | sed -n 's/.*Connected network[[:space:]]*//p' | sed 's/ *$//')
+    [ -n "$out" ] && { printf '%s' "$out"; return; }
+
+    out=$(nmcli -t -f ACTIVE,SSID dev wifi 2>/dev/null \
+          | sed -n 's/^yes://p' | head -1)
+    printf '%s' "$out"
 }
+
+# Интерфейс выбираем здесь, а не выше: active_iface спрашивает ssid_on, и
+# та должна быть уже объявлена.
+IFACE="$(active_iface)"
+IFACE="${IFACE:-wlan0}"
+
+current_ssid() { ssid_on "$IFACE"; }
 
 # уровень сигнала в dBm -> проценты
 current_quality() {
     local d
     d=$(iw dev "$IFACE" link 2>/dev/null | sed -n 's/.*signal: \(-[0-9]*\).*/\1/p')
-    [ -z "$d" ] && { echo 0; return; }
+    if [ -z "$d" ]; then
+        # без iw остаётся то, что записало ядро: третья колонка /proc — это
+        # качество связи по шкале драйвера, ноль там означает «нет данных»
+        d=$(awk -v i="$IFACE:" '$1==i {gsub(/\./,"",$3); print $3; exit}' \
+            /proc/net/wireless 2>/dev/null)
+        [ -n "$d" ] && [ "$d" -gt 0 ] 2>/dev/null && { echo "$d"; return; }
+        echo 0; return
+    fi
     awk -v d="$d" 'BEGIN{q=2*(d+100); if(q>100)q=100; if(q<0)q=0; print int(q)}'
 }
 

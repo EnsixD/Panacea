@@ -3194,12 +3194,30 @@ PanelWindow {
             // iwctl возвращается раньше, чем соединение поднялось: сразу после
             // него `iw dev link` ещё пуст, и панель показывала подключённую
             // сеть без имени. Спрашиваем ещё раз, когда связь устоялась.
-            wifiSettleTimer.restart();
+            wifiSettleTimer.begin();
             root.refreshWifiList();
         }
     }
 
-    Timer { id: wifiSettleTimer; interval: 2500; onTriggered: root.refreshWifiStatus() }
+    // Связь поднимается не мгновенно и не за одинаковое время: у одной точки
+    // это доли секунды, у другой — несколько. Поэтому после подключения не
+    // один отложенный опрос, а несколько подряд, и прекращаются они, как
+    // только имя сети появилось. Иначе панель показывала подключённую сеть
+    // без имени до ближайшего общего опроса — или до ручного сканирования.
+    Timer {
+        id: wifiSettleTimer
+        interval: 1200
+        repeat: true
+        property int tries: 0
+        onTriggered: {
+            root.refreshWifiStatus();
+            if (root.wifiSsid.length || ++wifiSettleTimer.tries > 6) {
+                wifiSettleTimer.tries = 0;
+                wifiSettleTimer.stop();
+            }
+        }
+        function begin() { wifiSettleTimer.tries = 0; wifiSettleTimer.restart(); }
+    }
 
     // Отключиться от сети и забыть её. Забывание — не то же самое, что
     // отключение: пока сеть сохранена, iwd подключится к ней сам при первой
@@ -3210,7 +3228,7 @@ PanelWindow {
         pWifiDisconnect.running = false;
         pWifiDisconnect.command = ["sh", "-c", root.wifiScript + " disconnect"];
         pWifiDisconnect.running = true;
-        wifiSettleTimer.restart();
+        wifiSettleTimer.begin();
     }
     Process { id: pWifiForget }
     function forgetWifi(ssid) {
@@ -3218,7 +3236,7 @@ PanelWindow {
         pWifiForget.running = false;
         pWifiForget.command = ["sh", "-c", root.wifiScript + " forget \"$1\"", "_", String(ssid)];
         pWifiForget.running = true;
-        wifiSettleTimer.restart();
+        wifiSettleTimer.begin();
         wifiRescanTimer.restart();
     }
 
