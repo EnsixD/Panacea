@@ -269,7 +269,9 @@ Item {
             Text {
                 anchors.centerIn: parent
                 text: parent.parent.badge > 9 ? "9+" : parent.parent.badge
-                color: "#ffffff"
+                // кружок налит акцентом: на светлом акценте белая цифра
+                // пропадает целиком
+                color: view.sys.fgOn(view.sys.colOn)
                 font { family: view.sys.fontFam; pixelSize: 9; bold: true }
             }
         }
@@ -433,7 +435,12 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: miniIcon.parent.parent.icon
-                    color: "#ffffff"
+                    // Включённая плитка наливает кружок акцентом, и значок
+                    // оказывается прямо на нём. Белый по белому не виден
+                    // вовсе — на теме Nothing акцент как раз белый.
+                    color: miniIcon.parent.parent.on
+                           ? view.sys.fgOn(miniIcon.parent.parent.accent)
+                           : "#ffffff"
                     font { family: view.sys.fontFam; pixelSize: 17 }
                 }
                 MouseArea {

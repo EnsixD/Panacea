@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "controls: readable labels on a light accent":
+            "Значок включённой плитки и число на колокольчике больше не пропадают: на светлом акценте они рисуются тёмным, а не белым по белому",
         "island: smaller dotted numerals":
             "Числа точками стали мельче: часы в панели были вдвое крупнее подписи рядом, время в плеере — тоже",
         "controls: load and temperature beside the recorder on the Nothing theme":
