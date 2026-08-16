@@ -975,9 +975,38 @@ Item {
                         spacing: 10
 
                         Text {
+                            visible: !view.sys.themeNothing
                             text: view.sys.timeText
                             color: view.sys.colFg
                             font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 8; bold: true }
+                        }
+
+                        // Nothing: крупные часы точками, секунды — мелким
+                        // числом сбоку. Секунды здесь всегда, независимо от
+                        // настройки «показывать секунды»: та про часы в
+                        // строке, а это отдельное число рядом с ними.
+                        RowLayout {
+                            visible: view.sys.themeNothing
+                            spacing: 5
+
+                            DotText {
+                                Layout.alignment: Qt.AlignVCenter
+                                value: view.sys.timeText
+                                dotSize: view.sys.dotClock * 1.7
+                                gap: view.sys.dotClock * 0.7
+                                color: view.sys.colFg
+                            }
+                            DotText {
+                                // по верхнему краю, а не по центру: мелкое
+                                // число посередине крупных часов читалось бы
+                                // как их часть
+                                Layout.alignment: Qt.AlignTop
+                                Layout.topMargin: 1
+                                value: view.sys.secText
+                                dotSize: view.sys.dotSmall
+                                gap: view.sys.dotSmall * 0.5
+                                color: view.sys.colMuted
+                            }
                         }
                         ColumnLayout {
                             spacing: -1
@@ -1083,6 +1112,20 @@ Item {
                     }
                 }
 
+                // Nothing: звук встаёт третьим в эту же строку, а сеть с
+                // Bluetooth сжимаются и уезжают левее. Место звука в строке
+                // ползунков при этом освобождается — карточка не должна
+                // оказаться в панели дважды.
+                //
+                // Доля у него меньше единицы намеренно: имя сети и имя
+                // устройства длиннее слова «Звук» с процентами, и делить
+                // строку поровну значит обрезать именно их.
+                VolCard {
+                    visible: view.sys.themeNothing && view.sys.cfg.featAudio
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0.8
+                    Layout.preferredHeight: 56
+                }
             }
 
             // ------------------------------------------- громкость и яркость
@@ -1097,9 +1140,15 @@ Item {
                 Layout.column: 0
                 Layout.fillWidth: true
                 spacing: 8
+                // Пустая строка всё равно съедала бы промежуток сетки. Это
+                // стало заметно на теме Nothing: звук оттуда ушёл наверх, и
+                // на машине без управляемой яркости не остаётся ничего.
+                visible: (view.sys.cfg.featAudio && !view.sys.themeNothing)
+                         || (view.sys.brightList || []).length > 0
 
                 VolCard {
-                    visible: view.sys.cfg.featAudio
+                    // на теме Nothing звук уехал в строку с сетью и Bluetooth
+                    visible: view.sys.cfg.featAudio && !view.sys.themeNothing
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: 56

@@ -2612,6 +2612,11 @@ PanelWindow {
     property string timeText: ""
     property string dayText: ""
     property string dateLong: ""
+    // Секунды отдельной строкой. В timeText они появляются только если их
+    // попросили во вкладке Clock & Date, а раскрытому острову на теме Nothing
+    // они нужны всегда: там это мелкое число сбоку от крупных часов, а не
+    // часть их. Смешивать эти два случая в одной строке нельзя.
+    property string secText: ""
     Timer {
         interval: 1000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: {
@@ -2622,6 +2627,7 @@ PanelWindow {
             root.timeText = root.cfg.clock12
                 ? Qt.formatDateTime(d, "h:mm" + sec + " AP")
                 : Qt.formatDateTime(d, "HH:mm" + sec);
+            root.secText = Qt.formatDateTime(d, "ss");
             // формат даты и день недели перед ней — тоже из настроек
             root.dateLong = (root.cfg.clockWeekday ? Qt.formatDateTime(d, "dddd") + ", " : "")
                 + Qt.formatDateTime(d, root.cfg.clockDateFmt || "d MMMM");
