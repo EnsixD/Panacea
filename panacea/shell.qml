@@ -3201,6 +3201,27 @@ PanelWindow {
 
     Timer { id: wifiSettleTimer; interval: 2500; onTriggered: root.refreshWifiStatus() }
 
+    // Отключиться от сети и забыть её. Забывание — не то же самое, что
+    // отключение: пока сеть сохранена, iwd подключится к ней сам при первой
+    // возможности, и «отключился» держится ровно до следующего появления
+    // этой точки в эфире.
+    Process { id: pWifiDisconnect }
+    function disconnectWifi() {
+        pWifiDisconnect.running = false;
+        pWifiDisconnect.command = ["sh", "-c", root.wifiScript + " disconnect"];
+        pWifiDisconnect.running = true;
+        wifiSettleTimer.restart();
+    }
+    Process { id: pWifiForget }
+    function forgetWifi(ssid) {
+        if (!ssid || !ssid.length) return;
+        pWifiForget.running = false;
+        pWifiForget.command = ["sh", "-c", root.wifiScript + " forget \"$1\"", "_", String(ssid)];
+        pWifiForget.running = true;
+        wifiSettleTimer.restart();
+        wifiRescanTimer.restart();
+    }
+
     function toggleWifi() { pWifiToggle.running = true; }
     function refreshWifiList() {
         wifiModel.clear();

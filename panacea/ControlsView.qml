@@ -64,6 +64,12 @@ Item {
     // тогда событие всплывает мимо — до Loader'а в shell.qml. Он зовёт
     // goBack() сам, и подстраница закрывается вместо всей панели.
     function goBack() {
+        // с меню сети возвращаемся к списку, а не на плитки: человек пришёл
+        // сюда из списка и туда же ждёт назад
+        if (view.sys.page === "netmenu") {
+            view.sys.page = "wifi";
+            return true;
+        }
         if (view.sys.page === "wifi" || view.sys.page === "bt"
             || view.sys.page === "battery") {
             view.sys.page = "main";
@@ -946,6 +952,9 @@ Item {
         property string sub: ""
         property bool highlight: false
         signal activated()
+        // Правая кнопка: у сетей за ней прячется отключение и «забыть».
+        // Строка сама ничего о них не знает — только сообщает о нажатии.
+        signal menuRequested(real mx, real my)
 
         Layout.fillWidth: true
         Layout.preferredHeight: 42
@@ -993,7 +1002,15 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: parent.activated()
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => {
+                if (mouse.button === Qt.RightButton) {
+                    var p = mapToItem(wifiPage, mouse.x, mouse.y);
+                    parent.menuRequested(p.x, p.y);
+                } else {
+                    parent.activated();
+                }
+            }
         }
     }
 
@@ -1272,6 +1289,7 @@ Item {
         width: parent.width
         implicitHeight: (view.preview || view.sys.page === "main") ? mainPage.implicitHeight
                       : view.sys.page === "wifi" ? wifiPage.implicitHeight
+                      : view.sys.page === "netmenu" ? netMenuPage.implicitHeight
                       : view.sys.page === "traymenu" ? trayPage.implicitHeight
                       : view.sys.page === "battery" ? battPage.implicitHeight
                       : btPage.implicitHeight
@@ -2274,6 +2292,12 @@ Item {
             id: wifiPage
             width: parent.width
             spacing: 7
+
+            // Что за сеть выбрана правой кнопкой и что с ней можно сделать.
+            property string menuSsid: ""
+            property bool menuConnected: false
+            property bool menuKnown: false
+
             opacity: view.sys.page === "wifi" ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: view.sys.animFast } }
@@ -2378,6 +2402,15 @@ Item {
                                 pwFocus.restart();
                             }
                         }
+                        onMenuRequested: (mx, my) => {
+                            // меню имеет смысл только там, где есть что делать:
+                            // отключиться можно от текущей, забыть — сохранённую
+                            if (!model.connected && !model.known) return;
+                            wifiPage.menuSsid = model.ssid;
+                            wifiPage.menuConnected = model.connected;
+                            wifiPage.menuKnown = model.known;
+                            view.sys.page = "netmenu";
+                        }
                     }
                 }
             }
@@ -2392,6 +2425,60 @@ Item {
             }
 
             Timer { id: pwFocus; interval: 80; onTriggered: pwField.forceActiveFocus() }
+
+        }
+
+        // ------------------------------------------------- меню сети
+        // Отдельной страницей, как меню трея: панель узкая, и всплывающее окно
+        // поверх списка пришлось бы двигать, чтобы оно не уезжало за край.
+        // Страница открывается по правой кнопке на сети и умеет ровно то, чего
+        // нет в самом списке: отключиться и забыть.
+        ColumnLayout {
+            id: netMenuPage
+            width: parent.width
+            spacing: 3
+            opacity: view.sys.page === "netmenu" ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: view.sys.animFast } }
+
+            Header {
+                title: wifiPage.menuSsid.length ? wifiPage.menuSsid : view.sys.tr("Сеть")
+                busy: view.sys.wifiBusy
+                onBack: view.sys.page = "wifi"
+                onRefresh: {}
+            }
+
+            Row1 {
+                visible: wifiPage.menuConnected
+                icon: "󰖪"
+                title: view.sys.tr("Отключиться")
+                sub: view.sys.tr("Связь разорвётся, сеть останется сохранённой")
+                onActivated: {
+                    view.sys.disconnectWifi();
+                    view.sys.page = "wifi";
+                }
+            }
+
+            Row1 {
+                visible: wifiPage.menuKnown
+                icon: "󰅖"
+                title: view.sys.tr("Забыть сеть")
+                sub: view.sys.tr("Больше не подключаться самому")
+                onActivated: {
+                    view.sys.forgetWifi(wifiPage.menuSsid);
+                    view.sys.page = "wifi";
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                visible: !wifiPage.menuConnected && !wifiPage.menuKnown
+                text: view.sys.tr("Для этой сети ничего не сохранено.")
+                color: view.sys.colMuted
+                horizontalAlignment: Text.AlignHCenter
+                font { family: view.sys.fontFam; pixelSize: 11 }
+            }
         }
 
         // ------------------------------------------- контекстное меню трея

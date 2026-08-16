@@ -48,6 +48,12 @@ QtObject {
 
         // строки нового окна настроек
         "и ещё": "and",
+        "Отключиться": "Disconnect",
+        "Забыть сеть": "Forget network",
+        "Больше не подключаться самому": "Stop connecting automatically",
+        "Связь разорвётся, сеть останется сохранённой": "Drops the link, keeps the network saved",
+        "Для этой сети ничего не сохранено.": "Nothing is saved for this network.",
+        "Сеть": "Network",
         "Монитор не сообщил свои режимы — обычно это значит, что не установлен драйвер видеокарты.":
             "The monitor did not report its modes — usually that means the graphics driver is missing.",
         "Не хватает пакетов": "Some packages are missing",

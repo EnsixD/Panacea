@@ -6,7 +6,8 @@
 #   scan              -> запускает поиск сетей
 #   toggle            -> включает/выключает радио
 #   connect SSID [PW] -> подключение (PW нужен только для незнакомых сетей)
-#   forget SSID       -> забыть сеть
+#   disconnect        -> отключиться от текущей сети
+#   forget SSID       -> забыть сеть (и отключиться, если она сейчас активна)
 
 # Имя беспроводного интерфейса спрашиваем у системы. Жёсткий wlan0 верен
 # только там, где ядро не переименовывает интерфейсы: на большинстве ноутбуков
@@ -100,13 +101,21 @@ connect)
     exit $?
     ;;
 
+disconnect)
+    iwctl station "$IFACE" disconnect >/dev/null 2>&1
+    ;;
+
 forget)
     [ -z "$2" ] && exit 1
+    # Сначала отключаемся, если забываем ту сеть, в которой сидим: иначе
+    # соединение остаётся жить, а сеть уже не сохранена — на следующем
+    # обрыве связь просто пропадёт без объяснения.
+    [ "$2" = "$(current_ssid)" ] && iwctl station "$IFACE" disconnect >/dev/null 2>&1
     iwctl known-networks "$2" forget >/dev/null 2>&1
     ;;
 
 *)
-    echo "usage: wifi.sh status|list|scan|toggle|connect SSID [PW]|forget SSID" >&2
+    echo "usage: wifi.sh status|list|scan|toggle|connect SSID [PW]|disconnect|forget SSID" >&2
     exit 1
     ;;
 esac
