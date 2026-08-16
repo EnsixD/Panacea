@@ -988,6 +988,103 @@ Item {
         LanGlyph { width: 13; height: 13 }
     }
 
+    // ------------------------------------------------------------ запись
+    // Плашка записи для темы Nothing: круглая кнопка, подпись и таймер.
+    //
+    // Обычная плитка показывала на этом месте частоту кадров, пока запись не
+    // идёт. Число это из настроек, меняют его раз в жизни, а места оно
+    // занимает столько же, сколько отсчёт. Здесь вместо него всегда стоят
+    // часы записи: до начала на нуле, дальше идут.
+    component RecordCard: Rectangle {
+        id: recCard
+
+        radius: 14
+        color: recBodyMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.05)
+        border.color: view.sys.recActive
+                      ? Qt.rgba(view.sys.colCrit.r, view.sys.colCrit.g,
+                                view.sys.colCrit.b, 0.45)
+                      : view.sys.colLine
+        border.width: 1
+        Behavior on color { ColorAnimation { duration: 160 } }
+        Behavior on border.color { ColorAnimation { duration: 180 } }
+
+        // тело открывает страницу записи, кнопка — начинает и останавливает
+        MouseArea {
+            id: recBodyMa
+            anchors.fill: parent
+            anchors.leftMargin: 52
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: view.sys.togglePage("record")
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 11
+            anchors.rightMargin: 12
+            spacing: 11
+
+            Rectangle {
+                id: recBtn
+                Layout.preferredWidth: 34
+                Layout.preferredHeight: 34
+                Layout.alignment: Qt.AlignVCenter
+                radius: 17
+                // Идёт запись — кнопка налита красным, значит «нажми, чтобы
+                // прекратить». Стоит — обычный кружок с треугольником.
+                color: view.sys.recActive ? view.sys.colCrit : Qt.rgba(1, 1, 1, 0.10)
+                Behavior on color { ColorAnimation { duration: 180 } }
+                scale: recBtnMa.pressed ? 0.9 : (recBtnMa.containsMouse ? 1.07 : 1.0)
+                Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutBack } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: String.fromCodePoint(view.sys.recActive ? 0xF04DB : 0xF040A)
+                    color: view.sys.recActive
+                           ? view.sys.fgOn(view.sys.colCrit) : "#ffffff"
+                    font { family: view.sys.fontFam; pixelSize: 15 }
+                }
+
+                MouseArea {
+                    id: recBtnMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.sys.toggleRecord()
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 3
+
+                Text {
+                    Layout.fillWidth: true
+                    text: view.sys.tr("Запись")
+                    color: view.sys.colMuted
+                    elide: Text.ElideRight
+                    font {
+                        family: view.sys.fontFam; pixelSize: 9
+                        capitalization: Font.AllUppercase; letterSpacing: 1.2
+                    }
+                }
+
+                // Отсчёт точками — как остальные числа темы. Пока запись не
+                // идёт, он приглушён: нули в полную яркость читались бы как
+                // «идёт и стоит на нуле».
+                DotText {
+                    Layout.alignment: Qt.AlignLeft
+                    value: view.sys.recTimeText
+                    size: view.sys.dotHSmall + 3
+                    color: !view.sys.recActive ? view.sys.colMuted
+                         : view.sys.recPaused ? view.sys.colWarn
+                                              : view.sys.colFg
+                }
+            }
+        }
+    }
+
     // ------------------------------------------------- нагрузка машины
     // Три строки: процессор, память, видео. Проценты — полоской и числом
     // сразу: полоска показывает «много или мало» с одного взгляда, число
@@ -1692,8 +1789,18 @@ Item {
                 // тогда как у сводки — ноль: её содержимое прижато якорями.
                 // Без явных долей плитка забирала строку целиком, а от сводки
                 // оставалась полоска в несколько пикселей у самого края.
+                // На теме Nothing вместо плитки стоит плашка с кнопкой и
+                // отсчётом: частота кадров, которую плитка показывала до
+                // начала записи, приходит из настроек и меняется раз в жизнь.
+                RecordCard {
+                    visible: view.sys.cfg.featRecord && view.sys.themeNothing
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: powerRow.tileH
+                }
+
                 MiniTile {
-                    visible: view.sys.cfg.featRecord
+                    visible: view.sys.cfg.featRecord && !view.sys.themeNothing
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: powerRow.tileH
