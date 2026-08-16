@@ -1113,8 +1113,8 @@ Item {
                             DotText {
                                 Layout.alignment: Qt.AlignVCenter
                                 value: view.sys.timeText
-                                dotSize: view.sys.dotClock * 1.7
-                                gap: view.sys.dotClock * 0.7
+                                dotSize: view.sys.dotBig
+                                gap: view.sys.dotBig * 0.5
                                 color: view.sys.colFg
                             }
                             DotText {

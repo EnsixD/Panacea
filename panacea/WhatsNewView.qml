@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "island: smaller dotted numerals":
+            "Числа точками стали мельче: часы в панели были вдвое крупнее подписи рядом, время в плеере — тоже",
         "controls: load and temperature beside the recorder on the Nothing theme":
             "Быстрые настройки на теме Nothing: рядом с записью встала сводка — загрузка и температура процессора, памяти и видео",
         "media: the spectrum alone is the seek bar on the Nothing theme":
