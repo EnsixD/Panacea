@@ -587,6 +587,30 @@ PanelWindow {
         if (root.cfg.featWidgets || root.cfg.weatherOnIsland) root.refreshWeather();
     }
 
+    // Видимость вогнутых уголков острова.
+    //
+    // Гаснут они сразу, а появляются с задержкой на время движения капсулы.
+    // Уголки — отдельные элементы, привязанные к её краям, и при возврате из
+    // настроек они проявлялись мгновенно, ещё когда капсула ехала на место:
+    // со стороны выглядело, будто две наклейки слетаются к острову с разных
+    // сторон. Пока он едет, их просто нет, и приезжает он целым.
+    readonly property bool cornersWanted:
+        !(root.settingsMode || root.wallsOpen || root.pillHidden)
+    property bool cornersOn: false
+    Timer {
+        id: cornerReveal
+        interval: root.animMs + 40
+        onTriggered: root.cornersOn = true
+    }
+    onCornersWantedChanged: {
+        if (root.cornersWanted) {
+            cornerReveal.restart();
+        } else {
+            cornerReveal.stop();
+            root.cornersOn = false;
+        }
+    }
+
     // ------------------------------------ перезагрузка в другую систему
     // Процесс живёт ЗДЕСЬ, в корне, а не в лаунчере, откуда его вызывают.
     //
@@ -1287,6 +1311,7 @@ PanelWindow {
         syncGreeterLocale();
         monReplayTimer.restart();
         syncGreeterTheme();
+        root.cornersOn = root.cornersWanted;
         // Первое заполнение списка столов: дальше его ведёт onWsRawChanged, а
         // тот срабатывает только на изменение — стартовое значение он бы
         // пропустил, и до первого переключения точек не было бы вовсе.
@@ -5009,7 +5034,7 @@ PanelWindow {
          : root.pillAtBottom ? parent.height - height : 0
         // Уголки уходят вместе с островом: в настройках он отрывается от
         // кромки, а на карусели обоев прячется целиком.
-        opacity: root.settingsMode || root.wallsOpen || root.pillHidden ? 0 : 1
+        opacity: root.cornersOn ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: root.animFast } }
     }
     NotchCorner {
@@ -5029,7 +5054,7 @@ PanelWindow {
                             : Math.round(capsule.x + capsule.width)
         y: root.pillSide ? capsule.y + capsule.height
          : root.pillAtBottom ? parent.height - height : 0
-        opacity: root.settingsMode || root.wallsOpen || root.pillHidden ? 0 : 1
+        opacity: root.cornersOn ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: root.animFast } }
     }
 }
