@@ -677,7 +677,10 @@ Item {
         // открывает проводник — искать путь руками не нужно.
         Rectangle {
             visible: view.live
-            Layout.preferredWidth: 196
+            // Ширина по содержимому, но не уже прежней: она была подобрана на
+            // глаз под русскую надпись, и на другом языке текст вылезал за
+            // края плашки.
+            Layout.preferredWidth: Math.max(196, liveRow.implicitWidth + 24)
             Layout.preferredHeight: 38
             radius: 13
             color: folderMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
@@ -687,6 +690,7 @@ Item {
             Behavior on border.color { ColorAnimation { duration: 160 } }
 
             RowLayout {
+                id: liveRow
                 anchors.centerIn: parent
                 spacing: 8
                 Text {
@@ -712,7 +716,10 @@ Item {
         // свои обои — через проводник, как и раньше
         Rectangle {
             visible: !view.live
-            Layout.preferredWidth: 156
+            // Ширина по содержимому, но не уже прежней: она была подобрана на
+            // глаз под русскую надпись, и на другом языке текст вылезал за
+            // края плашки.
+            Layout.preferredWidth: Math.max(156, ownRow.implicitWidth + 24)
             Layout.preferredHeight: 38
             radius: 13
             color: addMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
@@ -722,6 +729,7 @@ Item {
             Behavior on border.color { ColorAnimation { duration: 160 } }
 
             RowLayout {
+                id: ownRow
                 anchors.centerIn: parent
                 spacing: 8
                 Text {

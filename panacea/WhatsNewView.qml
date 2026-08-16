@@ -117,6 +117,8 @@ Item {
             "Быстрые настройки на теме Nothing: звук встал третьим к сети и Bluetooth, часы набраны точками, секунды — мелким числом сбоку",
         "island: workspace dots and a dotted clock on the Nothing theme":
             "Остров на теме Nothing: точки столов вместо номера, часы точками по центру, справа сеть, звук и заряд",
+        "settings: size buttons by their label, not by a guessed number":
+            "Надписи больше не вылезают за края кнопок: ширина считается по содержимому, а прежняя остаётся нижней границей",
         "theme: match the terminal background to the widget cards on Nothing":
             "Фон терминала на теме Nothing совпал с карточками виджетов; на остальных темах цвет остаётся из общей палитры",
         "power: let the compositor start the lock screen":

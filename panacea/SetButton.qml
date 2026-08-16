@@ -21,7 +21,11 @@ Rectangle {
 
     signal clicked()
 
-    Layout.preferredWidth: 112
+    // Ширина по надписи, но не уже прежних 112: короткие кнопки — «Применить»,
+    // «Сбросить» — стоят парами, и разнобой в их ширине читался бы небрежностью.
+    // А длинная надпись раньше просто вылезала за края: ширина была задана
+    // числом, а текст ничем не ограничен.
+    Layout.preferredWidth: Math.max(112, btnLabel.implicitWidth + 26)
     Layout.preferredHeight: 32
     radius: 10
     opacity: btn.enabled ? 1 : 0.4
@@ -38,6 +42,7 @@ Rectangle {
     Behavior on opacity { NumberAnimation { duration: btn.sys.animFade } }
 
     Text {
+        id: btnLabel
         anchors.centerIn: parent
         text: btn.text
         color: btn.primary ? btn.sys.colFg : btn.sys.colMuted

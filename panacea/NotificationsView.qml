@@ -34,7 +34,10 @@ Item {
 
             // не беспокоить
             Rectangle {
-                Layout.preferredWidth: 132
+                // Ширина по содержимому, но не уже прежней: она была подобрана на
+                // глаз под русскую надпись, и на другом языке текст вылезал за
+                // края плашки.
+                Layout.preferredWidth: Math.max(132, dndRow.implicitWidth + 24)
                 Layout.preferredHeight: 30
                 radius: 10
                 color: view.sys.dnd
@@ -46,6 +49,7 @@ Item {
                 Behavior on border.color { ColorAnimation { duration: 160 } }
 
                 RowLayout {
+                    id: dndRow
                     anchors.centerIn: parent
                     spacing: 7
                     Text {

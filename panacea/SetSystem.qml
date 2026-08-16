@@ -237,7 +237,10 @@ ColumnLayout {
             // Проверить · Обновить. Вторая появляется только когда есть что
             // ставить: кнопка, которая иногда ничего не делает, хуже её отсутствия.
             Rectangle {
-                Layout.preferredWidth: 104
+                // Ширина по содержимому, но не уже прежней: надпись задана числом
+                // только на глаз, и на другом языке или крупном шрифте она вылезала
+                // за края плашки.
+                Layout.preferredWidth: Math.max(104, checkRow.implicitWidth + 24)
                 Layout.preferredHeight: 32
                 radius: 10
                 visible: !page.sys.updBusy
@@ -252,6 +255,7 @@ ColumnLayout {
                 // окажется прежней, в карточке больше ничего не изменится, и
                 // без крутилки нажатие выглядело бы проигнорированным.
                 RowLayout {
+                    id: checkRow
                     anchors.centerIn: parent
                     spacing: 6
 
@@ -293,7 +297,10 @@ ColumnLayout {
             }
 
             Rectangle {
-                Layout.preferredWidth: 120
+                // Ширина по содержимому, но не уже прежней: надпись задана числом
+                // только на глаз, и на другом языке или крупном шрифте она вылезала
+                // за края плашки.
+                Layout.preferredWidth: Math.max(120, updRow.implicitWidth + 24)
                 Layout.preferredHeight: 32
                 radius: 10
                 visible: page.sys.updateAvailable || page.sys.updBusy
@@ -354,6 +361,7 @@ ColumnLayout {
             // Этапы подписью, а не только процентом: «скачивание» и «установка»
             // объясняют паузу, а «73%» — нет.
             RowLayout {
+                    id: updRow
                 Layout.fillWidth: true
                 spacing: 6
                 Text {
@@ -547,7 +555,10 @@ ColumnLayout {
             }
 
             Rectangle {
-                Layout.preferredWidth: 140
+                // Ширина по надписи, но не уже прежней: «Точно сбросить» и
+                // «Сбросить всё» разной длины, а по-английски обе длиннее —
+                // на глаз подобранные 140 их уже не вмещали.
+                Layout.preferredWidth: Math.max(140, resetLabel.implicitWidth + 24)
                 Layout.preferredHeight: 32
                 radius: 10
                 color: page.armed
@@ -561,6 +572,7 @@ ColumnLayout {
                 Behavior on color { ColorAnimation { duration: page.sys.animFade } }
 
                 Text {
+                    id: resetLabel
                     anchors.centerIn: parent
                     text: page.armed ? page.sys.tr("Точно сбросить") : page.sys.tr("Сбросить всё")
                     color: page.armed ? page.sys.colFg : page.sys.colMuted
