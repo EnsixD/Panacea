@@ -915,6 +915,15 @@ PanelWindow {
     }
     readonly property var theme: themeOf(cfg.themeId)
     readonly property bool themeCustom: cfg.themeId === "default"
+    // Единственный флаг на весь облик Nothing. Проверять cfg.themeId по строке
+    // в двух десятках мест значило бы искать их все при переименовании темы.
+    readonly property bool themeNothing: cfg.themeId === "nothing"
+
+    // Размер точки в числах Nothing. Считается от размера шрифта, а не задан
+    // числом: человек двигает ползунок кегля в настройках, и точечные часы
+    // должны расти вместе с остальными подписями, иначе остров расползается.
+    readonly property real dotClock: Math.max(2.0, root.fontSize / 6)
+    readonly property real dotSmall: Math.max(1.5, root.fontSize / 8)
 
     readonly property color colBg:     theme.bg
     // у «default» цвета текста и акцента остаются за настройками
@@ -2564,6 +2573,18 @@ PanelWindow {
     readonly property int wsId:
         Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1
 
+    // Столы по порядку номеров — для точек в свёрнутом острове. Спецстолы
+    // (отрицательные) пропускаем: на них не переходят подряд с остальными,
+    // и точка под них сбивала бы счёт.
+    readonly property var wsList: {
+        var out = [];
+        var all = Hyprland.workspaces ? Hyprland.workspaces.values : [];
+        for (var i = 0; i < all.length; i++)
+            if (all[i] && all[i].id > 0) out.push(all[i].id);
+        out.sort(function (a, b) { return a - b; });
+        return out;
+    }
+
     // -------------------------------------------------- раскладка клавиатуры
     property string kbLayout: "US"
     Process {
@@ -3229,6 +3250,8 @@ PanelWindow {
         readonly property real idleLen: root.toastActive ? 440
                 : root.osdActive ? osdCapsule.implicitWidth + 32
                 : root.pillSide  ? Math.max(vertCapsule.implicitHeight + 30, root.cfg.collapsedW)
+                : root.themeNothing
+                                 ? Math.max(nothingCapsule.implicitWidth + 28, root.cfg.collapsedW)
                                  : Math.max(idleCapsule.implicitWidth + 32, root.cfg.collapsedW)
         readonly property real idleThick: root.toastActive
                 ? toastCapsule.implicitHeight + 24 : root.pillH
@@ -3688,7 +3711,9 @@ PanelWindow {
             anchors.centerIn: parent
             height: root.pillH
             spacing: 14
-            visible: !root.expanded && !root.osdActive && !root.toastActive
+            // На теме Nothing свёрнутый остров устроен иначе — его собирает
+            // nothingCapsule, а эта раскладка целиком уступает ему место.
+            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive
             // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
             // равен нулю, и остров считал бы свою длину по пустоте.
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
@@ -3916,6 +3941,175 @@ PanelWindow {
                         text: root.batteryPct + "%"
                         color: root.colMuted
                         font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------ свёрнутое: Nothing
+        // Часы стоят ровно по центру острова, столы — слева, состояние
+        // машины — справа. Это не RowLayout: в строке часы уезжали бы от
+        // центра каждый раз, когда слева появляется точка нового стола или
+        // справа пропадают проценты заряда. Здесь края разведены по якорям,
+        // а под них резервируется одинаковое место — часы стоят намертво.
+        Item {
+            id: nothingCapsule
+            anchors.centerIn: parent
+            height: root.pillH
+            visible: root.themeNothing && !root.expanded
+                     && !root.osdActive && !root.toastActive
+            opacity: root.pillSide ? 0 : (visible ? 1 : 0)
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            // просвет между часами и крайними группами
+            readonly property real armGap: 22
+            // Обе группы получают ширину по большей из них: без этого часы
+            // считались бы центром пустого места, а не острова.
+            readonly property real arm:
+                Math.max(nLeft.implicitWidth, nRight.implicitWidth)
+            implicitWidth: nClock.implicitWidth + 2 * (nothingCapsule.arm + nothingCapsule.armGap)
+
+            // ------------------------------------------- слева: столы
+            RowLayout {
+                id: nLeft
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+
+                // Запись важнее столов и потому стоит первой: пока идёт
+                // съёмка, об этом надо знать раньше всего остального.
+                Rectangle {
+                    Layout.preferredWidth: 7
+                    Layout.preferredHeight: 7
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: 4
+                    visible: root.recActive
+                    color: root.recPaused ? "#fbbf24" : root.colCrit
+                    SequentialAnimation on opacity {
+                        running: root.recActive && !root.recPaused
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.25; duration: 620; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1.0;  duration: 620; easing.type: Easing.InOutSine }
+                    }
+                    onVisibleChanged: if (!visible) opacity = 1
+                }
+
+                // Точки столов. Текущий — короткая белая полоса: номер стола
+                // на острове всё равно никто не читал как число, важно лишь
+                // «который по счёту из скольких», а это точки показывают
+                // прямо, без чтения.
+                Repeater {
+                    model: root.wsList
+
+                    Rectangle {
+                        required property var modelData
+                        readonly property bool here: modelData === root.wsId
+                        // Ширину держим своим свойством: Behavior не вешается
+                        // на присоединённые Layout.*, а растекание точки в
+                        // полосу без анимации — просто подмена картинки.
+                        property real len: here ? 17 : 6
+
+                        Layout.preferredWidth: len
+                        Layout.preferredHeight: 6
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: 3
+                        color: root.colFg
+                        opacity: here ? 1 : (wsMa.containsMouse ? 0.6 : 0.3)
+
+                        Behavior on len {
+                            NumberAnimation { duration: root.animMs; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+                        MouseArea {
+                            id: wsMa
+                            anchors.fill: parent
+                            // по точке в шесть пикселей не попасть мышью,
+                            // поэтому цель шире самой точки
+                            anchors.margins: -5
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.gotoWorkspace(modelData)
+                        }
+                    }
+                }
+            }
+
+            // --------------------------------------------- центр: часы
+            DotText {
+                id: nClock
+                anchors.centerIn: parent
+                value: root.timeText
+                dotSize: root.dotClock
+                gap: root.dotClock * 0.42
+                color: root.colFg
+            }
+
+            // ------------------------------- справа: сеть, звук, заряд
+            RowLayout {
+                id: nRight
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 12
+
+                // Кабель вытесняет антенну: связь идёт по нему, и значок
+                // Wi-Fi поверх работающего кабеля только сбивал бы с толку.
+                Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: root.wiredOn ? "󰈀"
+                        : root.wifiOn ? (root.wifiQuality > 66 ? "󰤨"
+                                       : root.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
+                    color: (root.wiredOn || root.wifiOn) ? root.colFg : root.colMuted
+                    font { family: root.fontFam; pixelSize: root.iconSize - 2 }
+                }
+
+                RowLayout {
+                    spacing: 6
+
+                    Text {
+                        Layout.alignment: Qt.AlignVCenter
+                        text: !root.sinkAudio ? String.fromCodePoint(0xF075F)
+                            : root.sinkAudio.muted ? String.fromCodePoint(0xF075F)
+                            : root.sinkAudio.volume < 0.34 ? String.fromCodePoint(0xF057F)
+                            : root.sinkAudio.volume < 0.67 ? String.fromCodePoint(0xF0580)
+                                                           : String.fromCodePoint(0xF057E)
+                        color: (root.sinkAudio && root.sinkAudio.muted)
+                               ? root.colMuted : root.colFg
+                        font { family: root.fontFam; pixelSize: root.iconSize - 2 }
+                    }
+
+                    DotText {
+                        Layout.alignment: Qt.AlignVCenter
+                        value: root.sinkAudio
+                               ? String(Math.round(root.sinkAudio.volume * 100)) : "0"
+                        dotSize: root.dotSmall
+                        gap: root.dotSmall * 0.5
+                        color: (root.sinkAudio && root.sinkAudio.muted)
+                               ? root.colMuted : root.colFg
+                    }
+                }
+
+                // Заряда на настольной машине не существует — там этой пары
+                // нет совсем, а не «ноль процентов».
+                RowLayout {
+                    spacing: 6
+                    visible: root.batteryPresent
+
+                    Text {
+                        Layout.alignment: Qt.AlignVCenter
+                        text: root.batteryIcon
+                        color: root.batteryPct <= 15 && !root.acOnline
+                               ? root.colCrit : root.colFg
+                        font { family: root.fontFam; pixelSize: root.iconSize - 2 }
+                    }
+
+                    DotText {
+                        Layout.alignment: Qt.AlignVCenter
+                        value: String(root.batteryPct)
+                        dotSize: root.dotSmall
+                        gap: root.dotSmall * 0.5
+                        color: root.batteryPct <= 15 && !root.acOnline
+                               ? root.colCrit : root.colFg
                     }
                 }
             }
