@@ -34,6 +34,10 @@ STATE="$CONF/panacea/.version"
 KEEP=(
     "$CONF/panacea/settings.json"
     "$CONF/hypr/lua/binds_data.lua"
+    # Выбранные обои: в репозитории свой wallpaper.conf, и без этой строки
+    # он ложился поверх — после обновления стол возвращался к заводским.
+    "$CONF/hypr/wallpaper.conf"
+    "$CONF/hypr/hyprpaper.conf"
 )
 KEEP_DIRS=(
     "$CONF/hypr/wallpaper"

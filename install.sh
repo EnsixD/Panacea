@@ -406,6 +406,13 @@ backup() {
 KEEP_FILES=(
     "panacea/settings.json"
     "hypr/lua/binds_data.lua"
+    # Выбранные обои. В репозитории лежит свой wallpaper.conf, и он ложился
+    # поверх — после каждого обновления стол возвращался к ember_stripes,
+    # хотя сама картинка никуда не девалась: сохранялся каталог с обоями, но
+    # не запись о том, какая из них выбрана.
+    "hypr/wallpaper.conf"
+    # Живые обои из того же ряда: их путь тоже помнит отдельный файл.
+    "hypr/hyprpaper.conf"
 )
 KEEP_DIRS=(
     "hypr/wallpaper"

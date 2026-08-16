@@ -117,6 +117,12 @@ Item {
             "Быстрые настройки на теме Nothing: звук встал третьим к сети и Bluetooth, часы набраны точками, секунды — мелким числом сбоку",
         "island: workspace dots and a dotted clock on the Nothing theme":
             "Остров на теме Nothing: точки столов вместо номера, часы точками по центру, справа сеть, звук и заряд",
+        "update: refresh the login screen theme too":
+            "Обновление доносит и тему экрана входа — раньше она замирала на той версии, с которой её поставили однажды",
+        "greeter: give the login screen the same keyboard layouts as the shell":
+            "На экране входа появилась вторая раскладка: Alt+Shift теперь есть что переключать",
+        "greeter: keep the login arrow visible on a light accent":
+            "Стрелка входа не пропадает на белом кружке",
         "update: stop copying the wallpaper pack through RAM":
             "Обновление больше не гоняет набор обоев через оперативную память — на машинах без её запаса это и было долгим ожиданием",
         "sliders: fix the scale on ranges narrower than one":
