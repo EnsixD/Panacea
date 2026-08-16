@@ -181,6 +181,18 @@ PanelWindow {
             property bool   featPowermenu: true
             property bool   featPolkit: true
 
+            // ---------------------------------------------- Weather & Widgets
+            // Ключ и город пусты по умолчанию: без них виджет погоды просто
+            // не показывается. Ключ чужой, бесплатный и выдаётся на почту —
+            // подставить сюда что-то своё нельзя.
+            property string weatherKey: ""
+            property string weatherCity: ""
+            property string weatherUnits: "metric"   // metric | imperial
+            // Настольные виджеты. Выключены по умолчанию: они рисуются
+            // поверх обоев и меняют вид рабочего стола, а такое включают
+            // сами, а не обнаруживают после обновления.
+            property bool   featWidgets: false
+
             // сочетания; пересобираются в lua/binds_data.lua
             property string bind_pillLauncher: "SUPER + A"
             property string bind_pillControls: "SUPER + Z"
@@ -272,7 +284,8 @@ PanelWindow {
         ccLayout: "", filesWindow: false, filesHidden: true, filesMode: "list",
         vaultCapture: true,
         vibrance: 50, mouseSens: 0, mouseRaw: false,
-        recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: ""
+        recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
+        weatherKey: "", weatherCity: "", weatherUnits: "metric", featWidgets: false
     })
 
     function resetCfg() {
@@ -1707,6 +1720,108 @@ PanelWindow {
                 root.brightRefresh(false);
             }
         }
+    }
+
+    // ---------------------------------------------------------- погода
+    // Числа держим строками ровно так, как их отдал сервис: округлять и
+    // подписывать — дело виджета, а здесь важно отличать «ноль градусов» от
+    // «ещё не спрашивали». Пустая строка и значит «нет данных».
+    property string weatherTemp: ""
+    property string weatherFeels: ""
+    property string weatherHumidity: ""
+    property string weatherPressure: ""
+    property string weatherWind: ""
+    property string weatherClouds: ""
+    property string weatherCond: ""      // Clouds, Rain, Clear …
+    property string weatherDesc: ""      // словами, на языке оболочки
+    property string weatherIcon: ""      // код вида 04d — по нему берётся значок
+    property string weatherPlace: ""     // как город назвал сам сервис
+    property string weatherErr: ""       // пусто — всё в порядке
+    property bool   weatherBusy: false
+
+    readonly property bool weatherReady:
+        root.weatherErr.length === 0 && root.weatherTemp.length > 0
+    // Градус в обеих системах пишется одинаково; различаются они шкалой, а
+    // не знаком, поэтому буква нужна только там, где её спрашивают явно.
+    readonly property string weatherUnitLetter:
+        root.cfg.weatherUnits === "imperial" ? "F" : "C"
+    readonly property string weatherWindUnit:
+        root.cfg.weatherUnits === "imperial" ? "mph" : "m/s"
+
+    // Значок погоды знаком шрифта — для тем, где точечных значков нет.
+    // Разбор кода тот же, что в DotIcon: первые две цифры — сама погода.
+    readonly property string weatherGlyph: {
+        var k = String(root.weatherIcon).slice(0, 2);
+        return String.fromCodePoint(
+              k === "01" ? 0xF0599                        // солнце
+            : k === "02" ? 0xF0595                        // солнце за облаком
+            : (k === "03" || k === "04") ? 0xF0590         // облако
+            : (k === "09" || k === "10") ? 0xF0597         // дождь
+            : k === "11" ? 0xF0593                        // гроза
+            : k === "13" ? 0xF0598                        // снег
+            : k === "50" ? 0xF0591                        // туман
+                         : 0xF0590);
+    }
+
+    Process {
+        id: pWeather
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.weatherBusy = false;
+                // Сборщик копит вывод всех запусков подряд: берём последнюю
+                // порцию, а не начало текста.
+                var txt = String(text);
+                var cut = txt.lastIndexOf("temp=");
+                var errCut = txt.lastIndexOf("err=");
+                if (errCut > cut) cut = errCut;
+                if (cut > 0) txt = txt.slice(cut);
+
+                var got = {};
+                txt.trim().split("\n").forEach(function (line) {
+                    var i = line.indexOf("=");
+                    if (i > 0) got[line.slice(0, i)] = line.slice(i + 1).trim();
+                });
+
+                root.weatherErr = got["err"] || "";
+                if (root.weatherErr.length) return;
+
+                root.weatherTemp     = got["temp"]     || "";
+                root.weatherFeels    = got["feels"]    || "";
+                root.weatherHumidity = got["humidity"] || "";
+                root.weatherPressure = got["pressure"] || "";
+                root.weatherWind     = got["wind"]     || "";
+                root.weatherClouds   = got["clouds"]   || "";
+                root.weatherCond     = got["cond"]     || "";
+                root.weatherDesc     = got["desc"]     || "";
+                root.weatherIcon     = got["icon"]     || "";
+                root.weatherPlace    = got["city"]     || "";
+            }
+        }
+    }
+
+    function refreshWeather() {
+        if (!root.cfg.weatherKey.length || !root.cfg.weatherCity.length) {
+            root.weatherErr = root.cfg.weatherKey.length ? "no-city" : "no-key";
+            return;
+        }
+        root.weatherBusy = true;
+        pWeather.command = ["sh", "-c",
+            root.scriptDir + "/weather.sh \"$1\" \"$2\" \"$3\" \"$4\"", "_",
+            String(root.cfg.weatherKey), String(root.cfg.weatherCity),
+            String(root.cfg.weatherUnits), root.isEn ? "en" : "ru"];
+        pWeather.running = false;
+        pWeather.running = true;
+    }
+
+    // Раз в четверть часа. Чаще незачем: погода столько и не меняется, а у
+    // бесплатного ключа есть предел обращений в минуту, который делят между
+    // собой все программы, куда его вписали.
+    Timer {
+        interval: 900000
+        running: root.cfg.featWidgets && root.cfg.weatherKey.length > 0
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.refreshWeather()
     }
 
     // --------------------------------------------------------- нагрузка
@@ -3964,6 +4079,36 @@ PanelWindow {
                 }
             }
 
+            // Погода перед датой: значок и градусы. Виджетов на обоях у этой
+            // темы нет, и остров — единственное место, где погода вообще
+            // видна, поэтому она здесь, а не только на Nothing.
+            RowLayout {
+                spacing: 5
+                visible: root.weatherReady
+
+                Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: root.weatherGlyph
+                    color: root.colFg
+                    font { family: root.fontFam; pixelSize: root.iconSize - 1 }
+                }
+                Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: root.weatherTemp + "°"
+                    color: root.colFg
+                    font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                }
+
+                // разделитель — чтобы погода читалась отдельно от даты
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 14
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.leftMargin: 3
+                    color: Qt.rgba(1, 1, 1, 0.14)
+                }
+            }
+
             Text {
                 text: root.dayText
                 color: root.colMuted
@@ -4130,6 +4275,28 @@ PanelWindow {
                         }
                     }
                 }
+
+                // Погода сразу за точками. Значок и градусы, без города и
+                // слов: город человек и так знает, а описание словами на
+                // острове не помещается — оно есть в карточке на обоях.
+                RowLayout {
+                    Layout.leftMargin: 6
+                    spacing: 5
+                    visible: root.weatherReady
+
+                    DotIcon {
+                        Layout.alignment: Qt.AlignVCenter
+                        code: root.weatherIcon
+                        size: root.dotHClock
+                        color: root.colFg
+                    }
+                    DotText {
+                        Layout.alignment: Qt.AlignVCenter
+                        value: root.weatherTemp + "°"
+                        size: root.dotHSmall
+                        color: root.colFg
+                    }
+                }
             }
 
             // --------------------------------------------- центр: часы
@@ -4182,6 +4349,26 @@ PanelWindow {
                                        : root.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
                     color: root.wifiOn ? root.colFg : root.colMuted
                     font { family: root.fontFam; pixelSize: root.iconSize - 2 }
+                }
+
+                // Раскладка сразу за сетью. Буквами, а не точками: точечная
+                // сетка знает цифры, а «RU» на ней пришлось бы рисовать
+                // отдельно ради двух знаков.
+                //
+                // Текущая — в полную яркость, вторая приглушена: цветом их
+                // на этой теме не развести, а разница нужна беглая.
+                //
+                // FlipText, а не обычная надпись: раскладку переключают
+                // вслепую, посреди набора, и подтверждение нужно заметить
+                // краем глаза. Подмена буквы без движения незаметна — здесь
+                // она перелистывается, как и в обычном острове.
+                FlipText {
+                    Layout.alignment: Qt.AlignVCenter
+                    value: root.kbLayout
+                    textColor: root.kbLayout === "RU" ? root.colFg : root.colMuted
+                    fontFam: root.fontFam
+                    pixelSize: root.fontSize - 4
+                    bold: true
                 }
 
                 RowLayout {

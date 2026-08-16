@@ -633,6 +633,52 @@ QtObject {
         "Такой масштаб даёт нецелый размер стола — Hyprland его не примет.":
             "This scale gives a fractional desktop size — Hyprland will reject it.",
         "Дубли повторяют картинку основного экрана: у них своё разрешение, но общая раскладка.":
-            "Mirrors repeat the primary display: own resolution, shared layout."
+            "Mirrors repeat the primary display: own resolution, shared layout.",
+
+        // ------------------------------------------------------- погода
+        "Ключ, город и шкала для виджета погоды.":
+            "Key, city and scale for the weather widget.",
+        "Ключ OpenWeatherMap": "OpenWeatherMap key",
+        "Строка из 32 знаков со страницы API keys":
+            "The 32-character string from the API keys page",
+        "Заводится на openweathermap.org — бесплатно. Новый ключ начинает отвечать не сразу, обычно через час-другой.":
+            "Free from openweathermap.org. A fresh key does not answer straight away — usually an hour or two.",
+        "Хранится в settings.json открытым текстом.":
+            "Stored in settings.json as plain text.",
+        "Город": "City",
+        "Например: Moscow или Moscow,RU": "For example: Moscow or Moscow,RU",
+        "Одинаковых названий на свете много. Если нашёлся не тот город, допишите через запятую страну — Moscow,RU.":
+            "Plenty of places share a name. If the wrong one turns up, add the country after a comma — Moscow,RU.",
+        "Шкала": "Scale",
+        "Цельсий": "Celsius",
+        "Фаренгейт": "Fahrenheit",
+        "Спрашиваем…": "Asking…",
+        "Ещё не спрашивали": "Not asked yet",
+        "Ключ не вписан": "No key entered",
+        "Город не вписан": "No city entered",
+        "Ключ не подошёл — проверьте, что скопирован целиком":
+            "The key was refused — check it was copied whole",
+        "Такого города сервис не знает": "The service does not know that city",
+        "Слишком часто спрашиваем — ключ на пределе обращений":
+            "Asking too often — the key is at its request limit",
+        "Не дозвонились до сервиса": "Could not reach the service",
+        "Нет curl": "curl is missing",
+        "Нет jq": "jq is missing",
+        "Ответ сервиса не разобрать": "Could not parse the service reply",
+        "Сервис ответил отказом": "The service refused",
+        "Влажность": "Humidity",
+        "Ветер": "Wind",
+        "Ощущается как": "Feels like",
+        "Сама оболочка спрашивает погоду раз в четверть часа. Показывается она в настольных виджетах — включаются во вкладке Appearance.":
+            "The shell asks for weather every fifteen minutes. It shows up in the desktop widgets — switched on in the Appearance tab.",
+
+        // --------------------------------------------- настольные виджеты
+        "Настольные виджеты": "Desktop widgets",
+        "Карточки на обоях: дата, погода и часы. Только на теме Nothing — они нарисованы её точками.":
+            "Cards on the wallpaper: date, weather and clock. Nothing theme only — they are drawn with its dots.",
+        "Включите тему Nothing, чтобы они появились.":
+            "Switch to the Nothing theme for these to appear.",
+        "Впишите ключ и город во вкладке Weather, иначе карточка погоды останется пустой.":
+            "Enter a key and city in the Weather tab, or the weather card stays empty."
     })
 }

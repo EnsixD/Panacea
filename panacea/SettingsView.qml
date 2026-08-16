@@ -35,6 +35,10 @@ Item {
         { id: "look",    title: "Appearance",     g: 0xF03D8, page: "SetAppearance.qml",
           sub: view.sys.tr("Тема, шрифты и то, из чего складывается геометрия."),
           keys: "theme font size radius spacing тема шрифт цвет радиус отступ" },
+        { id: "weather", title: "Weather",        g: 0xF0590, page: "SetWeather.qml",
+          sub: view.sys.tr("Ключ, город и шкала для виджета погоды."),
+          keys: "weather temperature city openweather api key celsius fahrenheit "
+                + "погода температура город ключ цельсий фаренгейт градусы" },
         { id: "motion",  title: "Motion",         g: 0xF15B6, page: "SetMotion.qml",
           sub: view.sys.tr("Насколько быстро оболочка движется — и движется ли вообще."),
           keys: "animation speed bounce анимация скорость движение" },

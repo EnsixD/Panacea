@@ -41,6 +41,12 @@ Item {
     readonly property var dictRu: ({
         "island: actually shrink the wired icon in the collapsed bar":
             "Значок сети в свёрнутом острове наконец уменьшился: размер задавался мимо раскладки, и та его не замечала",
+        "theme: two themes instead of eight":
+            "В Appearance остались Default и Nothing: шесть остальных отличались лишь оттенком акцента, который правится ползунками там же",
+        "weather: a Weather tab, and the temperature in the island":
+            "Вкладка Weather: ключ OpenWeatherMap, город и шкала. Погода со значком встала в свёрнутый остров на обеих темах",
+        "island: show the keyboard layout next to the network icon":
+            "Раскладка клавиатуры встала рядом со значком сети в свёрнутом острове темы Nothing",
         "theme: keep the palette table in one shared file":
             "Таблица тем вынесена в общий файл: её читают два разных процесса, и двух копий цветов быть не должно",
         "lock: follow the shell theme":

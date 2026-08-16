@@ -124,6 +124,39 @@ ColumnLayout {
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
 
+        // Виджеты живут при теме Nothing и больше нигде: они собраны из её
+        // точечных цифр и чёрно-белых карточек, и на теме с цветным акцентом
+        // выглядели бы заплаткой из чужого набора. Поэтому тумблер стоит
+        // здесь, рядом с выбором темы, а не отдельной страницей.
+        SetToggle {
+            sys: page.sys
+            label: page.sys.tr("Настольные виджеты")
+            sub: page.sys.tr("Карточки на обоях: дата, погода и часы. Только на теме Nothing — они нарисованы её точками.")
+            on: page.sys.cfg.featWidgets
+            onToggled: v => { page.sys.cfg.featWidgets = v; page.sys.saveCfg(); }
+        }
+
+        // Тумблер не прячем на других темах: спрятанная настройка выглядит
+        // пропавшей. Вместо этого говорим, чего не хватает, — тогда понятно,
+        // почему включённое ничего не показало.
+        Text {
+            Layout.fillWidth: true
+            visible: page.sys.cfg.featWidgets && !page.sys.themeNothing
+            text: page.sys.tr("Включите тему Nothing, чтобы они появились.")
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+        }
+        Text {
+            Layout.fillWidth: true
+            visible: page.sys.cfg.featWidgets && page.sys.themeNothing
+                     && page.sys.cfg.weatherKey.length === 0
+            text: page.sys.tr("Впишите ключ и город во вкладке Weather, иначе карточка погоды останется пустой.")
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+        }
+
         SetSlider {
             sys: page.sys
             label: page.sys.tr("Приглушённый текст")
