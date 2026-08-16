@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pam
+import "Themes.js" as Themes
 
 // Экран блокировки в стиле динамического острова.
 //
@@ -56,7 +57,29 @@ ShellRoot {
 
     // ------------------------------------------------- обои и акцент из темы
     property string wallpaper: ""
-    property color accent: "#c65a47"
+
+    // Палитра берётся из той же темы, что и оболочка. Раньше экран
+    // блокировки жил своей жизнью: акцент он читал из hypr/palette.conf, и
+    // при чёрно-белой теме оболочки встречал терракотовым кружком ввода.
+    //
+    // Тема читается из settings.json тем же разбором, что и язык, а таблица
+    // цветов общая — Themes.js. Держать здесь свою копию нельзя: она
+    // разошлась бы с оболочкой на первой же правке палитры.
+    property string themeId: "default"
+    readonly property var theme: Themes.of(root.themeId)
+    // у «default» акцент остаётся за настройками, как и в оболочке
+    property color cfgOn: "#3b82f6"
+    readonly property color accent: root.themeId === "default" ? root.cfgOn
+                                                               : root.theme.on
+    readonly property color colFg:   root.theme.fg
+    readonly property color colCrit: root.theme.crit
+    // Фон нужен для надписей поверх залитого акцентом: на светлом акценте
+    // белым по белому не видно ничего, а у темы Nothing он как раз белый.
+    readonly property color colBg:   root.theme.bg
+    function fgOn(c) {
+        return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) > 0.6
+               ? root.colBg : "#ffffff";
+    }
 
     // ------------------------------------------------------------------ язык
     // Экран блокировки — отдельный процесс и до настроек пилюли не дотягивается,
@@ -87,31 +110,24 @@ ShellRoot {
         blockLoading: true
     }
 
-    // цвета живут отдельно от обоев и меняются только правкой палитры
-    FileView {
-        id: paletteFile
-        path: Quickshell.env("HOME") + "/.config/hypr/palette.conf"
-        blockLoading: true
-    }
-
     Component.onCompleted: {
         try {
             var cfg = JSON.parse(settingsFile.text() || "{}");
             if (cfg && typeof cfg.lang === "string") root.isEn = cfg.lang !== "ru";
-        } catch (e) { /* настроек нет — остаёмся на английском */ }
+            if (cfg && typeof cfg.themeId === "string") root.themeId = cfg.themeId;
+            if (cfg && typeof cfg.colOn === "string") root.cfgOn = cfg.colOn;
+        } catch (e) { /* настроек нет — остаёмся на английском и на теме по умолчанию */ }
 
         // scripts/lock.sh отдаёт уже ужатую под экран копию обоев
         var cached = Quickshell.env("PANACEA_LOCK_BG") || "";
         if (cached.length) { root.wallpaper = cached; }
 
         var w = /^\$wallpaper\s*=\s*(.+)$/m.exec(wallFile.text() || "");
-        var a = /^\$accent_color\s*=\s*(.+)$/m.exec(paletteFile.text() || "");
         if (w && !cached.length) {
             var p = w[1].trim();
             if (p.indexOf("~") === 0) p = Quickshell.env("HOME") + p.slice(1);
             root.wallpaper = (p === "black" || p.length === 0) ? "" : p;
         }
-        if (a && /^#[0-9a-fA-F]{6}$/.test(a[1].trim())) root.accent = a[1].trim();
     }
 
     // ------------------------------------------------------------------ часы
@@ -372,7 +388,7 @@ ShellRoot {
                                     anchors.centerIn: parent
                                     visible: !root.checking
                                     text: String.fromCodePoint(0xF033E)
-                                    color: root.errorText.length ? "#ef4444" : root.accent
+                                    color: root.errorText.length ? root.colCrit : root.accent
                                     font { family: root.fontFam; pixelSize: 19 }
                                     Behavior on color { ColorAnimation { duration: 200 } }
                                 }
@@ -416,7 +432,7 @@ ShellRoot {
                                     visible: root.password.length === 0
                                     text: root.errorText.length ? root.errorText : root.tr("Пароль")
                                     color: root.errorText.length
-                                           ? "#ef4444" : Qt.rgba(1, 1, 1, 0.35)
+                                           ? root.colCrit : Qt.rgba(1, 1, 1, 0.35)
                                     font { family: root.fontFam; pixelSize: 14 }
                                 }
                             }
