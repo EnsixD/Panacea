@@ -1021,10 +1021,6 @@ Item {
                 visible: false
                 value: "100%"
                 size: view.sys.dotHTiny
-                // просвет ужат: на высоте в десять пикселей точка
-                // обычной плотности выходит чуть больше одного и
-                // расплывается в серую крупу
-                gapRatio: 0.25
             }
 
             DotText {
@@ -1032,10 +1028,6 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 value: lrow.pct + "%"
                 size: view.sys.dotHTiny
-                // просвет ужат: на высоте в десять пикселей точка
-                // обычной плотности выходит чуть больше одного и
-                // расплывается в серую крупу
-                gapRatio: 0.25
                 color: view.sys.colFg
             }
         }
@@ -1058,10 +1050,6 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
                 value: lrow.temp + "°"
                 size: view.sys.dotHTiny
-                // просвет ужат: на высоте в десять пикселей точка
-                // обычной плотности выходит чуть больше одного и
-                // расплывается в серую крупу
-                gapRatio: 0.25
                 color: lrow.temp >= 80 ? view.sys.colCrit : view.sys.colMuted
             }
         }
