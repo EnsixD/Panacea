@@ -65,11 +65,11 @@ Item {
             // Число крупно, день недели мелко в углу. Красный здесь
             // единственный на весь набор — им отмечены выходные, и больше
             // ему на рабочем столе делать нечего.
+            // Число по центру карточки, а подписи разведены по углам: день
+            // недели в верхний правый, месяц в нижний левый. Так число ни с
+            // одной из них не соседствует вплотную и читается само по себе.
             DotText {
-                anchors.left: parent.left
-                anchors.leftMargin: 18
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: 6
+                anchors.centerIn: parent
                 value: view.sys.dayNum
                 size: 52
                 gapRatio: 0.14
@@ -93,9 +93,14 @@ Item {
             Caption {
                 anchors.left: parent.left
                 anchors.bottom: parent.bottom
-                anchors.leftMargin: 19
+                anchors.leftMargin: 16
                 anchors.bottomMargin: 12
                 width: parent.width - 30
+                // Ярче общего приглушённого: тот рассчитан на подписи под
+                // значением, а здесь месяц — сам по себе, второй половиной
+                // даты, и в приглушённом тонет.
+                color: Qt.rgba(view.sys.colFg.r, view.sys.colFg.g,
+                               view.sys.colFg.b, 0.85)
                 text: view.sys.monthText
             }
         }
