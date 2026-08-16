@@ -197,6 +197,10 @@ PanelWindow {
             // сами, а не обнаруживают после обновления.
             property bool   featWidgets: false
 
+            // Прозрачность терминала. Живёт здесь, а правится в foot.ini:
+            // сам foot настройки оболочки не читает.
+            property real   termAlpha: 0.90
+
             // сочетания; пересобираются в lua/binds_data.lua
             property string bind_pillLauncher: "SUPER + A"
             property string bind_pillControls: "SUPER + Z"
@@ -290,7 +294,7 @@ PanelWindow {
         vibrance: 50, mouseSens: 0, mouseRaw: false,
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
         weatherKey: "", weatherCity: "", weatherUnits: "metric",
-        weatherOnIsland: true, featWidgets: false
+        weatherOnIsland: true, featWidgets: false, termAlpha: 0.90
     })
 
     function resetCfg() {
@@ -520,6 +524,38 @@ PanelWindow {
             String(root.colOn), String(root.colFg),
             String(root.colMuted), String(root.colBg)]
     }
+    // Прозрачность терминала — правилом компоновщика, а не alpha в foot.ini.
+    //
+    // Сам foot читает свой конфиг только при запуске: ползунок не менял бы
+    // ничего в уже открытых окнах, а именно там его и двигают, глядя на
+    // терминал. Правило Hyprland применяется сразу и ко всем окнам разом.
+    //
+    // Пишем и применяем: файл нужен, чтобы значение пережило перезагрузку —
+    // windowrules.lua подхватывает его при старте, — а eval, чтобы увидеть
+    // результат сейчас, не дожидаясь следующего входа в систему.
+    Process {
+        id: pTermAlpha
+        command: ["sh", "-c",
+            "d=\"$HOME/.config/hypr/lua\"; mkdir -p \"$d\" || exit 0; " +
+            "printf 'return { opacity = %s }\\n' \"$1\" > \"$d/term_data.lua\"; " +
+            "hyprctl eval \"hl.window_rule({ name = 'panacea-term-opacity', " +
+            "match = { class = '^(footclient|foot)$' }, opacity = $1 })\" >/dev/null 2>&1",
+            "_", root.cfg.termAlpha.toFixed(2)]
+    }
+    // Сдерживаем, как и запись яркости по шине: ползунок шлёт значение на
+    // каждое движение мыши, а каждое — это запуск hyprctl. Наперегонки они
+    // спорят за один и тот же вызов, и компоновщик показывает баннер с
+    // ошибкой. Пишем, когда рука остановилась.
+    Timer {
+        id: termAlphaFlush
+        interval: 180
+        onTriggered: {
+            pTermAlpha.running = false;
+            pTermAlpha.running = true;
+        }
+    }
+    function applyTermAlpha() { termAlphaFlush.restart(); }
+
     function syncGreeterTheme() {
         pGreeterTheme.running = false;
         pGreeterTheme.running = true;

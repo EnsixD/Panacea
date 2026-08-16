@@ -124,34 +124,44 @@ ColumnLayout {
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
 
-        // Виджеты живут при теме Nothing и больше нигде: они собраны из её
-        // точечных цифр и чёрно-белых карточек, и на теме с цветным акцентом
-        // выглядели бы заплаткой из чужого набора. Поэтому тумблер стоит
-        // здесь, рядом с выбором темы, а не отдельной страницей.
+        // Тумблер стоит здесь, рядом с выбором темы: карточки — часть облика,
+        // а не отдельная служба.
         SetToggle {
             sys: page.sys
             label: page.sys.tr("Настольные виджеты")
-            sub: page.sys.tr("Карточки на обоях: дата, погода и часы. Только на теме Nothing — они нарисованы её точками.")
+            sub: page.sys.tr("Карточки на обоях: дата, погода и часы. Начертание берут у выбранной темы.")
             on: page.sys.cfg.featWidgets
             onToggled: v => { page.sys.cfg.featWidgets = v; page.sys.saveCfg(); }
         }
 
-        // Тумблер не прячем на других темах: спрятанная настройка выглядит
-        // пропавшей. Вместо этого говорим, чего не хватает, — тогда понятно,
-        // почему включённое ничего не показало.
         Text {
             Layout.fillWidth: true
-            visible: page.sys.cfg.featWidgets && !page.sys.themeNothing
-            text: page.sys.tr("Включите тему Nothing, чтобы они появились.")
+            visible: page.sys.cfg.featWidgets
+                     && page.sys.cfg.weatherKey.length === 0
+            text: page.sys.tr("Впишите ключ и город во вкладке Weather, иначе карточка погоды останется пустой.")
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
+
+        // Прозрачность терминала. Здесь, а не в отдельной вкладке: это одна
+        // ручка, и стоит она рядом с прочим внешним видом.
+        SetSlider {
+            sys: page.sys
+            label: page.sys.tr("Прозрачность терминала")
+            from: 0.5; to: 1.0; step: 0.01
+            decimals: 2
+            value: page.sys.cfg.termAlpha
+            onMoved: v => {
+                page.sys.cfg.termAlpha = v;
+                page.sys.saveCfg();
+                page.sys.applyTermAlpha();
+            }
+        }
+
         Text {
             Layout.fillWidth: true
-            visible: page.sys.cfg.featWidgets && page.sys.themeNothing
-                     && page.sys.cfg.weatherKey.length === 0
-            text: page.sys.tr("Впишите ключ и город во вкладке Weather, иначе карточка погоды останется пустой.")
+            text: page.sys.tr("1.00 — сплошной фон. Уже открытые окна останутся как были: терминал читает настройки при запуске.")
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }

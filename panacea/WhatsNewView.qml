@@ -117,6 +117,22 @@ Item {
             "Быстрые настройки на теме Nothing: звук встал третьим к сети и Bluetooth, часы набраны точками, секунды — мелким числом сбоку",
         "island: workspace dots and a dotted clock on the Nothing theme":
             "Остров на теме Nothing: точки столов вместо номера, часы точками по центру, справа сеть, звук и заряд",
+        "sliders: fix the scale on ranges narrower than one":
+            "Ползунки с диапазоном уже единицы больше не упираются на середине шкалы — прозрачность и приглушённый текст доходят до края",
+        "power: plain icons, zZz for sleep, a solid lock":
+            "Меню питания: значки без кругов и обводок, сон обозначен буквами zZz, замок сплошной",
+        "widgets: line the weather cards up to the same height":
+            "Карточки погоды выровнены: правый столбец больше не выше левого на восемь пикселей",
+        "brightness: follow the laptop keys in the panel slider":
+            "Ползунок яркости следует за клавишами ноутбука, а не показывает прежнее значение",
+        "greeter: take the login screen colours from the shell theme":
+            "Экран входа берёт цвета из выбранной темы: на чёрно-белой теме больше нет терракотового кружка аватара",
+        "greeter: draw the spinner, brighten the buttons, animate the layout":
+            "Экран входа: ровный кружок загрузки вместо кривого глифа, заметные кнопки внизу, раскладка перелистывается",
+        "island: reveal the notch corners only after the capsule lands":
+            "Уголки острова появляются, когда капсула доехала, — а не слетаются к ней с разных сторон",
+        "appearance: a slider for terminal transparency":
+            "Прозрачность терминала правится ползунком в Appearance",
         "power: lock on the first press, not the second":
             "Блокировка в меню питания срабатывает сразу — подтверждение нужно выключению и перезагрузке, а не ей",
         "island: stop the workspace dots flickering on an empty desktop":

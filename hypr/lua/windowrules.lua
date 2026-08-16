@@ -85,3 +85,19 @@ hl.window_rule({
 
 -- "Terminal Cascade" удалён: он делал плавающими уже открытые терминалы
 -- при каждом новом окне и ломал нормальный тайлинг.
+
+-- Прозрачность терминала. Значение пишет оболочка (ползунок в Appearance)
+-- в lua/term_data.lua; файла может не быть — тогда правила просто нет и
+-- терминал остаётся непрозрачным.
+--
+-- Правилом компоновщика, а не alpha в foot.ini: сам foot читает конфиг
+-- только при запуске, и ползунок не менял бы ничего в уже открытых окнах.
+-- Правило же применяется сразу, ко всем сразу.
+local ok_term, term = pcall(require, "lua.term_data")
+if ok_term and term and term.opacity and term.opacity < 1 then
+    hl.window_rule({
+        name    = "panacea-term-opacity",
+        match   = { class = "^(footclient|foot)$" },
+        opacity = term.opacity,
+    })
+end

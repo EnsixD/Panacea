@@ -666,6 +666,9 @@ QtObject {
         "Нет jq": "jq is missing",
         "Ответ сервиса не разобрать": "Could not parse the service reply",
         "Сервис ответил отказом": "The service refused",
+        "Прозрачность терминала": "Terminal transparency",
+        "1.00 — сплошной фон. Уже открытые окна останутся как были: терминал читает настройки при запуске.":
+            "1.00 is opaque. Windows already open stay as they are — the terminal reads its settings at startup.",
         "Нет данных": "No data",
         "Погода в острове": "Weather in the island",
         "Значок и градусы в свёрнутом острове, рядом с рабочими столами.":
@@ -678,10 +681,8 @@ QtObject {
 
         // --------------------------------------------- настольные виджеты
         "Настольные виджеты": "Desktop widgets",
-        "Карточки на обоях: дата, погода и часы. Только на теме Nothing — они нарисованы её точками.":
-            "Cards on the wallpaper: date, weather and clock. Nothing theme only — they are drawn with its dots.",
-        "Включите тему Nothing, чтобы они появились.":
-            "Switch to the Nothing theme for these to appear.",
+        "Карточки на обоях: дата, погода и часы. Начертание берут у выбранной темы.":
+            "Cards on the wallpaper: date, weather and clock. They take their type from the current theme.",
         "Впишите ключ и город во вкладке Weather, иначе карточка погоды останется пустой.":
             "Enter a key and city in the Weather tab, or the weather card stays empty."
     })
