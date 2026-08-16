@@ -983,15 +983,27 @@ Item {
 
         // Ширину под число резервируем по «100%», иначе полоска слева
         // дёргалась бы на каждом переходе через десяток.
+        //
+        // Меряем настоящим невидимым числом, а не круглой цифрой на глаз:
+        // ширина точечного знака зависит и от высоты, и от просветов, и от
+        // того, сколько столбцов сетки у «%». Прежние 30 пикселей были
+        // меньше нужного едва не вдвое — число вылезало на полоску.
         Item {
-            Layout.preferredWidth: 30
-            Layout.preferredHeight: 12
+            Layout.preferredWidth: pctRuler.implicitWidth
+            Layout.preferredHeight: pctRuler.implicitHeight
+
+            DotText {
+                id: pctRuler
+                visible: false
+                value: "100%"
+                size: view.sys.dotHSmall
+            }
+
             DotText {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 value: lrow.pct + "%"
-                dotSize: view.sys.dotSmall
-                gap: view.sys.dotSmall * 0.5
+                size: view.sys.dotHSmall
                 color: view.sys.colFg
             }
         }
@@ -1013,8 +1025,7 @@ Item {
             DotText {
                 Layout.alignment: Qt.AlignVCenter
                 value: lrow.temp + "°"
-                dotSize: view.sys.dotSmall
-                gap: view.sys.dotSmall * 0.5
+                size: view.sys.dotHSmall
                 color: lrow.temp >= 80 ? view.sys.colCrit : view.sys.colMuted
             }
         }
@@ -1120,8 +1131,7 @@ Item {
                             DotText {
                                 Layout.alignment: Qt.AlignVCenter
                                 value: view.sys.timeText
-                                dotSize: view.sys.dotBig
-                                gap: view.sys.dotBig * 0.5
+                                size: view.sys.dotHBig
                                 color: view.sys.colFg
                             }
                             DotText {
@@ -1131,8 +1141,7 @@ Item {
                                 Layout.alignment: Qt.AlignTop
                                 Layout.topMargin: 1
                                 value: view.sys.secText
-                                dotSize: view.sys.dotSmall
-                                gap: view.sys.dotSmall * 0.5
+                                size: view.sys.dotHSmall
                                 color: view.sys.colMuted
                             }
                         }
@@ -1581,8 +1590,7 @@ Item {
                         DotText {
                             visible: view.sys.themeNothing
                             value: view.fmtTime(seek.pos)
-                            dotSize: view.sys.dotSmall
-                            gap: view.sys.dotSmall * 0.5
+                            size: view.sys.dotHSmall
                             color: view.sys.colMuted
                         }
                         Item { Layout.fillWidth: true }
@@ -1595,8 +1603,7 @@ Item {
                         DotText {
                             visible: view.sys.themeNothing
                             value: view.fmtTime(seek.dur)
-                            dotSize: view.sys.dotSmall
-                            gap: view.sys.dotSmall * 0.5
+                            size: view.sys.dotHSmall
                             color: Qt.rgba(1, 1, 1, 0.28)
                         }
                     }

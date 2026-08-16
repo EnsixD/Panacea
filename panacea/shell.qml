@@ -923,19 +923,22 @@ PanelWindow {
     // числом: человек двигает ползунок кегля в настройках, и точечные часы
     // должны расти вместе с остальными подписями, иначе остров расползается.
     //
-    // Три ступени, потому что цифра из точек всегда выше буквы того же
-    // кегля: под ней семь рядов сетки плюс просветы, тогда как у обычного
-    // текста высота считается по самой букве. Ставить сюда размер шрифта
-    // как есть — и число выходит вдвое крупнее подписи рядом.
-    //
-    // Делители подобраны по высоте готовой цифры: она равна 7 × (точка +
-    // просвет) − просвет, то есть примерно 10 × размер точки при просвете в
-    // половину. Мелкие числа выходят около 14 пикселей, часы в острове — 19,
-    // крупные часы в панели — 27.
-    readonly property real dotSmall: Math.max(1.2, root.fontSize / 11)
-    readonly property real dotClock: Math.max(1.7, root.fontSize / 8)
-    readonly property real dotBig:   Math.max(2.4, root.fontSize / 5.5)
+    // Три ступени — высота цифры в пикселях, тем же числом, каким меряют
+    // обычный текст. Считаются от кегля со сдвигом, а не долей от него:
+    // рядом с цифрой всегда стоит подпись, и разница между ними должна
+    // оставаться одинаковой, а не растягиваться вместе с ползунком.
+    readonly property real dotHBig:   root.fontSize + 10   // часы в панели
+    readonly property real dotHClock: root.fontSize + 2    // часы в острове
+    readonly property real dotHSmall: root.fontSize - 3    // числа при значках
 
+    // Цвет надписи поверх заливки акцентом. На светлом акценте белым по
+    // белому не видно ничего — а на теме Nothing акцент именно белый.
+    // Яркость по Rec. 709: зелёный глаз видит куда лучше синего, и среднее
+    // арифметическое трёх каналов ошибается как раз на жёлтом и голубом.
+    function fgOn(c) {
+        return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) > 0.6
+               ? root.colBg : "#ffffff";
+    }
 
     readonly property color colBg:     theme.bg
     // у «default» цвета текста и акцента остаются за настройками
@@ -4109,8 +4112,7 @@ PanelWindow {
                 id: nClock
                 anchors.centerIn: parent
                 value: root.timeText
-                dotSize: root.dotClock
-                gap: root.dotClock * 0.42
+                size: root.dotHClock
                 color: root.colFg
             }
 
@@ -4151,8 +4153,7 @@ PanelWindow {
                         Layout.alignment: Qt.AlignVCenter
                         value: root.sinkAudio
                                ? String(Math.round(root.sinkAudio.volume * 100)) : "0"
-                        dotSize: root.dotSmall
-                        gap: root.dotSmall * 0.5
+                        size: root.dotHSmall
                         color: (root.sinkAudio && root.sinkAudio.muted)
                                ? root.colMuted : root.colFg
                     }
@@ -4175,8 +4176,7 @@ PanelWindow {
                     DotText {
                         Layout.alignment: Qt.AlignVCenter
                         value: String(root.batteryPct)
-                        dotSize: root.dotSmall
-                        gap: root.dotSmall * 0.5
+                        size: root.dotHSmall
                         color: root.batteryPct <= 15 && !root.acOnline
                                ? root.colCrit : root.colFg
                     }

@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "dots: size the numerals by height instead of by dot diameter":
+            "Точечные числа задаются высотой в пикселях, как обычный текст: часы и проценты стали заметно мельче, а «100%» в сводке больше не налезает на полоску",
         "controls: give the load summary its share of the row":
             "Сводка нагрузки больше не сплющена в полоску у края: плитка записи забирала строку целиком",
         "controls: bluetooth and the recorder take their accent from the theme":

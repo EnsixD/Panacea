@@ -19,10 +19,21 @@ Item {
     id: dt
 
     property string value: ""
-    // диаметр точки и просвет между соседними
-    property real dotSize: 3
-    property real gap: 1
+
+    // Высота цифры в пикселях — то же, чем меряют обычный текст. Раньше
+    // задавался диаметр точки, и высота получалась впятеро больше него:
+    // подобрать её на глаз не выходило, числа выходили вдвое крупнее
+    // подписей рядом. Теперь на месте pixelSize стоит сопоставимое число.
+    property real size: 14
+    // просвет между точками как доля их диаметра
+    property real gapRatio: 0.4
     property color color: "#ffffff"
+
+    // Из высоты обратно в диаметр. Цифра занимает семь рядов, между ними
+    // шесть просветов: size = 7·d + 6·(d·r).
+    readonly property real dotSize: dt.size / (7 + 6 * dt.gapRatio)
+    readonly property real gap: dt.dotSize * dt.gapRatio
+
     // просвет между знаками; по умолчанию — один пустой столбец сетки
     property real charGap: dt.dotSize + dt.gap
 
