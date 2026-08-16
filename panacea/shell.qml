@@ -3143,12 +3143,19 @@ PanelWindow {
             }
         }
     }
+    // Присваивание running = true работающему процессу не делает ничего:
+    // опрос молча пропускается, и состояние застывает до следующего раза.
+    // Перезапускаем явно.
+    function refreshWifiStatus() {
+        pWifiStatus.running = false;
+        pWifiStatus.running = true;
+    }
     // Свёрнутый остров показывает только значок сети: там хватает редкого
     // опроса. Частый нужен, когда открыт список сетей.
     Timer {
         interval: root.expanded ? 4000 : 15000
         running: true; repeat: true
-        onTriggered: pWifiStatus.running = true
+        onTriggered: root.refreshWifiStatus()
     }
 
     Process {
@@ -3183,10 +3190,16 @@ PanelWindow {
             root.wifiBusy = false;
             if (exitCode !== 0) root.wifiError = "Не удалось подключиться";
             else { root.wifiError = ""; root.page = "main"; }
-            pWifiStatus.running = true;
+            root.refreshWifiStatus();
+            // iwctl возвращается раньше, чем соединение поднялось: сразу после
+            // него `iw dev link` ещё пуст, и панель показывала подключённую
+            // сеть без имени. Спрашиваем ещё раз, когда связь устоялась.
+            wifiSettleTimer.restart();
             root.refreshWifiList();
         }
     }
+
+    Timer { id: wifiSettleTimer; interval: 2500; onTriggered: root.refreshWifiStatus() }
 
     function toggleWifi() { pWifiToggle.running = true; }
     function refreshWifiList() {
