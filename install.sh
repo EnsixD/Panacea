@@ -22,6 +22,21 @@ SRC="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}"
 
+# sudo, который никогда не тратит попытки ввода пароля впустую.
+#
+# Установщик запускают двумя способами: руками из терминала и обновлением
+# из панели. Во втором случае терминала нет вовсе, и sudo, пытаясь спросить
+# пароль, читает пустоту, считает её неверным паролем и отвечает «Sorry,
+# try again». Три таких подряд — и sudo блокирует пользователя на несколько
+# минут по всей системе, хотя человек ничего не вводил.
+#
+# Поэтому: есть терминал — спрашиваем как обычно; нет — работаем только
+# там, где права и так есть (-n), а иначе тихо отступаем. Пропущенный шаг
+# честнее заблокированного sudo: его можно доделать, запустив установщик
+# руками, а разблокировать приходится ожиданием.
+if [ -t 0 ]; then SUDO="sudo"; else SUDO="sudo -n"; fi
+
+
 DO_DEPS=1
 # Только назвать, чего не хватает, и выйти — ничего не ставя и не копируя.
 # Этим пользуется update.sh: список зависимостей должен жить в одном месте,
@@ -253,21 +268,21 @@ install_drivers() {
     ask "Install these?" || { ok "drivers skipped"; return; }
 
     local uniq; mapfile -t uniq < <(printf '%s\n' "${DRIVERS[@]}" | sort -u)
-    sudo pacman -S --needed "${uniq[@]}" || { warn "driver install failed"; return; }
+    $SUDO pacman -S --needed "${uniq[@]}" || { warn "driver install failed"; return; }
     ok "drivers in place"
 
     # Nvidia на Wayland без этого либо не стартует, либо идёт рывками. Пишем
     # в отдельный файл, а не в конфиг Hyprland: он принадлежит машине, а не
     # дотфайлам, и переустановка их не затрёт.
     if printf '%s' "${uniq[*]}" | grep -q nvidia; then
-        printf 'options nvidia_drm modeset=1\n' | sudo tee /etc/modprobe.d/nvidia-panacea.conf >/dev/null
+        printf 'options nvidia_drm modeset=1\n' | $SUDO tee /etc/modprobe.d/nvidia-panacea.conf >/dev/null
 
         # Собрать модуль и переложить его в initramfs. pacman этого не делает
         # сам: свежепоставленный dkms-пакет собирается хуком, но если хук не
         # отработал (или заголовки приехали позже), модуля не будет, и карта
         # останется на nouveau без единой ошибки при установке.
-        sudo dkms autoinstall >/dev/null 2>&1
-        sudo mkinitcpio -P >/dev/null 2>&1
+        $SUDO dkms autoinstall >/dev/null 2>&1
+        $SUDO mkinitcpio -P >/dev/null 2>&1
         if lsmod | grep -q '^nvidia' || modinfo nvidia >/dev/null 2>&1; then
             ok "Nvidia module built — reboot to load it"
         else
@@ -309,7 +324,7 @@ aur_helper() {
 install_aur_helper() {
     ask "quickshell и ещё пара пакетов живут в AUR, а помощника в системе нет. Собрать yay?" || return 1
 
-    sudo pacman -S --needed --noconfirm base-devel git >/dev/null 2>&1 || {
+    $SUDO pacman -S --needed --noconfirm base-devel git >/dev/null 2>&1 || {
         warn "could not install base-devel and git — yay needs both"; return 1; }
 
     local tmp; tmp="$(mktemp -d)" || return 1
@@ -364,7 +379,7 @@ install_deps() {
     done
     if [ ${#repo[@]} -gt 0 ]; then
         printf '  installing from the repos: %s\n' "${repo[*]}"
-        sudo pacman -S --needed "${repo[@]}" || return 1
+        $SUDO pacman -S --needed "${repo[@]}" || return 1
     fi
     if [ ${#aur[@]} -gt 0 ]; then
         local h; h=$(aur_helper)
@@ -607,7 +622,7 @@ enable_services() {
     # upower feeds the charge indicator in the pill and the battery page.
     for svc in bluetooth power-profiles-daemon iwd upower; do
         if systemctl list-unit-files "$svc.service" >/dev/null 2>&1; then
-            sudo systemctl enable --now "$svc.service" >/dev/null 2>&1 \
+            $SUDO systemctl enable --now "$svc.service" >/dev/null 2>&1 \
                 && ok "$svc enabled" || warn "could not enable $svc"
         fi
     done
@@ -650,17 +665,17 @@ install_sddm() {
     [ -d "$SRC/sddm/panacea" ] || { warn "no SDDM theme here — skipping"; return; }
     command -v sddm >/dev/null 2>&1 || { warn "SDDM not installed — skipping login theme"; return; }
     local themes=/usr/share/sddm/themes
-    sudo rm -rf "$themes/panacea" && sudo cp -r "$SRC/sddm/panacea" "$themes/" || { warn "SDDM theme copy failed"; return; }
-    sudo mkdir -p /etc/sddm.conf.d
-    printf '[Theme]\nCurrent=panacea\n' | sudo tee /etc/sddm.conf.d/10-panacea.conf >/dev/null
+    $SUDO rm -rf "$themes/panacea" && $SUDO cp -r "$SRC/sddm/panacea" "$themes/" || { warn "SDDM theme copy failed"; return; }
+    $SUDO mkdir -p /etc/sddm.conf.d
+    printf '[Theme]\nCurrent=panacea\n' | $SUDO tee /etc/sddm.conf.d/10-panacea.conf >/dev/null
 
     # Мостик к экрану входа: greeter работает от пользователя sddm и в
     # закрытый ~/ заглянуть не может. Каталог отдаём во владение
     # пользователю — switch_theme.sh кладёт туда размытые обои, palette.sh
     # акцент палитры, пилюля дописывает выбранный язык, а sddm только читает.
-    sudo mkdir -p /var/lib/panacea
-    sudo chown "$(id -un):$(id -gn)" /var/lib/panacea
-    sudo chmod 755 /var/lib/panacea
+    $SUDO mkdir -p /var/lib/panacea
+    $SUDO chown "$(id -un):$(id -gn)" /var/lib/panacea
+    $SUDO chmod 755 /var/lib/panacea
 
     # Раскладки экрану входа — те же, что у оболочки.
     #
@@ -676,7 +691,7 @@ install_sddm() {
         kbl="$(sed -n 's/.*kb_layout *= *"\([^"]*\)".*/\1/p' "$SRC/hypr/lua/input.lua" | head -1)"
         kbo="$(sed -n 's/.*kb_options *= *"\([^"]*\)".*/\1/p' "$SRC/hypr/lua/input.lua" | head -1)"
         if [ -n "$kbl" ]; then
-            sudo localectl set-x11-keymap "$kbl" "" "" "$kbo" 2>/dev/null \
+            $SUDO localectl set-x11-keymap "$kbl" "" "" "$kbo" 2>/dev/null \
                 && ok "login screen keyboard: $kbl${kbo:+ ($kbo)}" \
                 || warn "could not set the login screen keyboard layout"
         fi
@@ -699,15 +714,15 @@ install_grub() {
         warn "grub-mkconfig not found — skipping the boot theme"; return; }
 
     local dst=/boot/grub/themes/panacea
-    sudo mkdir -p /boot/grub/themes || { warn "cannot write to /boot/grub — skipping"; return; }
-    sudo rm -rf "$dst" && sudo cp -r "$src" "$dst" \
+    $SUDO mkdir -p /boot/grub/themes || { warn "cannot write to /boot/grub — skipping"; return; }
+    $SUDO rm -rf "$dst" && $SUDO cp -r "$src" "$dst" \
         || { warn "boot theme copy failed"; return; }
 
     # Прописываем тему и режим меню в /etc/default/grub, если их там ещё нет.
     # Существующие строки правим на месте, чтобы не плодить дубликаты.
     local def=/etc/default/grub
     if [ -f "$def" ]; then
-        sudo cp "$def" "$def.bak-$STAMP"
+        $SUDO cp "$def" "$def.bak-$STAMP"
         set_grub_key "$def" GRUB_THEME "\"$dst/theme.txt\""
         set_grub_key "$def" GRUB_TIMEOUT_STYLE "menu"
         # 1920x1080 с запасным auto: без явного режима GRUB иногда встаёт в
@@ -728,9 +743,9 @@ install_grub() {
 
     local out=/boot/grub/grub.cfg
     if command -v grub-mkconfig >/dev/null 2>&1; then
-        sudo grub-mkconfig -o "$out" >/dev/null 2>&1 && ok "boot theme installed → $dst"
+        $SUDO grub-mkconfig -o "$out" >/dev/null 2>&1 && ok "boot theme installed → $dst"
     else
-        sudo grub2-mkconfig -o "$out" >/dev/null 2>&1 && ok "boot theme installed → $dst"
+        $SUDO grub2-mkconfig -o "$out" >/dev/null 2>&1 && ok "boot theme installed → $dst"
     fi
 
     check_grub_prefix
@@ -757,14 +772,14 @@ check_grub_prefix() {
     local efi prefix
     for efi in /boot/EFI/*/grubx64.efi /boot/efi/EFI/*/grubx64.efi; do
         [ -f "$efi" ] || continue
-        prefix="$(sudo strings "$efi" 2>/dev/null | grep -m1 -E '^\([^)]*\)/')" || true
+        prefix="$($SUDO strings "$efi" 2>/dev/null | grep -m1 -E '^\([^)]*\)/')" || true
         [ -n "$prefix" ] || continue
         case "$prefix" in
             */boot/grub)
                 warn "GRUB читает конфиг не оттуда, куда мы пишем"
                 printf '        %s → prefix %s\n' "$efi" "$prefix"
                 printf '        тема и меню не применятся, пока это не исправлено:\n'
-                printf '        sudo grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB\n'
+                printf '        $SUDO grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB\n'
                 ;;
         esac
     done
@@ -773,10 +788,10 @@ check_grub_prefix() {
 # set_grub_key <файл> <ключ> <значение>
 set_grub_key() {
     local f="$1" k="$2" v="$3"
-    if sudo grep -qE "^[[:space:]]*$k=" "$f"; then
-        sudo sed -i "s|^[[:space:]]*$k=.*|$k=$v|" "$f"
+    if $SUDO grep -qE "^[[:space:]]*$k=" "$f"; then
+        $SUDO sed -i "s|^[[:space:]]*$k=.*|$k=$v|" "$f"
     else
-        printf '%s=%s\n' "$k" "$v" | sudo tee -a "$f" >/dev/null
+        printf '%s=%s\n' "$k" "$v" | $SUDO tee -a "$f" >/dev/null
     fi
 }
 
@@ -968,17 +983,17 @@ setup_ddc() {
     command -v ddcutil >/dev/null 2>&1 || { warn "ddcutil missing — no brightness control for the monitor"; return; }
 
     if ! lsmod 2>/dev/null | grep -q '^i2c_dev'; then
-        sudo modprobe i2c-dev 2>/dev/null \
+        $SUDO modprobe i2c-dev 2>/dev/null \
             && ok "i2c-dev loaded" \
             || warn "could not load i2c-dev — brightness over DDC/CI stays unavailable"
     fi
     # чтобы модуль был и после перезагрузки
     if [ ! -f /etc/modules-load.d/i2c-dev.conf ]; then
-        echo i2c-dev | sudo tee /etc/modules-load.d/i2c-dev.conf >/dev/null 2>&1 \
+        echo i2c-dev | $SUDO tee /etc/modules-load.d/i2c-dev.conf >/dev/null 2>&1 \
             && ok "i2c-dev enabled at boot"
     fi
     if getent group i2c >/dev/null 2>&1 && ! id -nG "$USER" | grep -qw i2c; then
-        sudo usermod -aG i2c "$USER" 2>/dev/null \
+        $SUDO usermod -aG i2c "$USER" 2>/dev/null \
             && warn "added you to the i2c group — takes effect at next login"
     fi
 
@@ -1008,16 +1023,16 @@ setup_time_format() {
 
     if ! locale -a 2>/dev/null | grep -qiE "^en_GB\.?utf-?8$"; then
         if [ -f /etc/locale.gen ]; then
-            sudo sed -i "s/^#\s*${loc} UTF-8/${loc} UTF-8/" /etc/locale.gen 2>/dev/null
+            $SUDO sed -i "s/^#\s*${loc} UTF-8/${loc} UTF-8/" /etc/locale.gen 2>/dev/null
             grep -q "^${loc} UTF-8" /etc/locale.gen 2>/dev/null \
-                || echo "${loc} UTF-8" | sudo tee -a /etc/locale.gen >/dev/null 2>&1
-            sudo locale-gen >/dev/null 2>&1
+                || echo "${loc} UTF-8" | $SUDO tee -a /etc/locale.gen >/dev/null 2>&1
+            $SUDO locale-gen >/dev/null 2>&1
         fi
     fi
 
     if locale -a 2>/dev/null | grep -qiE "^en_GB\.?utf-?8$"; then
         if ! grep -q "^LC_TIME=" /etc/locale.conf 2>/dev/null; then
-            echo "LC_TIME=${loc}" | sudo tee -a /etc/locale.conf >/dev/null 2>&1
+            echo "LC_TIME=${loc}" | $SUDO tee -a /etc/locale.conf >/dev/null 2>&1
         fi
         ok "clocks in 24-hour format (LC_TIME=${loc})"
     else
@@ -1147,7 +1162,7 @@ if [ "$(getent passwd "$USER" | cut -d: -f7)" = "$(command -v fish)" ]; then
 elif ! command -v fish >/dev/null 2>&1; then
     warn "fish is missing — the shell config and aliases stay unused"
 elif ask "Make fish your login shell? (that is where the aliases and the prompt live)"; then
-    sudo chsh -s "$(command -v fish)" "$USER" 2>/dev/null \
+    $SUDO chsh -s "$(command -v fish)" "$USER" 2>/dev/null \
         && ok "login shell → fish (takes effect at next login)" \
         || warn "could not change the login shell — run: chsh -s $(command -v fish)"
 else
