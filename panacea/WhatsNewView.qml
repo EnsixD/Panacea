@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "assets: a new logo":
+            "Новый логотип: диафрагма из пяти лепестков вместо горизонтальной капсулы",
         "wifi: read the network name from whatever is available":
             "Wi-Fi: имя сети берётся у iw, iwd или NetworkManager — что есть, и сразу после подключения",
         "wifi: disconnect and forget a network from its own page":

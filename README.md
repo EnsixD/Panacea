@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo-wide.png" alt="Panacea Shell" width="300">
+<img src="assets/logo-256.png" alt="Panacea Shell" width="160">
 
 # Panacea Shell
 
