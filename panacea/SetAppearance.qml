@@ -161,7 +161,7 @@ ColumnLayout {
 
         Text {
             Layout.fillWidth: true
-            text: page.sys.tr("1.00 — сплошной фон. Уже открытые окна останутся как были: терминал читает настройки при запуске.")
+            text: page.sys.tr("1.00 — сплошной фон. Терминал запускается сервером и читает свои настройки один раз при входе в систему: если ползунок ни на что не влияет, перезапустите сервер — pkill foot — или перезайдите.")
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
