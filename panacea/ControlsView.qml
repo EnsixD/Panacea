@@ -381,6 +381,7 @@ Item {
     // а не двумя полосами друг под другом. Иконка меньше, подпись в две
     // строки, шеврон убран — на треть ширины он только съедал место.
     component MiniTile: Rectangle {
+        id: tile
         property string icon: ""
         property string label: ""
         property string sub: ""
@@ -392,14 +393,31 @@ Item {
         signal iconClicked()
         signal bodyClicked()
 
+        // На теме Nothing включённая плитка наливается акцентом целиком, а
+        // не подсвечивается им на одну шестую. Там нет цвета, которым можно
+        // «намекнуть»: разница между включённым и выключенным держится
+        // только на яркости, и полупрозрачная подсветка белым по чёрному
+        // читается как «плитка чуть светлее», а не как «работает».
+        //
+        // Кружок значка при этом становится чёрным — выворачивается вместе
+        // с плиткой, иначе белое на белом сливается в пятно.
+        readonly property bool solid: view.sys.themeNothing && tile.on
+        // цвет подписей: на залитой плитке они тёмные
+        readonly property color ink: tile.solid ? view.sys.fgOn(tile.accent)
+                                                : view.sys.colFg
+
         // implicitWidth обязателен: содержимое прижато якорями, поэтому своей
         // ширины у плитки нет, и RowLayout отдавал всю строку соседу — три
         // карточки схлопывались друг на друга в точке 0,0.
         implicitWidth: 140
         implicitHeight: 56
         radius: 14
-        color: on ? Qt.rgba(accent.r, accent.g, accent.b, 0.16) : Qt.rgba(1, 1, 1, 0.05)
-        border.color: on ? Qt.rgba(accent.r, accent.g, accent.b, 0.35) : view.sys.colLine
+        color: solid ? accent
+             : on ? Qt.rgba(accent.r, accent.g, accent.b, 0.16)
+                  : Qt.rgba(1, 1, 1, 0.05)
+        border.color: solid ? accent
+                    : on ? Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                         : view.sys.colLine
         border.width: 1
         Behavior on color { ColorAnimation { duration: 180 } }
         Behavior on border.color { ColorAnimation { duration: 180 } }
@@ -426,21 +444,22 @@ Item {
                 Layout.preferredWidth: 38
                 Layout.preferredHeight: 38
                 radius: 19
-                color: miniIcon.parent.parent.on ? miniIcon.parent.parent.accent
-                                                 : Qt.rgba(1, 1, 1, 0.10)
+                color: tile.solid ? view.sys.colBg
+                     : tile.on ? tile.accent
+                               : Qt.rgba(1, 1, 1, 0.10)
                 Behavior on color { ColorAnimation { duration: 180 } }
                 scale: miniIconMa.pressed ? 0.9 : (miniIconMa.containsMouse ? 1.07 : 1.0)
                 Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutBack } }
 
                 Text {
                     anchors.centerIn: parent
-                    text: miniIcon.parent.parent.icon
-                    // Включённая плитка наливает кружок акцентом, и значок
-                    // оказывается прямо на нём. Белый по белому не виден
-                    // вовсе — на теме Nothing акцент как раз белый.
-                    color: miniIcon.parent.parent.on
-                           ? view.sys.fgOn(miniIcon.parent.parent.accent)
-                           : "#ffffff"
+                    text: tile.icon
+                    // Значок лежит прямо на кружке, и цвет берётся от него:
+                    // на акцентном кружке белый по белому не виден вовсе, а
+                    // на вывернутом чёрном — наоборот, только белый и виден.
+                    color: tile.solid ? "#ffffff"
+                         : tile.on ? view.sys.fgOn(tile.accent)
+                                   : "#ffffff"
                     font { family: view.sys.fontFam; pixelSize: 17 }
                 }
                 MouseArea {
@@ -457,16 +476,21 @@ Item {
                 spacing: 0
                 Text {
                     Layout.fillWidth: true
-                    text: miniIcon.parent.parent.label
-                    color: view.sys.colFg
+                    text: tile.label
+                    color: tile.ink
                     elide: Text.ElideRight
                     font { family: view.sys.fontFam; pixelSize: 12; bold: true }
                 }
                 Text {
                     Layout.fillWidth: true
                     visible: text.length > 0
-                    text: miniIcon.parent.parent.sub
-                    color: view.sys.colMuted
+                    text: tile.sub
+                    // На залитой плитке приглушаем не общим colMuted — тот
+                    // построен от цвета текста темы, то есть от белого, и на
+                    // белом фоне выцветает в ничто.
+                    color: tile.solid
+                           ? Qt.rgba(tile.ink.r, tile.ink.g, tile.ink.b, 0.6)
+                           : view.sys.colMuted
                     elide: Text.ElideRight
                     font { family: view.sys.fontFam; pixelSize: 10 }
                 }
