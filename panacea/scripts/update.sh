@@ -101,13 +101,22 @@ cmd_check() {
 }
 
 stash_user_state() {
-    STASH="$(mktemp -d)"
+    # Стэш рядом с конфигом, а не в /tmp: тот почти везде tmpfs, то есть
+    # оперативная память. У того, кто скачал набор обоев, в hypr/wallpaper
+    # лежат сотни мегабайт — они уезжали в память целиком, и на машине без
+    # запаса это уходило в подкачку. Каталоги переносим: внутри одного
+    # раздела это переименование и не зависит от объёма.
+    STASH="$CONF/.panacea-update-stash"
+    rm -rf "$STASH"; mkdir -p "$STASH"
     local f
     for f in "${KEEP[@]}"; do
         [ -f "$f" ] && { mkdir -p "$STASH/$(dirname "${f#$HOME/}")"; cp "$f" "$STASH/${f#$HOME/}"; }
     done
     for f in "${KEEP_DIRS[@]}"; do
-        [ -d "$f" ] && { mkdir -p "$STASH/$(dirname "${f#$HOME/}")"; cp -r "$f" "$STASH/${f#$HOME/}"; }
+        [ -d "$f" ] || continue
+        mkdir -p "$STASH/$(dirname "${f#$HOME/}")"
+        mv "$f" "$STASH/${f#$HOME/}" 2>/dev/null \
+            || cp -r "$f" "$STASH/${f#$HOME/}"
     done
 }
 
@@ -124,11 +133,17 @@ restore_user_state() {
     # пустой каталог с тем же именем, и `cp -r dir dst` положил бы наши файлы
     # внутрь него вторым уровнем — обои человека уезжали в wallpaper/wallpaper.
     # Файлы из свежей установки при этом остаются: своё кладём поверх.
+    local item base
     for f in "${KEEP_DIRS[@]}"; do
-        if [ -d "$STASH/${f#$HOME/}" ]; then
-            mkdir -p "$f"
-            cp -r "$STASH/${f#$HOME/}/." "$f/"
-        fi
+        [ -d "$STASH/${f#$HOME/}" ] || continue
+        mkdir -p "$f"
+        # По одному и переносом: набор обоев так возвращается мгновенно.
+        for item in "$STASH/${f#$HOME/}"/* "$STASH/${f#$HOME/}"/.[!.]*; do
+            [ -e "$item" ] || continue
+            base="$(basename "$item")"
+            rm -rf "$f/$base"
+            mv "$item" "$f/$base" 2>/dev/null || cp -r "$item" "$f/$base"
+        done
     done
     rm -rf "$STASH"
 }

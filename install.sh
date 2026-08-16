@@ -413,8 +413,24 @@ KEEP_DIRS=(
 )
 KEEP_STASH=""
 
+# Стэш кладём рядом с конфигом, а не в /tmp, и каталоги переносим, а не
+# копируем.
+#
+# /tmp почти везде tmpfs, то есть оперативная память. У того, кто скачал
+# набор обоев, в hypr/wallpaper лежат сотни мегабайт: они уезжали в память
+# целиком, да ещё дважды — свой стэш делает и update.sh. На машине, где
+# памяти не с запасом, это уходило в подкачку, и обновление вставало на
+# ровном месте на минуты.
+#
+# Внутри одного раздела перенос — это переименование: он не зависит от
+# объёма вовсе. На четырёхстах мегабайтах замерено 164 мс против 1 мс.
+#
+# Файлы (их единицы килобайт) по-прежнему копируются: перенос вернул бы их
+# на место только при удачном исходе, а настройки должны пережить и сбой.
 keep_stash() {
-    KEEP_STASH="$(mktemp -d)" || { KEEP_STASH=""; return 0; }
+    KEEP_STASH="$CONF/.panacea-stash-$$"
+    rm -rf "$KEEP_STASH"
+    mkdir -p "$KEEP_STASH" || { KEEP_STASH=""; return 0; }
     local f
     for f in "${KEEP_FILES[@]}"; do
         [ -f "$CONF/$f" ] || continue
@@ -424,8 +440,13 @@ keep_stash() {
     for f in "${KEEP_DIRS[@]}"; do
         [ -d "$CONF/$f" ] || continue
         mkdir -p "$KEEP_STASH/$(dirname "$f")"
-        cp -r "$CONF/$f" "$KEEP_STASH/$f"
+        mv "$CONF/$f" "$KEEP_STASH/$f" 2>/dev/null \
+            || cp -r "$CONF/$f" "$KEEP_STASH/$f"
     done
+    # Оборвётся установка — унесённое вернём на место: без этого обои
+    # остались бы лежать в скрытом каталоге, а человек решил бы, что их
+    # стёрли.
+    trap 'keep_restore' EXIT INT TERM
 }
 
 keep_restore() {
@@ -439,12 +460,34 @@ keep_restore() {
     # Каталоги вливаем в свежий, а не заменяем им: в repo-версии лежат свои
     # файлы (логотипы, обои по умолчанию), и `cp -r dir dst` на существующем
     # каталоге положил бы наши внутрь него вложенной копией.
+    #
+    # Содержимое переносим по одному: в пределах раздела это переименование,
+    # и набор обоев на сотни мегабайт возвращается мгновенно. Совпавшие
+    # имена перекрываются пользовательскими — так было и раньше.
+    #
+    # Если перенос не удался (стэш вдруг на другом разделе), падаем на
+    # копирование и говорим об этом: на большом наборе обоев оно занимает
+    # ощутимое время, и молчащий установщик выглядит зависшим.
+    local item base moved_all
     for f in "${KEEP_DIRS[@]}"; do
         [ -d "$KEEP_STASH/$f" ] || continue
         mkdir -p "$CONF/$f"
-        cp -r "$KEEP_STASH/$f/." "$CONF/$f/" && restored=1
+        moved_all=1
+        for item in "$KEEP_STASH/$f"/* "$KEEP_STASH/$f"/.[!.]*; do
+            [ -e "$item" ] || continue
+            base="$(basename "$item")"
+            rm -rf "$CONF/$f/$base"
+            mv "$item" "$CONF/$f/$base" 2>/dev/null || moved_all=0
+        done
+        if [ "$moved_all" = "0" ]; then
+            printf '  copying %s back (%s) — this can take a while\n' \
+                "$f" "$(du -sh "$KEEP_STASH/$f" 2>/dev/null | cut -f1)"
+            cp -r "$KEEP_STASH/$f/." "$CONF/$f/"
+        fi
+        restored=1
     done
     rm -rf "$KEEP_STASH"; KEEP_STASH=""
+    trap - EXIT INT TERM
     [ "$restored" = "1" ] && ok "your settings, shortcuts and wallpapers kept"
     return 0
 }
