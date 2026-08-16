@@ -303,6 +303,28 @@ cmd_apply() {
         exit 1
     fi
 
+    # Тема экрана входа живёт в /usr/share, и обновление её не трогало: она
+    # ставится с sudo, а спросить пароль обновлению негде — оно идёт из
+    # панели, без терминала. Выходило, что тема замирала на той версии, с
+    # которой её поставили однажды, и все правки экрана входа до человека
+    # просто не доезжали.
+    #
+    # Обновляем через pkexec: агент polkit у оболочки есть, и он покажет
+    # обычное окно запроса пароля. Отказались или агента нет — пропускаем
+    # молча, обновление из-за этого падать не должно.
+    if [ -d /usr/share/sddm/themes/panacea ] \
+       && [ -d "$tmp/src/sddm/panacea" ] \
+       && ! diff -rq /usr/share/sddm/themes/panacea "$tmp/src/sddm/panacea" >/dev/null 2>&1
+    then
+        echo "step=greeter"
+        if command -v pkexec >/dev/null 2>&1; then
+            pkexec sh -c '
+                rm -rf /usr/share/sddm/themes/panacea &&
+                cp -r "$1" /usr/share/sddm/themes/panacea
+            ' _ "$tmp/src/sddm/panacea" >/dev/null 2>&1 || true
+        fi
+    fi
+
     echo "step=restore"
     restore_user_state
 

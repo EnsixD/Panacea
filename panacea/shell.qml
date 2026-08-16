@@ -778,6 +778,7 @@ PanelWindow {
         { id: "selfupdate", w: 2  },
         { id: "backup",     w: 3  },
         { id: "install",    w: 12 },
+        { id: "greeter",    w: 2  },
         { id: "restore",    w: 3  },
         { id: "restart",    w: 2  },
         { id: "done",       w: 0  }
