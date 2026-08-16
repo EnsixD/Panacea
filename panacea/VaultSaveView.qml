@@ -208,12 +208,12 @@ FocusScope {
                 radius: 11
                 enabled: view.sys.vaultUnlocked
                 opacity: view.sys.vaultUnlocked ? 1 : 0.4
-                color: yesMa.containsMouse ? Qt.rgba(0.13, 0.77, 0.37, 0.30)
-                                           : Qt.rgba(0.13, 0.77, 0.37, 0.17)
+                color: yesMa.containsMouse ? Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.30)
+                                           : Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.17)
                 Text {
                     anchors.centerIn: parent
                     text: view.sys.tr("Сохранить")
-                    color: "#22c55e"
+                    color: view.sys.colOk
                     font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
                 }
                 MouseArea {

@@ -241,7 +241,7 @@ Item {
         radius: 13
         z: ibMa.containsMouse ? 10 : 0
         color: ibMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.05)
-        border.color: active ? Qt.rgba(0.13, 0.77, 0.37, 0.5) : view.sys.colLine
+        border.color: active ? Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.5) : view.sys.colLine
         border.width: 1
         Behavior on color { ColorAnimation { duration: 160 } }
         Behavior on border.color { ColorAnimation { duration: 160 } }
@@ -1843,7 +1843,7 @@ Item {
                 glyph: String.fromCodePoint(view.sys.vaultUnlocked ? 0xF0FC6 : 0xF033E)
                 tip: view.sys.tr("Пароли")
                 active: view.sys.vaultUnlocked
-                activeColor: "#22c55e"
+                activeColor: view.sys.colOk
                 onAct: view.sys.togglePage("vault")
             }
 

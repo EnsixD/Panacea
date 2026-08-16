@@ -118,7 +118,7 @@ Item {
     // Цвет по нагрузке, а не по названию лимита: важно, сколько осталось.
     function barColor(pct, severity) {
         if (String(severity) === "critical" || pct >= 90) return view.sys.colCrit;
-        if (pct >= 70) return "#fbbf24";
+        if (pct >= 70) return view.sys.colWarn;
         return view.sys.colOn;
     }
 

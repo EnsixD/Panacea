@@ -691,13 +691,13 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: parent.parent.glyph
-                color: parent.parent.danger ? "#ef4444" : view.sys.colMuted
+                color: parent.parent.danger ? view.sys.colCrit : view.sys.colMuted
                 font { family: view.sys.fontFam; pixelSize: 14 }
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: parent.parent.label
-                color: parent.parent.danger ? "#ef4444" : view.sys.colFg
+                color: parent.parent.danger ? view.sys.colCrit : view.sys.colFg
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
             }
         }

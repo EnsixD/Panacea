@@ -88,12 +88,12 @@ FocusScope {
                 Layout.preferredWidth: 40
                 Layout.preferredHeight: 40
                 radius: 12
-                color: view.sys.vaultUnlocked ? Qt.rgba(0.13, 0.77, 0.37, 0.16)
+                color: view.sys.vaultUnlocked ? Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.16)
                                               : Qt.rgba(1, 1, 1, 0.08)
                 Glyph {
                     anchors.fill: parent
                     glyph: String.fromCodePoint(view.sys.vaultUnlocked ? 0xF0FC6 : 0xF033E)
-                    color: view.sys.vaultUnlocked ? "#22c55e" : view.sys.colMuted
+                    color: view.sys.vaultUnlocked ? view.sys.colOk : view.sys.colMuted
                     fontFam: view.sys.fontFam
                     size: view.sys.iconSize + 2
                 }
@@ -339,13 +339,13 @@ FocusScope {
                     Layout.preferredWidth: allTxt.implicitWidth + 20
                     Layout.preferredHeight: 26
                     radius: 9
-                    color: allMa.containsMouse ? Qt.rgba(0.13, 0.77, 0.37, 0.28)
-                                               : Qt.rgba(0.13, 0.77, 0.37, 0.16)
+                    color: allMa.containsMouse ? Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.28)
+                                               : Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.16)
                     Text {
                         id: allTxt
                         anchors.centerIn: parent
                         text: view.sys.tr("Добавить все")
-                        color: "#22c55e"
+                        color: view.sys.colOk
                         font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
                     }
                     MouseArea {
@@ -428,12 +428,12 @@ FocusScope {
                             Layout.preferredWidth: 30
                             Layout.preferredHeight: 30
                             radius: 10
-                            color: impMa.containsMouse ? Qt.rgba(0.13, 0.77, 0.37, 0.28)
+                            color: impMa.containsMouse ? Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.28)
                                                        : Qt.rgba(1, 1, 1, 0.07)
                             Glyph {
                                 anchors.fill: parent
                                 glyph: String.fromCodePoint(0xF0415)   // плюс
-                                color: impMa.containsMouse ? "#22c55e" : view.sys.colFg
+                                color: impMa.containsMouse ? view.sys.colOk : view.sys.colFg
                                 fontFam: view.sys.fontFam
                                 size: view.sys.iconSize - 4
                             }
@@ -618,12 +618,12 @@ FocusScope {
                             Layout.preferredWidth: 60
                             Layout.preferredHeight: 32
                             radius: 10
-                            color: okMa.containsMouse ? Qt.rgba(0.13, 0.77, 0.37, 0.28)
-                                                      : Qt.rgba(0.13, 0.77, 0.37, 0.16)
+                            color: okMa.containsMouse ? Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.28)
+                                                      : Qt.rgba(view.sys.colOk.r, view.sys.colOk.g, view.sys.colOk.b, 0.16)
                             Text {
                                 anchors.centerIn: parent
                                 text: view.sys.tr("ОК")
-                                color: "#22c55e"
+                                color: view.sys.colOk
                                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
                             }
                             MouseArea {

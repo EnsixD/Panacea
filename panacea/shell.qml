@@ -950,6 +950,18 @@ PanelWindow {
     readonly property color colOn:     themeCustom ? cfg.colOn : theme.on
     readonly property color colOk:     theme.ok
     readonly property color colCrit:   theme.crit
+
+    // Цвета состояний, которых в палитре темы нет. На теме Nothing цветного
+    // выделения не бывает вовсе: смысл там несёт яркость, а не оттенок, и
+    // одинокое зелёное или синее пятно среди чёрно-белого выглядит чужим.
+    // Красный — единственное исключение, он значит «внимание», а не
+    // украшение, и живёт в палитре как colCrit.
+    //
+    // tint() для тех цветов, под которые заводить строку в палитре не за
+    // чем: они встречаются в одном-двух местах и означают ровно себя.
+    function tint(c) { return root.themeNothing ? root.colFg : c; }
+    // янтарный «на паузе» и «осторожно» — он встречается часто
+    readonly property color colWarn: root.tint("#fbbf24")
     readonly property string fontFam:  cfg.fontFam
     // текстовый шрифт и шрифт заголовков; пустое значение — общий fontFam
     readonly property string fontBody:    cfg.fontBody || cfg.fontFam
@@ -3747,7 +3759,7 @@ PanelWindow {
                     width: parent.width * (root.osdMuted ? 0 : root.osdValue)
                     height: parent.height
                     radius: 3
-                    color: root.osdKind === "bright" ? "#fbbf24" : root.colOn
+                    color: root.osdKind === "bright" ? root.colWarn : root.colOn
                     Behavior on width {
                         NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                     }
@@ -3955,7 +3967,7 @@ PanelWindow {
                     Layout.preferredHeight: 9
                     Layout.alignment: Qt.AlignVCenter
                     radius: 5
-                    color: root.recPaused ? "#fbbf24" : "#ef4444"
+                    color: root.recPaused ? root.colWarn : root.colCrit
                     // на паузе точка горит ровно, при записи — пульсирует
                     SequentialAnimation on opacity {
                         running: root.recActive && !root.recPaused
@@ -3967,7 +3979,7 @@ PanelWindow {
                 }
                 Text {
                     text: root.recTimeText
-                    color: root.recPaused ? "#fbbf24" : "#ef4444"
+                    color: root.recPaused ? root.colWarn : root.colCrit
                     font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
                 }
             }
@@ -3998,7 +4010,7 @@ PanelWindow {
             // текущая раскладка: перелистывается при Alt+Shift
             FlipText {
                 value: root.kbLayout
-                textColor: root.kbLayout === "RU" ? "#7FB3FF" : root.colMuted
+                textColor: root.kbLayout === "RU" ? root.tint("#7FB3FF") : root.colMuted
                 fontFam: root.fontFam
                 pixelSize: root.fontSize - 2
                 Layout.alignment: Qt.AlignVCenter
@@ -4089,7 +4101,7 @@ PanelWindow {
                     Layout.alignment: Qt.AlignVCenter
                     radius: 4
                     visible: root.recActive
-                    color: root.recPaused ? "#fbbf24" : root.colCrit
+                    color: root.recPaused ? root.colWarn : root.colCrit
                     SequentialAnimation on opacity {
                         running: root.recActive && !root.recPaused
                         loops: Animation.Infinite
@@ -4378,7 +4390,7 @@ PanelWindow {
                     Layout.preferredHeight: 8
                     radius: 4
                     visible: root.recActive
-                    color: root.recPaused ? "#fbbf24" : "#ef4444"
+                    color: root.recPaused ? root.colWarn : root.colCrit
                 }
 
                 // Черта отделяет музыку от постоянной части — как в
@@ -4423,7 +4435,7 @@ PanelWindow {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: root.kbLayout
-                    color: root.kbLayout === "RU" ? "#7FB3FF" : root.colMuted
+                    color: root.kbLayout === "RU" ? root.tint("#7FB3FF") : root.colMuted
                     font { family: root.fontFam; pixelSize: root.fontSize - 4; bold: true }
                 }
                 Text {

@@ -86,7 +86,7 @@ Item {
             }
             Text {
                 text: mock.sys ? mock.sys.kbLayout : "US"
-                color: (mock.sys && mock.sys.kbLayout === "RU") ? "#7FB3FF"
+                color: (mock.sys && mock.sys.kbLayout === "RU") ? mock.sys.tint("#7FB3FF")
                      : Qt.rgba(mock.fgCol.r, mock.fgCol.g, mock.fgCol.b, 0.5)
                 font { family: mock.sys ? mock.sys.fontFam : "monospace"
                        pixelSize: mock.fs - 2; bold: true }
@@ -151,7 +151,7 @@ Item {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: mock.sys ? mock.sys.kbLayout : "US"
-                color: (mock.sys && mock.sys.kbLayout === "RU") ? "#7FB3FF"
+                color: (mock.sys && mock.sys.kbLayout === "RU") ? mock.sys.tint("#7FB3FF")
                      : Qt.rgba(mock.fgCol.r, mock.fgCol.g, mock.fgCol.b, 0.5)
                 font { family: mock.sys ? mock.sys.fontFam : "monospace"
                        pixelSize: mock.fs - 3; bold: true }

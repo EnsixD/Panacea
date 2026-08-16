@@ -236,7 +236,7 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
                 radius: 6
                 color: !view.sys.recActive ? view.sys.colMuted
-                     : view.sys.recPaused ? "#fbbf24" : "#ef4444"
+                     : view.sys.recPaused ? view.sys.colWarn : view.sys.colCrit
                 Behavior on color { ColorAnimation { duration: 200 } }
 
                 SequentialAnimation on opacity {
@@ -273,7 +273,7 @@ Item {
             Text {
                 visible: view.sys.recActive
                 text: view.sys.recTimeText
-                color: view.sys.recPaused ? "#fbbf24" : "#ef4444"
+                color: view.sys.recPaused ? view.sys.colWarn : view.sys.colCrit
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 4; bold: true }
             }
         }
@@ -401,7 +401,7 @@ Item {
                 visible: !view.sys.recActive
                 glyph: String.fromCodePoint(0xF044A)   // md-record
                 label: view.sys.tr("Начать запись")
-                tint: "#ef4444"
+                tint: view.sys.colCrit
                 filled: true
                 onPressedAction: view.sys.startRecord()
             }
@@ -411,7 +411,7 @@ Item {
                 glyph: String.fromCodePoint(view.sys.recPaused ? 0xF040A : 0xF03E4)
                 label: view.sys.recPaused ? view.sys.tr("Продолжить")
                                           : view.sys.tr("Пауза")
-                tint: "#fbbf24"
+                tint: view.sys.colWarn
                 filled: view.sys.recPaused
                 onPressedAction: view.sys.pauseRecord()
             }
@@ -420,7 +420,7 @@ Item {
                 visible: view.sys.recActive
                 glyph: String.fromCodePoint(0xF04DB)   // md-stop
                 label: view.sys.tr("Закончить")
-                tint: "#ef4444"
+                tint: view.sys.colCrit
                 filled: true
                 onPressedAction: view.sys.stopRecord()
             }

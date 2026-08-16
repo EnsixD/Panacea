@@ -39,6 +39,10 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "island: actually shrink the wired icon in the collapsed bar":
+            "Значок сети в свёрнутом острове наконец уменьшился: размер задавался мимо раскладки, и та его не замечала",
+        "theme: status colours follow the theme everywhere":
+            "Зелёный замок, янтарная пауза и синяя раскладка больше не прописаны числом: на теме Nothing всё это белое, красный «внимание» остаётся",
         "net: a smaller wired icon again":
             "Значок проводной сети уменьшен ещё: в плитке 13 пикселей, в острове 11",
         "net: back to square branches on the wired icon":
