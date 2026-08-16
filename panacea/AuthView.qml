@@ -44,7 +44,7 @@ Item {
                 Glyph {
                     anchors.fill: parent
                     glyph: String.fromCodePoint(0xF0BC4)      // щит с ключом
-                    color: "#f59e0b"
+                    color: view.sys.colWarn
                     fontFam: view.sys.fontFam
                     size: view.sys.iconSize + 2
                 }

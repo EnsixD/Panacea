@@ -158,7 +158,7 @@ Item {
                             Glyph {
                                 anchors.fill: parent
                                 glyph: modelData.icon
-                                color: body.parent.isArmed ? "#0b0b0b" : modelData.accent
+                                color: body.parent.isArmed ? view.sys.fgOn(modelData.accent) : modelData.accent
                                 fontFam: view.sys.fontFam
                                 size: view.sys.iconSize + 6
                             }

@@ -41,6 +41,12 @@ Item {
     readonly property var dictRu: ({
         "island: actually shrink the wired icon in the collapsed bar":
             "Значок сети в свёрнутом острове наконец уменьшился: размер задавался мимо раскладки, и та его не замечала",
+        "theme: keep the palette table in one shared file":
+            "Таблица тем вынесена в общий файл: её читают два разных процесса, и двух копий цветов быть не должно",
+        "lock: follow the shell theme":
+            "Экран блокировки берёт цвета из выбранной темы, а не из палитры Hyprland: на чёрно-белой теме он больше не встречает терракотовым кружком",
+        "theme: the last colours that ignored the theme":
+            "Последние места, где цвет был прописан числом: щит проверки, режим «Максимум», меню питания и макет острова в настройках",
         "toggles: keep the knob visible on a light track":
             "Кружок тумблера и ручка ползунка громкости перестали пропадать на белой дорожке — включённый тумблер выглядел сплошной белой плашкой",
         "controls: a recorder panel with a button and a timer on the Nothing theme":

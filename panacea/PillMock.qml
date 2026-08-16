@@ -36,7 +36,7 @@ Item {
         height: mock.side ? pill.len : mock.thick
         // Обводки нет: у настоящего острова border.width = 0, а с ней уголки
         // читаются отдельными наклейками.
-        color: "#0a0a0a"
+        color: mock.sys ? mock.sys.colBg : "#0a0a0a"
 
         // углы у прижатой кромки срезаны — как у живого острова
         readonly property real freeR: mock.thick / 2
@@ -177,7 +177,7 @@ Item {
     NotchShape {
         id: notchA
         side: mock.side ? (mock.pos === "left" ? "right" : "left") : "left"
-        fill: "#0a0a0a"
+        fill: mock.sys ? mock.sys.colBg : "#0a0a0a"
         r: mock.cr
         transform: Scale {
             origin.y: mock.cr / 2
@@ -192,7 +192,7 @@ Item {
     NotchShape {
         id: notchB
         side: mock.side ? (mock.pos === "left" ? "right" : "left") : "right"
-        fill: "#0a0a0a"
+        fill: mock.sys ? mock.sys.colBg : "#0a0a0a"
         r: mock.cr
         transform: Scale {
             origin.y: mock.cr / 2

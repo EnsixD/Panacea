@@ -2206,7 +2206,7 @@ Item {
                     icon: "󰓅"
                     label: view.sys.tr("Максимум")
                     profile: "performance"
-                    accent: "#f59e0b"
+                    accent: view.sys.colWarn
                 }
             }
 
