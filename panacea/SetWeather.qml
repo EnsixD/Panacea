@@ -37,22 +37,41 @@ ColumnLayout {
 
         SetLabel { sys: page.sys; text: page.sys.tr("Ключ OpenWeatherMap") }
 
+        // Ключ прячется точками. Он открывает чужой платный счёт, а окно
+        // настроек открывают и при посторонних, и с включённой демонстрацией
+        // экрана — незачем показывать его каждый раз, когда сюда заглянули
+        // поменять город.
+        //
+        // Кнопка-глаз рядом обязательна: вслепую вписанные 32 знака нечем
+        // проверить, а «ключ не подошёл» одинаково выглядит и при опечатке,
+        // и при неактивированном ключе.
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
             radius: 10
             color: Qt.rgba(page.sys.colFg.r, page.sys.colFg.g, page.sys.colFg.b, 0.07)
 
+            property bool shown: false
+
             TextInput {
                 id: keyInput
                 anchors.fill: parent
                 anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                // место под кнопку справа
+                anchors.rightMargin: 38
                 verticalAlignment: Text.AlignVCenter
                 color: page.sys.colFg
                 clip: true
                 selectByMouse: true
                 text: page.sys.cfg.weatherKey
+                echoMode: parent.shown ? TextInput.Normal : TextInput.Password
+                // Точки, а не звёздочки: звёздочка в моноширинном шрифте
+                // сидит выше середины строки, и ряд из них смотрится
+                // надстрочным.
+                passwordCharacter: "•"
+                // Показываем сразу целиком, без пробегающего последнего
+                // знака: ключ вставляют из буфера, а не набирают руками.
+                passwordMaskDelay: 0
                 font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
                 onEditingFinished: {
                     page.sys.cfg.weatherKey = text.trim();
@@ -68,6 +87,26 @@ ColumnLayout {
                     color: page.sys.colMuted
                     elide: Text.ElideRight
                     font: keyInput.font
+                }
+            }
+
+            Text {
+                id: eye
+                anchors.right: parent.right
+                anchors.rightMargin: 11
+                anchors.verticalCenter: parent.verticalCenter
+                text: String.fromCodePoint(parent.shown ? 0xF0209 : 0xF0208)
+                color: eyeMa.containsMouse ? page.sys.colFg : page.sys.colMuted
+                font { family: page.sys.fontFam; pixelSize: page.sys.iconSize - 2 }
+                Behavior on color { ColorAnimation { duration: 140 } }
+
+                MouseArea {
+                    id: eyeMa
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: eye.parent.shown = !eye.parent.shown
                 }
             }
         }
