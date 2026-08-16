@@ -39,6 +39,12 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "hypr: a monochrome window border":
+            "Рамка активного окна больше не уходит в красный: белый с серым вместо синего с красным",
+        "island: content spans the collapsed bar instead of huddling in the middle":
+            "Содержимое свёрнутого острова разошлось по краям: точки столов слева, часы по центру, сеть и звук справа",
+        "island: a smaller clock in the collapsed bar":
+            "Часы в свёрнутом острове стали ещё мельче",
         "island: a longer collapsed bar on Nothing, and corners without a seam":
             "Свёрнутый остров на теме Nothing стал длиннее, а вогнутые уголки по бокам перестали отходить от него серой щёлкой",
         "net: a cable plug for the wired connection, not a network tree":
