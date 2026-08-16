@@ -117,6 +117,8 @@ Item {
             "Быстрые настройки на теме Nothing: звук встал третьим к сети и Bluetooth, часы набраны точками, секунды — мелким числом сбоку",
         "island: workspace dots and a dotted clock on the Nothing theme":
             "Остров на теме Nothing: точки столов вместо номера, часы точками по центру, справа сеть, звук и заряд",
+        "greeter: draw sleep as zZz, like the power menu":
+            "Сон на экране входа обозначен буквами zZz — тем же рисунком, что и в меню питания оболочки",
         "power: launch actions from the shell root so they survive the panel closing":
             "Блокировка из меню питания наконец срабатывает: её процесс убивали вместе с закрывающейся панелью раньше, чем он успевал отделиться",
         "appearance: a button that restarts the terminal server":

@@ -466,7 +466,10 @@ Rectangle {
 
         Repeater {
             model: [
-                { glyph: String.fromCodePoint(0xF0904), tip: root.tr("Сон"),          act: "suspend" },
+                // Сон рисуется буквами, как в меню питания оболочки: у месяца
+                // в Nerd Font нет пары к остальным — он про ночь, а не про
+                // сон, и рядом с перезагрузкой и выключением читался чужим.
+                { glyph: "", sleep: true, tip: root.tr("Сон"),          act: "suspend" },
                 { glyph: String.fromCodePoint(0xF0709), tip: root.tr("Перезагрузка"), act: "reboot"  },
                 { glyph: String.fromCodePoint(0xF0425), tip: root.tr("Выключить"),    act: "power"   }
             ]
@@ -488,8 +491,39 @@ Rectangle {
                 scale: pwrMa.pressed ? 0.92 : 1.0
                 Behavior on scale { NumberAnimation { duration: 130 } }
 
+                // Три «z» треугольником — тот же рисунок, что и в меню
+                // питания оболочки: маленькая сверху по центру, большая ниже
+                // слева, средняя справа.
+                Item {
+                    anchors.centerIn: parent
+                    width: 26; height: 26
+                    visible: modelData.sleep === true
+                    opacity: pwrMa.containsMouse ? 1 : 0.75
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                    Text {
+                        x: 0; y: 9
+                        text: "Z"
+                        color: root.fg
+                        font { family: root.fontFam; pixelSize: 15; bold: true }
+                    }
+                    Text {
+                        x: 11; y: 0
+                        text: "z"
+                        color: root.fg
+                        font { family: root.fontFam; pixelSize: 8; bold: true }
+                    }
+                    Text {
+                        x: 16; y: 5
+                        text: "z"
+                        color: root.fg
+                        font { family: root.fontFam; pixelSize: 11; bold: true }
+                    }
+                }
+
                 Text {
                     anchors.centerIn: parent
+                    visible: modelData.sleep !== true
                     text: modelData.glyph
                     // Значок в полную яркость и без наведения: приглушённым
                     // он сливался с подложкой. Наведение теперь показывает
