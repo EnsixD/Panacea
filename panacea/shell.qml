@@ -1755,8 +1755,11 @@ PanelWindow {
     // не знаком, поэтому буква нужна только там, где её спрашивают явно.
     readonly property string weatherUnitLetter:
         root.cfg.weatherUnits === "imperial" ? "F" : "C"
+    // Единица скорости ветра — она же подпись под числом в кружке, поэтому
+    // переводится здесь, а не остаётся латиницей на русском интерфейсе.
     readonly property string weatherWindUnit:
-        root.cfg.weatherUnits === "imperial" ? "mph" : "m/s"
+        root.cfg.weatherUnits === "imperial" ? (root.isEn ? "mph" : "миль/ч")
+                                             : (root.isEn ? "m/s" : "м/с")
 
     // Значок погоды знаком шрифта — для тем, где точечных значков нет.
     // Разбор кода тот же, что в DotIcon: первые две цифры — сама погода.
@@ -1849,7 +1852,7 @@ PanelWindow {
     // сводка есть. Постоянный процесс раз в две секунды ради чисел, которых
     // никто не видит, — плата ни за что: скрипт будит nvidia-smi, а тот
     // просыпается заметно дольше, чем читается файл.
-    readonly property bool loadWanted: root.themeNothing && root.expanded
+    readonly property bool loadWanted: root.expanded
 
     Process {
         id: pLoad
@@ -4316,11 +4319,15 @@ PanelWindow {
                         size: root.dotHClock
                         color: root.colFg
                     }
-                    DotText {
+                    // Градусы обычным шрифтом. Точки оставлены часам и
+                    // столам — тому, что на этой теме и должно быть набрано
+                    // ими. Знак градуса в точечной сетке выходит квадратным
+                    // кружком из четырёх точек, а он должен быть гладким.
+                    Text {
                         Layout.alignment: Qt.AlignVCenter
-                        value: root.weatherTemp + "°"
-                        size: root.dotHSmall
+                        text: root.weatherTemp + "°"
                         color: root.colFg
+                        font { family: root.fontFam; pixelSize: root.fontSize - 2 }
                     }
                 }
             }
@@ -5060,9 +5067,9 @@ Instantiator {
 // иначе понадобился бы ещё и ImageMagick.
 //
 // ---------------------------------------------------- настольные виджеты
-// Карточки на обоях: дата, погода, часы. Живут при теме Nothing и при
-// включённом тумблере в Appearance — и то и другое проверяется здесь, а не
-// внутри самих карточек: незачем строить слой, чтобы он ничего не показал.
+// Карточки на обоях: дата, погода, часы. Раскладка у них общая для тем, а
+// начертание своё: на Nothing числа точками, на остальных обычным шрифтом.
+// Выбирает его сама карточка — слою достаточно знать, включены ли виджеты.
 //
 // Слой Bottom: над обоями, но под окнами. На Overlay они висели бы поверх
 // всего, включая полноэкранное видео, а это украшение рабочего стола, а не
@@ -5074,7 +5081,7 @@ Instantiator {
 PanelWindow {
     id: widgetsWin
 
-    visible: root.themeNothing && root.cfg.featWidgets
+    visible: root.cfg.featWidgets
     screen: root.screen
     anchors { top: true; left: true }
     implicitWidth:  widgets.implicitWidth + 56

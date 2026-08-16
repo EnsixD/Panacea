@@ -988,6 +988,39 @@ Item {
         LanGlyph { width: 13; height: 13 }
     }
 
+    // Число: точками на Nothing, обычным шрифтом на остальных темах.
+    //
+    // Раскладка панели у тем общая, разное только начертание, — поэтому
+    // выбор спрятан сюда, а не размазан по каждому месту с цифрой. Кегль
+    // шрифта берётся с запасом от высоты точечной цифры: у той высота и есть
+    // весь рост, а у буквы pixelSize считается по всей строке.
+    component Num: Item {
+        id: num
+        property string value: ""
+        property real size: 12
+        property real gapRatio: 0.22
+        property color color: view.sys.colFg
+
+        implicitWidth:  view.sys.themeNothing ? nDots.implicitWidth  : nPlain.implicitWidth
+        implicitHeight: view.sys.themeNothing ? nDots.implicitHeight : nPlain.implicitHeight
+
+        DotText {
+            id: nDots
+            visible: view.sys.themeNothing
+            value: num.value
+            size: num.size
+            gapRatio: num.gapRatio
+            color: num.color
+        }
+        Text {
+            id: nPlain
+            visible: !view.sys.themeNothing
+            text: num.value
+            color: num.color
+            font { family: view.sys.fontFam; pixelSize: Math.round(num.size * 1.35) }
+        }
+    }
+
     // ------------------------------------------------------------ запись
     // Плашка записи для темы Nothing: круглая кнопка, подпись и таймер.
     //
@@ -1073,7 +1106,7 @@ Item {
                 // Отсчёт точками — как остальные числа темы. Пока запись не
                 // идёт, он приглушён: нули в полную яркость читались бы как
                 // «идёт и стоит на нуле».
-                DotText {
+                Num {
                     Layout.alignment: Qt.AlignLeft
                     value: view.sys.recTimeText
                     size: view.sys.dotHSmall + 3
@@ -1146,14 +1179,14 @@ Item {
             Layout.preferredWidth: pctRuler.implicitWidth
             Layout.preferredHeight: pctRuler.implicitHeight
 
-            DotText {
+            Num {
                 id: pctRuler
                 visible: false
                 value: "100%"
                 size: view.sys.dotHTiny
             }
 
-            DotText {
+            Num {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 value: lrow.pct + "%"
@@ -1176,7 +1209,7 @@ Item {
                 fontFam: view.sys.fontFam
                 size: 10
             }
-            DotText {
+            Num {
                 Layout.alignment: Qt.AlignVCenter
                 value: lrow.temp + "°"
                 size: view.sys.dotHTiny
@@ -1418,7 +1451,7 @@ Item {
                 // устройства длиннее слова «Звук» с процентами, и делить
                 // строку поровну значит обрезать именно их.
                 VolCard {
-                    visible: view.sys.themeNothing && view.sys.cfg.featAudio
+                    visible: view.sys.cfg.featAudio
                     Layout.fillWidth: true
                     Layout.preferredWidth: 0.8
                     Layout.preferredHeight: 56
@@ -1437,19 +1470,12 @@ Item {
                 Layout.column: 0
                 Layout.fillWidth: true
                 spacing: 8
-                // Пустая строка всё равно съедала бы промежуток сетки. Это
-                // стало заметно на теме Nothing: звук оттуда ушёл наверх, и
-                // на машине без управляемой яркости не остаётся ничего.
-                visible: (view.sys.cfg.featAudio && !view.sys.themeNothing)
-                         || (view.sys.brightList || []).length > 0
-
-                VolCard {
-                    // на теме Nothing звук уехал в строку с сетью и Bluetooth
-                    visible: view.sys.cfg.featAudio && !view.sys.themeNothing
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    Layout.preferredHeight: 56
-                }
+                // Звук отсюда уехал наверх, в строку с сетью и Bluetooth, и
+                // в этой строке осталась одна яркость. Управляется она не
+                // везде: на настольной машине без DDC экранов в списке нет
+                // вовсе, и строка прячется целиком — пустая, она всё равно
+                // съедала бы промежуток сетки.
+                visible: (view.sys.brightList || []).length > 0
 
                 Repeater {
                     model: view.sys.brightList
@@ -1782,7 +1808,7 @@ Item {
                 // На теме Nothing в этой строке стоит ещё и сводка нагрузки в
                 // три строки — плитки растут под неё, иначе соседи оказались
                 // бы разной высоты.
-                readonly property int tileH: view.sys.themeNothing ? 76 : 56
+                readonly property int tileH: 76
 
                 // Доли, а не свободный рост. RowLayout раздаёт лишнее место
                 // пропорционально желаемой ширине, а у плитки она своя (140),
@@ -1793,34 +1819,12 @@ Item {
                 // отсчётом: частота кадров, которую плитка показывала до
                 // начала записи, приходит из настроек и меняется раз в жизнь.
                 RecordCard {
-                    visible: view.sys.cfg.featRecord && view.sys.themeNothing
+                    visible: view.sys.cfg.featRecord
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: powerRow.tileH
                 }
 
-                MiniTile {
-                    visible: view.sys.cfg.featRecord && !view.sys.themeNothing
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    Layout.preferredHeight: powerRow.tileH
-                    icon: String.fromCodePoint(view.sys.recActive ? 0xF04DB : 0xF044A)
-                    label: view.sys.recActive
-                           ? view.sys.tr("Запись") + " · " + view.sys.recTimeText
-                           : view.sys.tr("Запись экрана")
-                    sub: !view.sys.recActive
-                         ? view.sys.cfg.recFps + " FPS"
-                         : (view.sys.recPaused ? view.sys.tr("Пауза")
-                                               : view.sys.recFile.split("/").pop())
-                    on: view.sys.recActive
-                    // Красный у записи остаётся на всех темах — это цвет
-                    // «идёт съёмка», а не украшение. Но берём его у темы:
-                    // у Default это тот же самый #ef4444, что стоял здесь
-                    // числом, а у остальных — их собственный тревожный.
-                    accent: view.sys.colCrit
-                    onIconClicked: view.sys.toggleRecord()
-                    onBodyClicked: view.sys.togglePage("record")
-                }
 
                 // Плитка батареи. На ПК её нет совсем: заряда не существует, а
                 // профили питания без батареи показывают одно и то же — плитка
@@ -1852,7 +1856,6 @@ Item {
                 // нужнее ширина, чем плитке записи с двумя короткими
                 // подписями.
                 LoadCard {
-                    visible: view.sys.themeNothing
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1.35
                     Layout.preferredHeight: powerRow.tileH

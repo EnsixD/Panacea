@@ -40,6 +40,65 @@ Item {
         border.width: 1
     }
 
+    // Число: точками на Nothing, обычным шрифтом на остальных темах.
+    //
+    // Раскладка карточек у тем общая, разное только начертание — поэтому
+    // выбор спрятан сюда, а не размазан по каждому месту, где стоит цифра.
+    // Кегль шрифта берётся с запасом от высоты точечной цифры: у той высота
+    // и есть весь рост, а у буквы pixelSize считается по всей строке, вместе
+    // с надстрочным и подстрочным просветом.
+    component Num: Item {
+        id: num
+        property string value: ""
+        property real size: 14
+        property real gapRatio: 0.22
+        property color color: view.sys.colFg
+
+        implicitWidth:  view.sys.themeNothing ? dots.implicitWidth  : plain.implicitWidth
+        implicitHeight: view.sys.themeNothing ? dots.implicitHeight : plain.implicitHeight
+
+        DotText {
+            id: dots
+            visible: view.sys.themeNothing
+            value: num.value
+            size: num.size
+            gapRatio: num.gapRatio
+            color: num.color
+        }
+        Text {
+            id: plain
+            visible: !view.sys.themeNothing
+            text: num.value
+            color: num.color
+            font { family: view.sys.fontFam; pixelSize: Math.round(num.size * 1.35) }
+        }
+    }
+
+    // Значок погоды тем же порядком: точечный на Nothing, знак шрифта иначе.
+    component WIcon: Item {
+        id: wico
+        property real size: 20
+        property color color: view.sys.colFg
+
+        implicitWidth:  view.sys.themeNothing ? wdots.implicitWidth  : wglyph.implicitWidth
+        implicitHeight: view.sys.themeNothing ? wdots.implicitHeight : wglyph.implicitHeight
+
+        DotIcon {
+            id: wdots
+            visible: view.sys.themeNothing
+            code: view.sys.weatherIcon
+            size: wico.size
+            color: wico.color
+        }
+        Text {
+            id: wglyph
+            visible: !view.sys.themeNothing
+            text: view.sys.weatherGlyph
+            color: wico.color
+            font { family: view.sys.fontFam; pixelSize: Math.round(wico.size * 1.3) }
+        }
+    }
+
     // Мелкая подпись под значением — заглавными вразрядку, как в теме.
     component Caption: Text {
         color: view.sys.colMuted
@@ -68,7 +127,7 @@ Item {
             // Число по центру карточки, а подписи разведены по углам: день
             // недели в верхний правый, месяц в нижний левый. Так число ни с
             // одной из них не соседствует вплотную и читается само по себе.
-            DotText {
+            Num {
                 anchors.centerIn: parent
                 value: view.sys.dayNum
                 size: 52
@@ -131,9 +190,8 @@ Item {
                         font { family: view.sys.fontFam; pixelSize: 26 }
                     }
 
-                    DotIcon {
+                    WIcon {
                         Layout.alignment: Qt.AlignHCenter
-                        code: view.sys.weatherIcon
                         size: 30
                         color: view.sys.colFg
                     }
@@ -159,27 +217,34 @@ Item {
                 // они уже сказаны слева.
                 Card {
                     Layout.preferredWidth: view.col
-                    Layout.preferredHeight: 56
+                    Layout.preferredHeight: 62
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 14
-                        anchors.rightMargin: 14
-                        spacing: 10
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 8
 
-                        DotIcon {
+                        WIcon {
                             Layout.alignment: Qt.AlignVCenter
-                            code: view.sys.weatherIcon
-                            size: 20
+                            size: 18
                             color: view.sys.colFg
                         }
 
+                        // В две строки, а не в одну с многоточием. Описание
+                        // приходит от сервиса и бывает длинным — «overcast
+                        // clouds» в одну строку не влезало и обрывалось на
+                        // «overcast …», то есть теряло ровно то слово, ради
+                        // которого карточка и стоит.
                         Text {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
                             text: view.sys.weatherReady ? view.sys.weatherDesc : "—"
                             color: view.sys.colFg
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: 2
                             elide: Text.ElideRight
+                            lineHeight: 0.95
                             font { family: view.sys.fontFam; pixelSize: 11 }
                         }
                     }
@@ -196,8 +261,11 @@ Item {
                         model: [
                             { v: view.sys.weatherHumidity, suffix: "%",
                               cap: view.sys.tr("Влажность") },
+                            // Единица у ветра стоит в подписи, а не при
+                            // числе: в кружок «5 м/с» не помещается, а без
+                            // единицы число ничего не значит.
                             { v: view.sys.weatherWind, suffix: "",
-                              cap: view.sys.tr("Ветер") }
+                              cap: view.sys.tr("Ветер") + " " + view.sys.weatherWindUnit }
                         ]
 
                         Rectangle {
@@ -243,7 +311,7 @@ Item {
             Layout.preferredWidth: view.fullW
             Layout.preferredHeight: 62
 
-            DotText {
+            Num {
                 anchors.centerIn: parent
                 value: view.sys.timeText
                 size: 30

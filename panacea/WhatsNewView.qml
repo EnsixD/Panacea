@@ -41,6 +41,12 @@ Item {
     readonly property var dictRu: ({
         "island: actually shrink the wired icon in the collapsed bar":
             "Значок сети в свёрнутом острове наконец уменьшился: размер задавался мимо раскладки, и та его не замечала",
+        "theme: the same layout on Default, in its own type":
+            "Раскладка Nothing перенесена на Default: звук в строке с сетью, сводка нагрузки, плашка записи, виджеты на обоях — точками набирает только Nothing",
+        "weather: plain type for the temperature, and wind in m/s":
+            "Градусы в острове и в карточках набраны обычным шрифтом, описание погоды переносится на две строки, у ветра подписана единица",
+        "weather: a taller right flank on the cloud":
+            "У облака правый бок выше левого — четыре точки против трёх",
         "weather: a cloud with two bumps, not a single rise":
             "Точечное облако перерисовано: два небольших бугорка на плоском теле вместо одного склона",
         "widgets: date, weather and clock cards on the desktop":
