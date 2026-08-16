@@ -4047,7 +4047,18 @@ PanelWindow {
         // а под них резервируется одинаковое место — часы стоят намертво.
         Item {
             id: nothingCapsule
-            anchors.centerIn: parent
+            // Растянут на всю длину острова, а не сжат по содержимому.
+            // Прижатый к своей ширине, он вставал посреди пилюли, и при
+            // длине больше содержимого точки столов оказывались не у левого
+            // края, а где-то в середине, вместе с остальным.
+            //
+            // implicitWidth при этом остаётся: по нему считается, короче
+            // какой длины остров сжимать уже нельзя.
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: 18
+            anchors.rightMargin: 18
             height: root.pillH
             visible: root.themeNothing && !root.expanded
                      && !root.osdActive && !root.toastActive
