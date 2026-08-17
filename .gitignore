@@ -1,5 +1,8 @@
 # Генерируется панелью настроек
 hypr/lua/binds_data.lua
+hypr/lua/monitors_data.lua
+hypr/lua/term_data.lua
+panacea/.vibrance
 
 # Локальное состояние
 fish/fish_variables

@@ -34,6 +34,19 @@ STATE="$CONF/panacea/.version"
 KEEP=(
     "$CONF/panacea/settings.json"
     "$CONF/hypr/lua/binds_data.lua"
+    # Настройки экрана: разрешение, частота, масштаб. Без них после обновления
+    # масштаб панели молча возвращался к 100%. monitors_data.lua читает
+    # компоновщик на старте (путь Lua), monitors.conf — запасной для Hyprland
+    # без Lua. Список тот же, что в install.sh.
+    "$CONF/hypr/lua/monitors_data.lua"
+    "$CONF/hypr/monitors.conf"
+    # Прозрачность терминала и цифровая интенсивность — их производные файлы
+    # тоже переживают обновление, иначе сбрасывались к заводским.
+    "$CONF/hypr/lua/term_data.lua"
+    "$CONF/panacea/.vibrance"
+    # Шейдер насыщенности: репозиторий его не везёт, свежий hypr/ приезжает
+    # без него, и компоновщик ругается «Failed to check screen shader path».
+    "$CONF/hypr/shaders/vibrance.frag"
     # Выбранные обои: в репозитории свой wallpaper.conf, и без этой строки
     # он ложился поверх — после обновления стол возвращался к заводским.
     "$CONF/hypr/wallpaper.conf"
@@ -311,7 +324,7 @@ cmd_apply() {
     # установщик оболочку не трогает, а перезапуск делаем сами и в самом конце.
     echo "step=install"
     if ! (cd "$tmp/src" && bash ./install.sh --no-deps --no-sddm --no-grub \
-            --no-services --no-wallpapers --no-restart --yes >"$tmp/log" 2>&1); then
+            --no-services --no-wallpapers --no-restart --no-backup --yes >"$tmp/log" 2>&1); then
         restore_user_state
         echo "status=error"
         echo "error=install"

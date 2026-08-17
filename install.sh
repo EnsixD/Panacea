@@ -7,6 +7,7 @@
 #
 #   ./install.sh              install everything
 #   ./install.sh --no-deps    skip the package step (configs only)
+#   ./install.sh --no-backup  replace configs in place, don't keep *.bak copies
 #   ./install.sh --no-sddm    don't touch the SDDM login theme
 #   ./install.sh --no-grub    don't touch the GRUB boot theme
 #   ./install.sh --yes        answer yes to every prompt
@@ -50,10 +51,17 @@ DO_GRUB=1
 DO_SERVICES=1
 DO_WALLS=1
 DO_RESTART=1
+# Сохранять ли заменяемое в <имя>.bak-<время>. На первой, ручной установке —
+# да: это единственная страховка, если под конфигом лежало чужое. При
+# обновлении — нет: своё уже унесено в сторону через KEEP, а всё остальное это
+# ровно те же файлы репозитория, и каждый апдейт плодил бы каталоги-двойники в
+# ~/.config. update.sh зовёт установщик с --no-backup.
+DO_BACKUP=1
 ASSUME_YES=0
 for arg in "$@"; do
     case "$arg" in
         --no-deps) DO_DEPS=0 ;;
+        --no-backup) DO_BACKUP=0 ;;
         --no-sddm) DO_SDDM=0 ;;
         --no-grub) DO_GRUB=0 ;;
         --no-services) DO_SERVICES=0 ;;
@@ -401,6 +409,13 @@ BACKUP_KEEP=3
 
 backup() {
     [ -e "$1" ] || return 0
+    # Обновление: своё уже сохранено через KEEP, остальное — файлы репозитория.
+    # Просто убираем старое, не оставляя .bak, иначе ~/.config зарастает
+    # каталогами-двойниками после каждого апдейта.
+    if [ "$DO_BACKUP" = "0" ]; then
+        rm -rf -- "$1"
+        return 0
+    fi
     mv "$1" "$1.bak-$STAMP"
     warn "existing $(basename "$1") saved as $(basename "$1").bak-$STAMP"
 
@@ -421,6 +436,25 @@ backup() {
 KEEP_FILES=(
     "panacea/settings.json"
     "hypr/lua/binds_data.lua"
+    # Настройки экрана: разрешение, частота, масштаб. binds_data.lua здесь уже
+    # есть, а эти его собратья — нет, и после обновления масштаб панели молча
+    # возвращался к 100%. monitors_data.lua читает компоновщик на старте (путь
+    # Lua), monitors.conf — запасной конфиг для Hyprland без Lua; оба
+    # производны от settings.json, но пережить обновление обязаны сами: пока
+    # оболочка на старте накатит своё, монитор успеет подняться в "preferred".
+    "hypr/lua/monitors_data.lua"
+    "hypr/monitors.conf"
+    # Прозрачность терминала: генерируется из settings.json, читается
+    # windowrules.lua на старте. Без него — заводская непрозрачность.
+    "hypr/lua/term_data.lua"
+    # Цифровая интенсивность (digital vibrance): значение живёт здесь, из него
+    # vibrance.sh restore пересобирает шейдер.
+    "panacea/.vibrance"
+    # Сам шейдер насыщенности. Репозиторий его не поставляет (он генерируется),
+    # поэтому свежий hypr/ приезжает без него — а компоновщик до перезапуска
+    # оболочки держит ссылку decoration:screen_shader на этот путь и ругается
+    # баннером «Failed to check screen shader path». Сохраняем файл сами.
+    "hypr/shaders/vibrance.frag"
     # Выбранные обои. В репозитории лежит свой wallpaper.conf, и он ложился
     # поверх — после каждого обновления стол возвращался к ember_stripes,
     # хотя сама картинка никуда не девалась: сохранялся каталог с обоями, но
@@ -519,6 +553,10 @@ copy_into_config() {   # copy_into_config <dir-in-repo>
     [ -d "$SRC/$name" ] || { warn "no $name in this checkout — skipping"; return; }
     backup "$dst"
     cp -r "$SRC/$name" "$dst"
+    # Чистый клон с GitHub их не содержит (*.bak в .gitignore), но грязный
+    # checkout мейнтейнера мог занести — и cp унёс бы их в ~/.config. Не
+    # тащим чужой мусор в конфиг.
+    find "$dst" -name '*.bak*' -exec rm -rf {} + 2>/dev/null
     ok "$name → $dst"
 }
 
