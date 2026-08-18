@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "record: find wf-recorder wherever it lives, so recording starts everywhere":
+            "Запись: wf-recorder теперь находится где угодно (PATH при запуске из оболочки бывает урезан) — кнопка записи больше не «нажимается впустую»; если бинарника нет вовсе, об этом прямо говорится",
         "island: don't flash the volume OSD when the audio output switches":
             "Остров: при подключении Bluetooth-наушников или смене устройства вывода больше не мигает полоса громкости — OSD гасится на время переключения",
         "island: keep the charge wave inside the pill's rounded corners":

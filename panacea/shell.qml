@@ -3405,6 +3405,7 @@ PanelWindow {
                 var t = line.trim();
                 if (!t.length) return;
                 root.recError = t === "already" ? root.tr("Запись уже идёт")
+                              : t === "no-recorder" ? root.tr("wf-recorder не найден")
                               : t === "failed"  ? root.tr("Не удалось начать запись")
                                                 : t;
                 recErrorClear.restart();

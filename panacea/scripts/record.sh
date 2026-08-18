@@ -19,6 +19,31 @@ STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/panacea"
 STATE="$STATE_DIR/record.state"
 mkdir -p "$STATE_DIR"
 
+# Оболочка запускает нас через `sh -c`, и PATH при этом бывает урезанным —
+# тогда даже установленный wf-recorder (а с ним pactl, ffmpeg) не находится, и
+# запись «нажимается, но ничего не происходит». Дополняем PATH обычными
+# местами, где лежат бинарники.
+PATH="$PATH:/usr/bin:/usr/local/bin:$HOME/.local/bin:/bin:/usr/sbin:/sbin:/opt/bin"
+export PATH
+
+# Ищем wf-recorder где угодно: в PATH, в типичных каталогах, у flatpak, и в
+# последнюю очередь — полным (но ограниченным) поиском по диску. Путь кладём
+# в WF_REC. Так запись работает, где бы бинарник ни лежал.
+find_recorder() {
+    local p
+    p=$(command -v wf-recorder 2>/dev/null) && { printf '%s\n' "$p"; return 0; }
+    for p in /usr/bin/wf-recorder /usr/local/bin/wf-recorder \
+             "$HOME/.local/bin/wf-recorder" /opt/*/bin/wf-recorder \
+             /var/lib/flatpak/exports/bin/*wf-recorder* \
+             "$HOME/.local/share/flatpak/exports/bin/"*wf-recorder*; do
+        [ -x "$p" ] && { printf '%s\n' "$p"; return 0; }
+    done
+    p=$(find /usr /opt "$HOME/.local" -maxdepth 5 -name 'wf-recorder' -type f \
+            2>/dev/null | head -1)
+    [ -n "$p" ] && { printf '%s\n' "$p"; return 0; }
+    return 1
+}
+
 read_state() {
     PID=""; STARTED=""; PAUSED_AT=""; PAUSED_TOTAL=0; FILE=""; MODULES=""
     [ -f "$STATE" ] || return 1
@@ -89,6 +114,8 @@ case "$1" in
     start)
         if read_state; then echo "already" >&2; exit 1; fi
 
+        WF_REC=$(find_recorder) || { echo "no-recorder" >&2; exit 1; }
+
         FPS="${2:-60}"
         DIR="${3:-$HOME/Videos}"
         SYS="${4:-0}"
@@ -129,7 +156,7 @@ case "$1" in
         args=(-f "$FILE" -r "$FPS" -c libx264 -p preset=veryfast -p crf=23)
         [ -n "$AUDIO_DEV" ] && args+=("--audio=$AUDIO_DEV")
 
-        wf-recorder "${args[@]}" >"$STATE_DIR/record.log" 2>&1 &
+        "$WF_REC" "${args[@]}" >"$STATE_DIR/record.log" 2>&1 &
         PID=$!
         sleep 0.4
         if ! kill -0 "$PID" 2>/dev/null; then
