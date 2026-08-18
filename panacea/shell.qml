@@ -3432,17 +3432,44 @@ PanelWindow {
     }
     Timer { id: recErrorClear; interval: 4000; onTriggered: root.recError = "" }
 
+    // Выбор экрана для записи. Несколько мониторов (ноутбук + HDMI) — wf-recorder
+    // без -o спрашивает, какой писать, и в фоне падал. Спрашиваем сами карточкой.
+    property bool recPick: false
+    property var  recPickMons: []
+    readonly property bool recPickActive: recPick && !expanded
+
     function startRecord() {
         if (root.recActive) return;
         root.recError = "";
+        var scr = Quickshell.screens;
+        if (scr && scr.length > 1) {
+            var list = [];
+            for (var i = 0; i < scr.length; i++)
+                list.push({ name: scr[i].name,
+                            desc: String(scr[i].model || scr[i].name) });
+            root.recPickMons = list;
+            root.recPick = true;
+            if (root.expanded) root.collapse();
+            return;
+        }
+        root.startRecordOn(scr && scr.length ? scr[0].name : "");
+    }
+    function startRecordOn(output) {
+        root.recPick = false;
+        root.recError = "";
         pRecCmd.command = ["sh", "-c",
-            root.recScript + " start \"$1\" \"$2\" \"$3\" \"$4\" \"$5\"", "_",
+            root.recScript + " start \"$1\" \"$2\" \"$3\" \"$4\" \"$5\" \"$6\"", "_",
             String(root.cfg.recFps), String(root.cfg.recDir),
             root.cfg.recSysAudio ? "1" : "0",
             root.cfg.recMic ? "1" : "0",
-            String(root.cfg.recMicDevice)];
+            String(root.cfg.recMicDevice),
+            String(output)];
         pRecCmd.running = true;
     }
+    function cancelRecPick() { root.recPick = false; }
+    // Не оставляем карточку выбора висеть вечно, если передумали.
+    Timer { id: recPickTimer; interval: 8000; running: root.recPickActive
+            onTriggered: root.cancelRecPick() }
     function stopRecord() {
         if (!root.recActive) return;
         pRecCmd.command = ["sh", "-c", root.recScript + " stop"];
@@ -3924,7 +3951,9 @@ PanelWindow {
         // дробная ширина содержимого стала попадать наружу.
         function evenUp(v) { return Math.round(v / 2) * 2; }
 
-        readonly property real idleLen: root.btToastActive
+        readonly property real idleLen: root.recPickActive
+                    ? capsule.evenUp(Math.max(recPickCapsule.implicitWidth + 28, 240))
+                : root.btToastActive
                     ? capsule.evenUp(Math.max(btCapsule.implicitWidth + 48, 240))
                 : root.acToastActive
                     ? capsule.evenUp(Math.max(acCapsule.implicitWidth + 48, 240))
@@ -3937,7 +3966,8 @@ PanelWindow {
                                                            capsule.collapsedMin))
                                  : capsule.evenUp(Math.max(idleCapsule.implicitWidth + 32,
                                                            capsule.collapsedMin))
-        readonly property real idleThick: (root.btToastActive || root.acToastActive)
+        readonly property real idleThick: (root.btToastActive || root.acToastActive
+                    || root.recPickActive)
                 ? root.pillH
                 : root.toastActive
                 ? toastCapsule.implicitHeight + 24 : root.pillH
@@ -4149,7 +4179,7 @@ PanelWindow {
                 if (!root.hoverExpandArmed) return;
                 // пока висит уведомление, наведение не раскрывает панель:
                 // иначе до крестика не добраться
-                if (root.toastActive || root.btToastActive || root.acToastActive) return;
+                if (root.toastActive || root.btToastActive || root.acToastActive || root.recPickActive) return;
                 // При автопрятании наведением остров только показывают. Он и
                 // выезжает-то из-за кромки под этот самый курсор, так что
                 // раскрытие следом означало бы: хотел посмотреть время —
@@ -4179,7 +4209,7 @@ PanelWindow {
             anchors.fill: parent
             z: 5
             enabled: !root.expanded && !root.toastActive && !root.pillDragging
-                     && !root.osdActive && !root.btToastActive && !root.acToastActive
+                     && !root.osdActive && !root.btToastActive && !root.acToastActive && !root.recPickActive
             cursorShape: Qt.PointingHandCursor
             onClicked: capsule.openPanel()
         }
@@ -4216,7 +4246,7 @@ PanelWindow {
             anchors.rightMargin: 14
             anchors.topMargin: 12
             spacing: 12
-            visible: root.toastActive && !root.btToastActive && !root.acToastActive
+            visible: root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4318,7 +4348,7 @@ PanelWindow {
             // иначе имя и кольцо разъезжались по краям с большим зазором.
             anchors.centerIn: parent
             spacing: 11
-            visible: root.btToastActive
+            visible: root.btToastActive && !root.recPickActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4524,7 +4554,7 @@ PanelWindow {
             z: 110
             anchors.centerIn: parent
             spacing: 8
-            visible: root.acToastActive
+            visible: root.acToastActive && !root.recPickActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4548,13 +4578,82 @@ PanelWindow {
             }
         }
 
+        // ---- свёрнутое: выбор экрана для записи -------------------------
+        // Несколько мониторов — спрашиваем, какой писать: значок записи,
+        // подпись и по чипу на каждый экран. Клик по чипу запускает запись
+        // именно этого выхода; × отменяет. z выше остальных капсул — карточка
+        // интерактивная, клики должны доходить до чипов.
+        RowLayout {
+            id: recPickCapsule
+            z: 130
+            anchors.centerIn: parent
+            spacing: 9
+            visible: root.recPickActive
+            opacity: visible ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: String.fromCodePoint(0xF044A)
+                color: root.colCrit
+                font { family: root.fontFam; pixelSize: root.iconSize + 2 }
+            }
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: root.tr("Записать экран")
+                color: root.colFg
+                font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
+            }
+            Repeater {
+                model: root.recPickMons
+                delegate: Rectangle {
+                    required property var modelData
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: 9
+                    implicitWidth: chipTxt.implicitWidth + 20
+                    implicitHeight: 26
+                    color: chipMa.containsMouse ? root.colOn : Qt.rgba(1, 1, 1, 0.10)
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                    Text {
+                        id: chipTxt
+                        anchors.centerIn: parent
+                        text: modelData.name
+                        color: chipMa.containsMouse ? "#ffffff" : root.colFg
+                        font { family: root.fontFam; pixelSize: root.fontSize - 2; bold: true }
+                    }
+                    MouseArea {
+                        id: chipMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.startRecordOn(modelData.name)
+                    }
+                }
+            }
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: "×"
+                color: pickCloseMa.containsMouse ? root.colFg : root.colMuted
+                font { family: root.fontFam; pixelSize: root.fontSize + 2 }
+                MouseArea {
+                    id: pickCloseMa
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.cancelRecPick()
+                }
+            }
+        }
+
         // ------------------------------------------- свёрнутое: уровень (OSD)
         RowLayout {
             id: osdCapsule
             anchors.centerIn: parent
             height: root.pillH
             spacing: 12
-            visible: root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive
+            visible: root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4640,7 +4739,7 @@ PanelWindow {
             spacing: 14
             // На теме Nothing свёрнутый остров устроен иначе — его собирает
             // nothingCapsule, а эта раскладка целиком уступает ему место.
-            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive
+            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive
             // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
             // равен нулю, и остров считал бы свою длину по пустоте.
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
@@ -4924,7 +5023,7 @@ PanelWindow {
             anchors.leftMargin: 18
             anchors.rightMargin: 18
             height: root.pillH
-            visible: root.themeNothing && !root.expanded && !root.btToastActive && !root.acToastActive
+            visible: root.themeNothing && !root.expanded && !root.btToastActive && !root.acToastActive && !root.recPickActive
                      && !root.osdActive && !root.toastActive
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
@@ -5230,7 +5329,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: root.pillH
                 spacing: 7
-                visible: !root.expanded && !root.btToastActive && !root.acToastActive
+                visible: !root.expanded && !root.btToastActive && !root.acToastActive && !root.recPickActive
                 opacity: root.pillSide ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animFast } }
 

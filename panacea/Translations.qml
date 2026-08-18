@@ -356,6 +356,7 @@ QtObject {
         "Файл ляжет в ": "Saves to ",
         "Запись уже идёт": "Already recording",
         "Не удалось начать запись": "Could not start recording",
+        "Записать экран": "Record screen",
         "wf-recorder не найден": "wf-recorder not found",
         "Меню": "Menu",
         "Меню пустое": "Menu is empty",

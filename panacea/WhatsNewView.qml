@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "record: ask which screen to record when more than one is connected":
+            "Запись: при нескольких экранах (ноутбук + HDMI-телевизор) остров спрашивает карточкой, какой писать — раньше wf-recorder ждал выбор в невидимой консоли и запись просто не начиналась",
         "record: try codecs until one works, and say out loud why it failed":
             "Запись: перебирает кодеки, пока какой-то не заведётся (libx264 → vp9 → vp8 → кодек по умолчанию), а если запись всё же не началась — показывает уведомление с причиной, видно и из быстрых настроек",
         "shot: fit the freeze frame to a scaled screen instead of zooming in":
