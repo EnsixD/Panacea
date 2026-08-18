@@ -1789,6 +1789,24 @@ PanelWindow {
     // всего, пока идёт выделение области. Пусто — слоя нет.
     property string freezeShot: ""
 
+    // Логические границы всей раскладки экранов (минимальный прямоугольник,
+    // накрывающий все мониторы). По ним слой стоп-кадра растягивает снимок,
+    // снятый в физическом разрешении, — чтобы на экране с масштабом он лёг
+    // один в один, а не куском в углу.
+    readonly property rect freezeBounds: {
+        var xs = Quickshell.screens;
+        if (!xs || xs.length === 0) return Qt.rect(0, 0, 0, 0);
+        var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+        for (var i = 0; i < xs.length; i++) {
+            var s = xs[i];
+            minx = Math.min(minx, s.x);
+            miny = Math.min(miny, s.y);
+            maxx = Math.max(maxx, s.x + s.width);
+            maxy = Math.max(maxy, s.y + s.height);
+        }
+        return Qt.rect(minx, miny, maxx - minx, maxy - miny);
+    }
+
     // Скриншот кладётся в буфер обмена, и по экрану этого не видно: рамка
     // выделения пропала — и всё. Уведомление здесь, а не в скрипте, потому
     // что текст переводится вместе с остальной оболочкой.
@@ -5846,14 +5864,20 @@ Variants {
         mask: Region {}
 
         Image {
-            // сдвиг на начало экрана: снимок один на всю раскладку
-            x: -freezeWin.modelData.x
-            y: -freezeWin.modelData.y
+            // grim снимает раскладку в физических пикселях, а поверхности
+            // экранов — логические (при масштабе 200% вдвое меньше). Рисовать
+            // кадр «пиксель в пиксель» нельзя: на масштабированном экране виден
+            // был бы только верхний левый угол — экран будто «зумило», и снять
+            // весь экран не получалось. Поэтому растягиваем весь кадр в
+            // логические границы раскладки и сдвигаем на начало своего экрана —
+            // получается ровно 1:1 с тем, что на экране, при любом масштабе.
+            x: root.freezeBounds.x - freezeWin.modelData.x
+            y: root.freezeBounds.y - freezeWin.modelData.y
+            width: root.freezeBounds.width
+            height: root.freezeBounds.height
             source: root.freezeShot
-            // Кадр пиксель в пиксель: масштабировать нечего, а сглаживание на
-            // такой картинке только мылит текст.
-            fillMode: Image.Pad
-            smooth: false
+            fillMode: Image.Stretch
+            smooth: true
             // Файл временный и каждый раз новый, но имя может повториться —
             // кэш отдал бы прошлый снимок.
             cache: false
