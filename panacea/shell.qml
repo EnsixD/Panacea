@@ -2951,14 +2951,24 @@ PanelWindow {
     property bool osdReady: false        // не показывать OSD при старте оболочки
     Timer { interval: 1500; running: true; onTriggered: root.osdReady = true }
 
+    // Смена устройства вывода (подключились Bluetooth-наушники, воткнули
+    // джек) перепривязывает sinkAudio, и onVolumeChanged срабатывает начальной
+    // громкостью нового устройства — на миг всплывал OSD с полосой громкости,
+    // хотя никто её не трогал. Гасим OSD на короткое окно вокруг переключения.
+    property bool sinkSwitching: false
+    onSinkAudioChanged: { root.sinkSwitching = true; sinkSettleTimer.restart(); }
+    Timer { id: sinkSettleTimer; interval: 700; onTriggered: root.sinkSwitching = false }
+
     Connections {
         target: root.sinkAudio
         enabled: root.sinkAudio !== null
         function onVolumeChanged() {
-            if (root.osdReady) root.showOsd("vol", root.sinkAudio.volume, root.sinkAudio.muted);
+            if (root.osdReady && !root.sinkSwitching)
+                root.showOsd("vol", root.sinkAudio.volume, root.sinkAudio.muted);
         }
         function onMutedChanged() {
-            if (root.osdReady) root.showOsd("vol", root.sinkAudio.volume, root.sinkAudio.muted);
+            if (root.osdReady && !root.sinkSwitching)
+                root.showOsd("vol", root.sinkAudio.volume, root.sinkAudio.muted);
         }
     }
     Connections {

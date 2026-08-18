@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "island: don't flash the volume OSD when the audio output switches":
+            "Остров: при подключении Bluetooth-наушников или смене устройства вывода больше не мигает полоса громкости — OSD гасится на время переключения",
         "island: keep the charge wave inside the pill's rounded corners":
             "Остров: волна заряда на карточке зарядки больше не вылезает острыми уголками за скругления пилюли; заодно в карточке наушников иконка чуть левее, а кольцо заряда чуть правее",
         "island: a charging card with the battery's charge wave behind it":
