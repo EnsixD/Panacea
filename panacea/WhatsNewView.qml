@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "island: a connect card for Bluetooth earbuds, with the battery in a ring":
+            "Остров: при подключении Bluetooth-наушников на пару секунд показывается карточка — иконка наушников, имя устройства и кольцо с зарядом в процентах",
         "update: snapshot the live screen scale so one set outside the panel survives too":
             "Обновление: масштаб экрана снимается с живого состояния перед установкой — теперь переживает обновление, даже если выставлен мимо панели настроек",
         "update: keep the settings you changed, and stop leaving .bak copies behind":

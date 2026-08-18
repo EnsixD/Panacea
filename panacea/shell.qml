@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
@@ -3479,6 +3480,47 @@ PanelWindow {
         return -1;
     }
 
+    // ---- Тост «наушники подключились» ------------------------------------
+    // После успешного подключения Bluetooth-гарнитуры остров на несколько
+    // секунд сворачивается в карточку: слева иконка наушников, имя устройства
+    // и метка Connected, справа кольцо с зарядом в процентах. Ловим переход
+    // имени подключённого устройства из пустого в непустое — это и есть момент
+    // подключения. btPrevConnected держит уже показанное, чтобы одно и то же
+    // подключение не всплывало дважды (имя пересчитывается на каждый чих BlueZ).
+    property string btToastName: ""
+    property bool   btToastShown: false
+    readonly property bool btToastActive: btToastShown && !expanded
+    property string btPrevConnected: ""
+
+    onBtConnectedNameChanged: {
+        var name = root.btConnectedName;
+        if (name.length > 0 && name !== root.btPrevConnected) {
+            root.btPrevConnected = name;
+            root.showBtToast(name);
+        } else if (name.length === 0) {
+            root.btPrevConnected = "";
+        }
+    }
+
+    function showBtToast(name) {
+        root.btToastName = name;
+        root.btToastShown = true;
+        // Подключение часто идёт из раскрытого меню Bluetooth. Пока панель
+        // раскрыта, тост не виден (btToastActive требует !expanded) — поэтому
+        // сворачиваем её сами, и карточка подключения показывается сразу.
+        if (root.expanded) root.collapse();
+        btToastTimer.restart();
+    }
+    function dismissBtToast() {
+        root.btToastShown = false;
+        btToastTimer.stop();
+    }
+    Timer {
+        id: btToastTimer
+        interval: 2300
+        onTriggered: root.dismissBtToast()
+    }
+
     // rfkill может держать адаптер программно заблокированным (после
     // предыдущей сессии, гибернации, ядра). Пока он заблокирован, BlueZ не даёт
     // включить питание, и плитка «щёлкала» вхолостую. Снимаем блокировку перед
@@ -3823,7 +3865,9 @@ PanelWindow {
         // дробная ширина содержимого стала попадать наружу.
         function evenUp(v) { return Math.round(v / 2) * 2; }
 
-        readonly property real idleLen: root.toastActive ? 440
+        readonly property real idleLen: root.btToastActive
+                    ? capsule.evenUp(btCapsule.implicitWidth + 48)
+                : root.toastActive ? 440
                 : root.osdActive ? capsule.evenUp(osdCapsule.implicitWidth + 32)
                 : root.pillSide  ? capsule.evenUp(Math.max(vertCapsule.implicitHeight + 30,
                                                            capsule.collapsedMin))
@@ -3832,7 +3876,9 @@ PanelWindow {
                                                            capsule.collapsedMin))
                                  : capsule.evenUp(Math.max(idleCapsule.implicitWidth + 32,
                                                            capsule.collapsedMin))
-        readonly property real idleThick: root.toastActive
+        readonly property real idleThick: root.btToastActive
+                ? root.pillH
+                : root.toastActive
                 ? toastCapsule.implicitHeight + 24 : root.pillH
 
         width: root.settingsMode ? root.settingsW
@@ -4042,7 +4088,7 @@ PanelWindow {
                 if (!root.hoverExpandArmed) return;
                 // пока висит уведомление, наведение не раскрывает панель:
                 // иначе до крестика не добраться
-                if (root.toastActive) return;
+                if (root.toastActive || root.btToastActive) return;
                 // При автопрятании наведением остров только показывают. Он и
                 // выезжает-то из-за кромки под этот самый курсор, так что
                 // раскрытие следом означало бы: хотел посмотреть время —
@@ -4072,7 +4118,7 @@ PanelWindow {
             anchors.fill: parent
             z: 5
             enabled: !root.expanded && !root.toastActive && !root.pillDragging
-                     && !root.osdActive
+                     && !root.osdActive && !root.btToastActive
             cursorShape: Qt.PointingHandCursor
             onClicked: capsule.openPanel()
         }
@@ -4109,7 +4155,7 @@ PanelWindow {
             anchors.rightMargin: 14
             anchors.topMargin: 12
             spacing: 12
-            visible: root.toastActive
+            visible: root.toastActive && !root.btToastActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4200,13 +4246,150 @@ PanelWindow {
             }
         }
 
+        // ---------------------------------- свёрнутое: наушники подключились
+        // Слева иконка наушников, по центру Connected и имя устройства,
+        // справа кольцо с зарядом в процентах. Появляется на несколько секунд
+        // при подключении Bluetooth-гарнитуры (btToastActive).
+        RowLayout {
+            id: btCapsule
+            z: 110
+            // По центру и по ширине содержимого — без растяжки на всю пилюлю,
+            // иначе имя и кольцо разъезжались по краям с большим зазором.
+            anchors.centerIn: parent
+            spacing: 11
+            visible: root.btToastActive
+            opacity: visible ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            // Иконка наушников: SVG с белой заливкой, поверх тёмной пилюли
+            // видна как есть — без перекраски эффектом, которая с невидимым
+            // источником не обновляла текстуру и оставляла пустое место.
+            Image {
+                Layout.preferredWidth: 22
+                Layout.preferredHeight: 22
+                Layout.alignment: Qt.AlignVCenter
+                source: Quickshell.env("HOME") + "/.config/panacea/assets/earbuds.svg"
+                sourceSize.width: 44
+                sourceSize.height: 44
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+            }
+
+            ColumnLayout {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 0
+                // Чуть приподнимаем текст относительно центра пилюли —
+                // трансформом, чтобы не менять раскладку строки.
+                transform: Translate { y: -2 }
+
+                Text {
+                    text: root.tr("Подключено")
+                    color: root.colMuted
+                    // Опускаем только эту строку — имя остаётся на месте.
+                    transform: Translate { y: 2 }
+                    font { family: root.fontFam; pixelSize: root.fontSize - 4 }
+                }
+                Text {
+                    // Ограничиваем ширину, чтобы длинное имя не растягивало
+                    // пилюлю без края; короткое занимает ровно свою ширину.
+                    Layout.maximumWidth: 220
+                    text: root.btToastName
+                    color: root.colFg
+                    elide: Text.ElideRight
+                    font { family: root.fontFam; pixelSize: root.fontSize + 1; bold: true }
+                }
+            }
+
+            // Кольцо заряда. Бледный контур на весь круг, поверх — дуга от
+            // верха по часовой, заполненная до доли заряда. При появлении
+            // карточки дуга дорисовывается анимацией от нуля до текущего
+            // процента; батарею BlueZ сообщает не сразу, и когда она приходит,
+            // дуга доигрывает остаток. В центре — процент.
+            Canvas {
+                id: btRing
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                Layout.alignment: Qt.AlignVCenter
+                // Побольше воздуха между именем и кольцом.
+                Layout.leftMargin: 54
+
+                readonly property real level:
+                    root.btConnectedBattery >= 0 ? root.btConnectedBattery / 100 : 0
+                property real fill: 0
+                readonly property real lineW: 3.5
+
+                onFillChanged: requestPaint()
+                onLevelChanged: {
+                    if (!root.btToastActive) return;
+                    btRingAnim.stop();
+                    btRingAnim.from = btRing.fill;
+                    btRingAnim.to = btRing.level;
+                    btRingAnim.start();
+                }
+
+                NumberAnimation {
+                    id: btRingAnim
+                    target: btRing; property: "fill"
+                    duration: 900; easing.type: Easing.OutCubic
+                }
+                function play() {
+                    btRingAnim.stop();
+                    btRing.fill = 0;
+                    btRingAnim.from = 0;
+                    btRingAnim.to = btRing.level;
+                    btRingAnim.start();
+                }
+                Connections {
+                    target: root
+                    function onBtToastActiveChanged() {
+                        if (root.btToastActive) btRing.play();
+                    }
+                }
+
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.reset();
+                    if (width <= 0 || height <= 0) return;
+                    var c = root.colFg;
+                    var r = (Math.min(width, height) - lineW) / 2;
+                    var cx = width / 2, cy = height / 2;
+
+                    ctx.lineWidth = lineW;
+                    ctx.lineCap = "round";
+
+                    // бледный контур на весь круг
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+                    ctx.strokeStyle = Qt.rgba(c.r, c.g, c.b, 0.22);
+                    ctx.stroke();
+
+                    // дуга заряда от верхней точки по часовой
+                    if (fill > 0) {
+                        var start = -Math.PI / 2;
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, r, start, start + 2 * Math.PI * fill);
+                        ctx.strokeStyle = c;
+                        ctx.stroke();
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: root.btConnectedBattery >= 0
+                    text: root.btConnectedBattery
+                    color: root.colFg
+                    font { family: root.fontFam; pixelSize: root.fontSize - 6; bold: true }
+                }
+            }
+        }
+
         // ------------------------------------------- свёрнутое: уровень (OSD)
         RowLayout {
             id: osdCapsule
             anchors.centerIn: parent
             height: root.pillH
             spacing: 12
-            visible: root.osdActive && !root.toastActive
+            visible: root.osdActive && !root.toastActive && !root.btToastActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4292,7 +4475,7 @@ PanelWindow {
             spacing: 14
             // На теме Nothing свёрнутый остров устроен иначе — его собирает
             // nothingCapsule, а эта раскладка целиком уступает ему место.
-            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive
+            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive && !root.btToastActive
             // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
             // равен нулю, и остров считал бы свою длину по пустоте.
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
@@ -4576,7 +4759,7 @@ PanelWindow {
             anchors.leftMargin: 18
             anchors.rightMargin: 18
             height: root.pillH
-            visible: root.themeNothing && !root.expanded
+            visible: root.themeNothing && !root.expanded && !root.btToastActive
                      && !root.osdActive && !root.toastActive
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
@@ -4882,7 +5065,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: root.pillH
                 spacing: 7
-                visible: !root.expanded
+                visible: !root.expanded && !root.btToastActive
                 opacity: root.pillSide ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
