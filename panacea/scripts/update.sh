@@ -125,7 +125,60 @@ cmd_check() {
     fi
 }
 
+# Снимок живого состояния экранов в settings.json.
+#
+# Масштаб можно выставить и мимо панели Display — правкой конфига или разовым
+# hyprctl. Тогда его нет ни в monOverrides, ни в monitors_data.lua, и сохранять
+# нечего: обновление возвращает 100%. Здесь, до установки, дописываем в
+# monOverrides текущий масштаб тех мониторов, которых там ещё нет, — и он
+# уезжает в стэш вместе с settings.json, а после обновления оболочка накатит
+# его сама. Трогаем только экраны с масштабом не 100%: дефолтные незачем
+# прибивать к конкретному режиму.
+snapshot_live_monitors() {
+    have hyprctl && have jq || return 0
+    local cfg="$CONF/panacea/settings.json"
+    [ -f "$cfg" ] || return 0
+    local live; live="$(hyprctl -j monitors 2>/dev/null)" || return 0
+    [ -n "$live" ] && [ "$live" != "null" ] || return 0
+
+    # monOverrides лежит строкой с JSON внутри; пусто — берём {}
+    local cur; cur="$(jq -r '.monOverrides // ""' "$cfg")"
+    case "$cur" in ""|null) cur="{}" ;; esac
+
+    local merged
+    merged="$(jq -cn --argjson cur "$cur" --argjson live "$live" '
+        reduce $live[] as $m ($cur;
+            if has($m.name) then .
+            elif ((($m.scale * 100) | round) == 100) then .
+            else . + { ($m.name): {
+                w:  $m.width,
+                h:  $m.height,
+                rr: ($m.refreshRate | round),
+                scale: $m.scale,
+                transform: ($m.transform // 0),
+                vrr: false,
+                pos: "\($m.x)x\($m.y)"
+            } } end)
+    ' 2>/dev/null)" || return 0
+    [ -n "$merged" ] && [ "$merged" != "$cur" ] || return 0
+
+    local tmp; tmp="$(mktemp)"
+    if jq --arg mo "$merged" '.monOverrides = $mo' "$cfg" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$cfg"
+        # Пересобрать конфиг компоновщика из обновлённого settings.json, чтобы
+        # свежий monitors_data.lua тоже попал в стэш и пережил установку.
+        [ -x "$CONF/panacea/scripts/genmonitors.sh" ] \
+            && "$CONF/panacea/scripts/genmonitors.sh" >/dev/null 2>&1
+    else
+        rm -f "$tmp"
+    fi
+}
+
 stash_user_state() {
+    # До стэша снимаем живой масштаб в settings.json — иначе выставленный мимо
+    # панели пропал бы: сохранять было бы нечего.
+    snapshot_live_monitors
+
     # Стэш рядом с конфигом, а не в /tmp: тот почти везде tmpfs, то есть
     # оперативная память. У того, кто скачал набор обоев, в hypr/wallpaper
     # лежат сотни мегабайт — они уезжали в память целиком, и на машине без
