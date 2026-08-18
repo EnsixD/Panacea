@@ -5556,7 +5556,14 @@ PanelWindow {
             // иначе содержимое переливалось по ширине на каждом кадре
             // сворачивания и выглядело как размазанная краска.
             width: (root.settingsMode ? root.settingsW : root.panelW) - 30
-            active: root.expanded || capsule.height > root.pillH + 4
+            // Пока показывается карточка выбора экрана (или тост), контент
+            // раскрытой панели не рисуем: при старте записи из quick settings
+            // панель сворачивается, а её содержимое иначе видно ещё пару кадров
+            // позади карточки — экраны «проблёскивали».
+            active: (root.expanded || capsule.height > root.pillH + 4)
+                    && !root.recPickActive && !root.btToastActive
+                    && !root.acToastActive
+            visible: !root.recPickActive && !root.btToastActive && !root.acToastActive
             // без этого клавиатура не доходила до содержимого страницы:
             // сам Loader фокуса не имел, и forceActiveFocus() внутри вида
             // ни к чему не приводил
