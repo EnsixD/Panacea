@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "island: a charging card with the battery's charge wave behind it":
+            "Остров: при подключении зарядки к ноутбуку на пару секунд показывается карточка по центру — значок зарядки, «Заряжается» и процент, а фоном идёт та же волна заряда, что на кнопке батареи в быстрых настройках",
         "island: a connect card for Bluetooth earbuds, with the battery in a ring":
             "Остров: при подключении Bluetooth-наушников на пару секунд показывается карточка — иконка наушников, имя устройства и кольцо с зарядом в процентах",
         "update: snapshot the live screen scale so one set outside the panel survives too":

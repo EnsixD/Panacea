@@ -3521,6 +3521,36 @@ PanelWindow {
         onTriggered: root.dismissBtToast()
     }
 
+    // ---- Тост «зарядка подключена» ---------------------------------------
+    // При подключении блока питания к ноутбуку остров на пару секунд
+    // сворачивается в такую же карточку: значок зарядки, «Заряжается» и заряд.
+    // Фон карточки — плавная волна, расходящаяся из центра. Ловим переход
+    // питания от сети из false в true; только на ноутбуке (на десктопе сеть
+    // есть всегда). Уступает Bluetooth-тосту, если тот показывается.
+    property bool acToastShown: false
+    readonly property bool acToastActive:
+        acToastShown && !expanded && root.isLaptop && !root.btToastActive
+    property bool acPrev: root.acOnline
+
+    onAcOnlineChanged: {
+        if (root.acOnline && !root.acPrev && root.isLaptop) root.showAcToast();
+        root.acPrev = root.acOnline;
+    }
+    function showAcToast() {
+        root.acToastShown = true;
+        if (root.expanded) root.collapse();
+        acToastTimer.restart();
+    }
+    function dismissAcToast() {
+        root.acToastShown = false;
+        acToastTimer.stop();
+    }
+    Timer {
+        id: acToastTimer
+        interval: 2300
+        onTriggered: root.dismissAcToast()
+    }
+
     // rfkill может держать адаптер программно заблокированным (после
     // предыдущей сессии, гибернации, ядра). Пока он заблокирован, BlueZ не даёт
     // включить питание, и плитка «щёлкала» вхолостую. Снимаем блокировку перед
@@ -3866,7 +3896,9 @@ PanelWindow {
         function evenUp(v) { return Math.round(v / 2) * 2; }
 
         readonly property real idleLen: root.btToastActive
-                    ? capsule.evenUp(btCapsule.implicitWidth + 48)
+                    ? capsule.evenUp(Math.max(btCapsule.implicitWidth + 48, 240))
+                : root.acToastActive
+                    ? capsule.evenUp(Math.max(acCapsule.implicitWidth + 48, 240))
                 : root.toastActive ? 440
                 : root.osdActive ? capsule.evenUp(osdCapsule.implicitWidth + 32)
                 : root.pillSide  ? capsule.evenUp(Math.max(vertCapsule.implicitHeight + 30,
@@ -3876,7 +3908,7 @@ PanelWindow {
                                                            capsule.collapsedMin))
                                  : capsule.evenUp(Math.max(idleCapsule.implicitWidth + 32,
                                                            capsule.collapsedMin))
-        readonly property real idleThick: root.btToastActive
+        readonly property real idleThick: (root.btToastActive || root.acToastActive)
                 ? root.pillH
                 : root.toastActive
                 ? toastCapsule.implicitHeight + 24 : root.pillH
@@ -4088,7 +4120,7 @@ PanelWindow {
                 if (!root.hoverExpandArmed) return;
                 // пока висит уведомление, наведение не раскрывает панель:
                 // иначе до крестика не добраться
-                if (root.toastActive || root.btToastActive) return;
+                if (root.toastActive || root.btToastActive || root.acToastActive) return;
                 // При автопрятании наведением остров только показывают. Он и
                 // выезжает-то из-за кромки под этот самый курсор, так что
                 // раскрытие следом означало бы: хотел посмотреть время —
@@ -4118,7 +4150,7 @@ PanelWindow {
             anchors.fill: parent
             z: 5
             enabled: !root.expanded && !root.toastActive && !root.pillDragging
-                     && !root.osdActive && !root.btToastActive
+                     && !root.osdActive && !root.btToastActive && !root.acToastActive
             cursorShape: Qt.PointingHandCursor
             onClicked: capsule.openPanel()
         }
@@ -4155,7 +4187,7 @@ PanelWindow {
             anchors.rightMargin: 14
             anchors.topMargin: 12
             spacing: 12
-            visible: root.toastActive && !root.btToastActive
+            visible: root.toastActive && !root.btToastActive && !root.acToastActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4376,10 +4408,94 @@ PanelWindow {
                 Text {
                     anchors.centerIn: parent
                     visible: root.btConnectedBattery >= 0
-                    text: root.btConnectedBattery
+                    text: String(root.btConnectedBattery)
                     color: root.colFg
                     font { family: root.fontFam; pixelSize: root.fontSize - 6; bold: true }
                 }
+            }
+        }
+
+        // ---- свёрнутое: зарядка подключена ------------------------------
+        // Фон карточки — та же волна заряда, что на кнопке батареи в быстрых
+        // настройках (ControlsView.ChargeWave): две бегущие синусоиды цветом
+        // заряда, налитые до уровня батареи. Рисуется под содержимым (z ниже
+        // капсул с z:110) и обрезается клипом пилюли; идёт, пока карточка на
+        // экране.
+        Canvas {
+            id: acWave
+            anchors.fill: parent
+            z: 1
+            visible: root.acToastActive
+            property color tint: root.colOk
+            property real level: root.batteryPct / 100
+            property real phase: 0
+            onPhaseChanged: requestPaint()
+            onLevelChanged: requestPaint()
+            onTintChanged: requestPaint()
+
+            Timer {
+                interval: 45
+                running: root.acToastActive && acWave.visible
+                repeat: true
+                onTriggered: acWave.phase += 0.16
+            }
+
+            onPaint: {
+                var ctx = getContext("2d");
+                ctx.reset();
+                if (width <= 0 || height <= 0) return;
+
+                // Уровень держим в стороне от краёв: у самого верха волна
+                // срезалась бы и выглядела ровной полосой.
+                var base = height * (1 - Math.max(0.12, Math.min(0.92, level)));
+                var amp = 3.2;
+
+                for (var w = 0; w < 2; w++) {
+                    var off = w === 0 ? 0 : Math.PI * 0.7;
+                    var k = w === 0 ? 0.055 : 0.041;
+                    ctx.beginPath();
+                    ctx.moveTo(0, height);
+                    for (var x = 0; x <= width; x += 3) {
+                        var y = base + amp * Math.sin(k * x + phase + off)
+                                     + amp * 0.5 * Math.sin(k * 1.9 * x - phase * 0.7);
+                        if (x === 0) ctx.lineTo(0, y); else ctx.lineTo(x, y);
+                    }
+                    ctx.lineTo(width, height);
+                    ctx.closePath();
+                    ctx.fillStyle = Qt.rgba(tint.r, tint.g, tint.b, w === 0 ? 0.16 : 0.11);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // Значок зарядки, «Заряжается» и процент — одной строкой по центру
+        // пилюли, без кольца.
+        RowLayout {
+            id: acCapsule
+            z: 110
+            anchors.centerIn: parent
+            spacing: 8
+            visible: root.acToastActive
+            opacity: visible ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: String.fromCodePoint(0xF0241)
+                color: root.colOk
+                font { family: root.fontFam; pixelSize: root.iconSize + 3 }
+            }
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: root.tr("Заряжается")
+                color: root.colFg
+                font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
+            }
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: root.batteryPct + "%"
+                color: root.colOk
+                font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
             }
         }
 
@@ -4389,7 +4505,7 @@ PanelWindow {
             anchors.centerIn: parent
             height: root.pillH
             spacing: 12
-            visible: root.osdActive && !root.toastActive && !root.btToastActive
+            visible: root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4475,7 +4591,7 @@ PanelWindow {
             spacing: 14
             // На теме Nothing свёрнутый остров устроен иначе — его собирает
             // nothingCapsule, а эта раскладка целиком уступает ему место.
-            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive && !root.btToastActive
+            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive
             // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
             // равен нулю, и остров считал бы свою длину по пустоте.
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
@@ -4759,7 +4875,7 @@ PanelWindow {
             anchors.leftMargin: 18
             anchors.rightMargin: 18
             height: root.pillH
-            visible: root.themeNothing && !root.expanded && !root.btToastActive
+            visible: root.themeNothing && !root.expanded && !root.btToastActive && !root.acToastActive
                      && !root.osdActive && !root.toastActive
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
@@ -5065,7 +5181,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: root.pillH
                 spacing: 7
-                visible: !root.expanded && !root.btToastActive
+                visible: !root.expanded && !root.btToastActive && !root.acToastActive
                 opacity: root.pillSide ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
