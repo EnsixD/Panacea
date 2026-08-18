@@ -4300,6 +4300,9 @@ PanelWindow {
                 Layout.preferredWidth: 22
                 Layout.preferredHeight: 22
                 Layout.alignment: Qt.AlignVCenter
+                // Иконка чуть левее: увеличиваем зазор до текста (капсула
+                // центрирована, поэтому иконка сдвигается к левому краю).
+                Layout.rightMargin: 8
                 source: Quickshell.env("HOME") + "/.config/panacea/assets/earbuds.svg"
                 sourceSize.width: 44
                 sourceSize.height: 44
@@ -4342,8 +4345,8 @@ PanelWindow {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
                 Layout.alignment: Qt.AlignVCenter
-                // Побольше воздуха между именем и кольцом.
-                Layout.leftMargin: 54
+                // Побольше воздуха между именем и кольцом; кольцо чуть правее.
+                Layout.leftMargin: 64
 
                 readonly property real level:
                     root.btConnectedBattery >= 0 ? root.btConnectedBattery / 100 : 0
@@ -4444,6 +4447,23 @@ PanelWindow {
                 var ctx = getContext("2d");
                 ctx.reset();
                 if (width <= 0 || height <= 0) return;
+
+                // Клип по скруглению пилюли: у капсулы прямоугольный clip, и
+                // без этого волна вылезала в скруглённые углы полупрозрачными
+                // острыми уголками. Радиусы берём у самой капсулы.
+                var mr = Math.min(width, height) / 2;
+                var tl = Math.min(capsule.topLeftRadius, mr);
+                var tr = Math.min(capsule.topRightRadius, mr);
+                var br = Math.min(capsule.bottomRightRadius, mr);
+                var bl = Math.min(capsule.bottomLeftRadius, mr);
+                ctx.beginPath();
+                ctx.moveTo(tl, 0);
+                ctx.arcTo(width, 0, width, height, tr);
+                ctx.arcTo(width, height, 0, height, br);
+                ctx.arcTo(0, height, 0, 0, bl);
+                ctx.arcTo(0, 0, width, 0, tl);
+                ctx.closePath();
+                ctx.clip();
 
                 // Уровень держим в стороне от краёв: у самого верха волна
                 // срезалась бы и выглядела ровной полосой.
