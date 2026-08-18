@@ -114,7 +114,12 @@ case "$1" in
     start)
         if read_state; then echo "already" >&2; exit 1; fi
 
-        WF_REC=$(find_recorder) || { echo "no-recorder" >&2; exit 1; }
+        WF_REC=$(find_recorder) || {
+            echo "no-recorder" >&2
+            command -v notify-send >/dev/null 2>&1 && notify-send -a Panacea \
+                -u critical "Запись недоступна" "wf-recorder не установлен"
+            exit 1
+        }
 
         FPS="${2:-60}"
         DIR="${3:-$HOME/Videos}"
@@ -153,16 +158,51 @@ case "$1" in
             AUDIO_DEV="$MIC_DEV"
         fi
 
-        args=(-f "$FILE" -r "$FPS" -c libx264 -p preset=veryfast -p crf=23)
-        [ -n "$AUDIO_DEV" ] && args+=("--audio=$AUDIO_DEV")
+        base=(-f "$FILE" -r "$FPS")
+        [ -n "$AUDIO_DEV" ] && base+=("--audio=$AUDIO_DEV")
 
-        "$WF_REC" "${args[@]}" >"$STATE_DIR/record.log" 2>&1 &
-        PID=$!
-        sleep 0.4
-        if ! kill -0 "$PID" 2>/dev/null; then
+        # Запуск с проверкой, что процесс прожил полсекунды: wf-recorder при
+        # отказе (нет нужного кодека, не тот пиксельный формат, не завёлся
+        # захват) молча выходит сразу — и запись «нажимается впустую».
+        attempt() {
+            "$WF_REC" "${base[@]}" "$@" >"$STATE_DIR/record.log" 2>&1 &
+            PID=$!
+            sleep 0.5
+            kill -0 "$PID" 2>/dev/null
+        }
+
+        # Есть ли кодировщик в той сборке ffmpeg, с которой линкован wf-recorder.
+        have_enc() {
+            command -v ffmpeg >/dev/null 2>&1 || return 1
+            ffmpeg -hide_banner -encoders 2>/dev/null | grep -qw "$1"
+        }
+
+        # Перебор кодеков от лучшего к тому, что точно есть. libx264 (на Arch
+        # приходит с ffmpeg) — предпочтительно; нет его или не с теми опциями —
+        # берём следующий доступный, а в конце отдаём выбор самому wf-recorder.
+        started=0
+        if have_enc libx264; then
+            attempt -c libx264 -p preset=veryfast -p crf=23 && started=1
+            [ "$started" = 0 ] && { attempt -c libx264 && started=1; }
+        fi
+        if [ "$started" = 0 ] && have_enc libvpx-vp9; then
+            attempt -c libvpx-vp9 && started=1
+        fi
+        if [ "$started" = 0 ] && have_enc libvpx; then
+            attempt -c libvpx && started=1
+        fi
+        # Последняя попытка — кодек по умолчанию сборки wf-recorder.
+        [ "$started" = 0 ] && { attempt && started=1; }
+
+        if [ "$started" = 0 ]; then
             unload_modules "$MODULES"
             echo "failed" >&2
-            tail -3 "$STATE_DIR/record.log" >&2
+            tail -4 "$STATE_DIR/record.log" >&2
+            # Показать реальную причину: панель — сама демон уведомлений, так
+            # что видно и из quick settings, а не только на странице записи.
+            err=$(tail -2 "$STATE_DIR/record.log" 2>/dev/null | tr '\n' ' ')
+            command -v notify-send >/dev/null 2>&1 && \
+                notify-send -a Panacea -u critical "Запись не началась" "$err"
             exit 1
         fi
 
