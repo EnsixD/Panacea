@@ -1919,6 +1919,9 @@ PanelWindow {
         function onTrackArtUrlChanged() { root.refreshMediaArt(); }
         function onTrackTitleChanged()  { root.refreshMediaArt(); }
         function onPostTrackChanged()   { root.refreshMediaArt(); }
+        // На паузе/возобновлении плеер иногда переотдаёт метаданные — заодно
+        // перечитываем обложку, чтобы она не пропадала после resume.
+        function onIsPlayingChanged()   { root.refreshMediaArt(); }
     }
 
     // ---------------------------------------------------------------- батарея
@@ -4762,7 +4765,9 @@ PanelWindow {
                     Layout.alignment: Qt.AlignVCenter
                     radius: 6
                     color: Qt.rgba(1, 1, 1, 0.08)
-                    clip: true
+                    // clip у Rectangle прямоугольный — углы обложки от него
+                    // острые. Скругляем саму картинку маской по радиусу:
+                    // скрытый Image-источник + маска, а рисует MultiEffect.
                     Image {
                         id: capsuleArt
                         anchors.fill: parent
@@ -4771,7 +4776,22 @@ PanelWindow {
                         asynchronous: true
                         cache: true
                         sourceSize.width: 56
-                        visible: status === Image.Ready
+                        visible: false
+                        layer.enabled: true
+                    }
+                    Item {
+                        id: capsuleArtMask
+                        anchors.fill: parent
+                        visible: false
+                        layer.enabled: true
+                        Rectangle { anchors.fill: parent; radius: 6; color: "#ffffff" }
+                    }
+                    MultiEffect {
+                        anchors.fill: parent
+                        source: capsuleArt
+                        maskEnabled: true
+                        maskSource: capsuleArtMask
+                        visible: capsuleArt.status === Image.Ready
                     }
                     Text {
                         anchors.centerIn: parent
@@ -5353,7 +5373,6 @@ PanelWindow {
                         Layout.preferredHeight: 22
                         radius: 7
                         color: Qt.rgba(1, 1, 1, 0.08)
-                        clip: true
 
                         Image {
                             id: vertArt
@@ -5363,7 +5382,22 @@ PanelWindow {
                             asynchronous: true
                             cache: true
                             sourceSize.width: 64
-                            visible: status === Image.Ready
+                            visible: false
+                            layer.enabled: true
+                        }
+                        Item {
+                            id: vertArtMask
+                            anchors.fill: parent
+                            visible: false
+                            layer.enabled: true
+                            Rectangle { anchors.fill: parent; radius: 7; color: "#ffffff" }
+                        }
+                        MultiEffect {
+                            anchors.fill: parent
+                            source: vertArt
+                            maskEnabled: true
+                            maskSource: vertArtMask
+                            visible: vertArt.status === Image.Ready
                         }
                         Text {
                             anchors.centerIn: parent

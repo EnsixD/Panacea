@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Bluetooth
 
@@ -1569,7 +1570,6 @@ Item {
                             Layout.preferredHeight: 42
                             radius: 10
                             color: Qt.rgba(1, 1, 1, 0.07)
-                            clip: true
 
                             Image {
                                 id: cardArt
@@ -1578,7 +1578,24 @@ Item {
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 sourceSize.width: 120
-                                visible: status === Image.Ready
+                                // маска, чтобы у обложки были скруглённые углы,
+                                // а не острые поверх скруглённого плейсхолдера
+                                visible: false
+                                layer.enabled: true
+                            }
+                            Item {
+                                id: cardArtMask
+                                anchors.fill: parent
+                                visible: false
+                                layer.enabled: true
+                                Rectangle { anchors.fill: parent; radius: 10; color: "#ffffff" }
+                            }
+                            MultiEffect {
+                                anchors.fill: parent
+                                source: cardArt
+                                maskEnabled: true
+                                maskSource: cardArtMask
+                                visible: cardArt.status === Image.Ready
                             }
                             Text {
                                 anchors.centerIn: parent
