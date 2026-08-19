@@ -113,6 +113,10 @@ DEPS=(
     "slurp|slurp|region select"
     "ffmpeg|ffmpeg|media player, trimming, thumbnails"
     "wf-recorder|wf-recorder|screen recording"
+    # Голос в текст по правому Alt. voxtype — офлайн push-to-talk демон, wtype
+    # печатает распознанное в активное поле (виртуальная клавиатура Wayland).
+    "voxtype|voxtype-bin|voice-to-text (push-to-talk, offline)"
+    "wtype|wtype|typing recognised voice into the focused field"
     "brightnessctl|brightnessctl|brightness keys"
     # На настольной машине внутренней матрицы нет, и яркость монитора идёт по
     # DDC/CI поверх I2C — без ddcutil ползунок яркости показать не из чего.
@@ -630,6 +634,16 @@ install_configs() {
             && ok "screen mode written into the compositor config"
     fi
 
+    # Конфиг voxtype (голос → текст): кладём наш, если своего ещё нет. Правый
+    # Alt слушает Hyprland, а не сам voxtype, поэтому в нашем конфиге встроенный
+    # хоткей выключен. Чужой конфиг не трогаем.
+    if [ ! -f "$CONF/voxtype/config.toml" ] \
+       && [ -f "$CONF/panacea/scripts/voxtype.config.toml" ]; then
+        mkdir -p "$CONF/voxtype"
+        cp "$CONF/panacea/scripts/voxtype.config.toml" "$CONF/voxtype/config.toml" \
+            && ok "voxtype config written (voice-to-text on Right Alt)"
+    fi
+
     stamp_version
     personalize_paths
 }
@@ -680,6 +694,20 @@ enable_services() {
     done
     # soft-unblock radios so Bluetooth/Wi-Fi come up without a manual rfkill
     command -v rfkill >/dev/null 2>&1 && rfkill unblock all 2>/dev/null
+
+    # voxtype (голос → текст): демон принимает `voxtype record start/stop`,
+    # которые дёргает Hyprland по правому Alt. Модель нужна одна, и она большая
+    # (сотни МБ) — качаем только с согласия. Сервис включаем пользовательский.
+    if command -v voxtype >/dev/null 2>&1; then
+        if ask "Download the voxtype speech model (~hundreds of MB) for voice-to-text?"; then
+            voxtype setup --download --model medium >/dev/null 2>&1 \
+                && ok "voxtype model downloaded" || warn "voxtype model download failed"
+        fi
+        voxtype setup systemd >/dev/null 2>&1
+        systemctl --user enable --now voxtype.service >/dev/null 2>&1 \
+            && ok "voxtype service enabled" \
+            || warn "could not enable the voxtype service — enable it by hand: systemctl --user enable --now voxtype"
+    fi
 
     mask_rival_notifiers
 }

@@ -223,6 +223,9 @@ PanelWindow {
             property string bind_themeSwitch: "SUPER + SHIFT + T"
             property string bind_floatToggle: "SUPER + W"
             property string bind_pillVault: "SUPER + SHIFT + P"
+            // Голос в текст (voxtype): зажми правый Alt — говоришь, отпустил —
+            // вставилось. Обрабатывается парой press/release в keybindings.lua.
+            property string bind_voxDictate: "Alt_R"
             property string bind_floatCenter: "SUPER + SHIFT + Space"
             property string bind_fileManager: "SUPER + E"
             property string bind_fileManagerTui: "SUPER + SHIFT + E"
@@ -258,6 +261,7 @@ PanelWindow {
         themeSwitch:    "SUPER + SHIFT + T",
         floatToggle:    "SUPER + W",
         pillVault:      "SUPER + SHIFT + P",
+        voxDictate:     "Alt_R",
         floatCenter:    "SUPER + SHIFT + Space",
         fileManager:    "SUPER + E",
         fileManagerTui: "SUPER + SHIFT + E",
@@ -3485,6 +3489,24 @@ PanelWindow {
     }
     function toggleRecord() { if (root.recActive) stopRecord(); else startRecord(); }
 
+    // ---------------------------------------------------- голос в текст (voxtype)
+    // Пока зажат правый Alt — остров показывает индикатор: «Слушаю…» во время
+    // записи, «Расшифровываю…» пока voxtype печатает текст. Ведёт индикатор
+    // scripts/voxtype.sh (его дёргает Hyprland на нажатие/отпускание клавиши)
+    // через IPC voxListening/voxTranscribing/voxDone. Само распознавание и
+    // вставку текста в активное поле делает voxtype.
+    property string voxState: ""     // "" | "listening" | "transcribing"
+    readonly property bool voxActive: voxState.length > 0 && !expanded
+
+    // Страховка: если «Расшифровываю…» почему-то не закрылось (voxtype упал и
+    // не прислал voxDone) — прячем сами через несколько секунд.
+    Timer {
+        id: voxGuard
+        interval: 8000
+        running: root.voxState === "transcribing"
+        onTriggered: root.voxState = ""
+    }
+
     // список микрофонов для выбора в пульте записи
     ListModel { id: micModel }
     readonly property var recMics: micModel
@@ -3642,6 +3664,14 @@ PanelWindow {
     // -------------------------------------------------------------------- IPC
     IpcHandler {
         target: "pill"
+        // индикатор голосового ввода: зовёт voxtype.sh на разных этапах
+        function voxListening(): void { root.voxState = "listening"; }
+        function voxTranscribing(): void { root.voxState = "transcribing"; }
+        function voxDone(): void { root.voxState = ""; }
+        function voxUnavailable(): void {
+            root.voxState = "";
+            root.recError = root.tr("voxtype не установлен");
+        }
         function launcher(): void { root.toggleLauncher(); }
         function overview(): void { root.toggleOverview(); }
         // Всегда плитки Wi-Fi/Bluetooth, даже когда играет музыка
@@ -3954,7 +3984,9 @@ PanelWindow {
         // дробная ширина содержимого стала попадать наружу.
         function evenUp(v) { return Math.round(v / 2) * 2; }
 
-        readonly property real idleLen: root.recPickActive
+        readonly property real idleLen: root.voxActive
+                    ? capsule.evenUp(Math.max(voxCapsule.implicitWidth + 40, 240))
+                : root.recPickActive
                     ? capsule.evenUp(Math.max(recPickCapsule.implicitWidth + 28, 240))
                 : root.btToastActive
                     ? capsule.evenUp(Math.max(btCapsule.implicitWidth + 48, 240))
@@ -3970,7 +4002,7 @@ PanelWindow {
                                  : capsule.evenUp(Math.max(idleCapsule.implicitWidth + 32,
                                                            capsule.collapsedMin))
         readonly property real idleThick: (root.btToastActive || root.acToastActive
-                    || root.recPickActive)
+                    || root.recPickActive || root.voxActive)
                 ? root.pillH
                 : root.toastActive
                 ? toastCapsule.implicitHeight + 24 : root.pillH
@@ -4182,7 +4214,7 @@ PanelWindow {
                 if (!root.hoverExpandArmed) return;
                 // пока висит уведомление, наведение не раскрывает панель:
                 // иначе до крестика не добраться
-                if (root.toastActive || root.btToastActive || root.acToastActive || root.recPickActive) return;
+                if (root.toastActive || root.btToastActive || root.acToastActive || root.recPickActive || root.voxActive) return;
                 // При автопрятании наведением остров только показывают. Он и
                 // выезжает-то из-за кромки под этот самый курсор, так что
                 // раскрытие следом означало бы: хотел посмотреть время —
@@ -4212,7 +4244,7 @@ PanelWindow {
             anchors.fill: parent
             z: 5
             enabled: !root.expanded && !root.toastActive && !root.pillDragging
-                     && !root.osdActive && !root.btToastActive && !root.acToastActive && !root.recPickActive
+                     && !root.osdActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             cursorShape: Qt.PointingHandCursor
             onClicked: capsule.openPanel()
         }
@@ -4249,7 +4281,7 @@ PanelWindow {
             anchors.rightMargin: 14
             anchors.topMargin: 12
             spacing: 12
-            visible: root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive
+            visible: root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4351,7 +4383,7 @@ PanelWindow {
             // иначе имя и кольцо разъезжались по краям с большим зазором.
             anchors.centerIn: parent
             spacing: 11
-            visible: root.btToastActive && !root.recPickActive
+            visible: root.btToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4557,7 +4589,7 @@ PanelWindow {
             z: 110
             anchors.centerIn: parent
             spacing: 8
-            visible: root.acToastActive && !root.recPickActive
+            visible: root.acToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4650,13 +4682,49 @@ PanelWindow {
             }
         }
 
+        // ---- свёрнутое: голосовой ввод (voxtype) ------------------------
+        // Пока зажата кнопка/клавиша — «Слушаю…» с пульсирующей точкой; после
+        // отпускания, пока voxtype печатает текст, — «Расшифровываю…».
+        RowLayout {
+            id: voxCapsule
+            z: 120
+            anchors.centerIn: parent
+            spacing: 9
+            visible: root.voxActive
+            opacity: visible ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: String.fromCodePoint(0xF036C)   // микрофон
+                color: root.voxState === "listening" ? root.colCrit : root.colOn
+                font { family: root.fontFam; pixelSize: root.iconSize + 3 }
+
+                // мягкое пульсирование, пока слушаем
+                SequentialAnimation on opacity {
+                    running: root.voxState === "listening"
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 1.0; to: 0.35; duration: 650; easing.type: Easing.InOutSine }
+                    NumberAnimation { from: 0.35; to: 1.0; duration: 650; easing.type: Easing.InOutSine }
+                }
+                onVisibleChanged: if (!visible) opacity = 1
+            }
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: root.voxState === "transcribing" ? root.tr("Расшифровываю…")
+                                                       : root.tr("Слушаю…")
+                color: root.colFg
+                font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
+            }
+        }
+
         // ------------------------------------------- свёрнутое: уровень (OSD)
         RowLayout {
             id: osdCapsule
             anchors.centerIn: parent
             height: root.pillH
             spacing: 12
-            visible: root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive
+            visible: root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4742,7 +4810,7 @@ PanelWindow {
             spacing: 14
             // На теме Nothing свёрнутый остров устроен иначе — его собирает
             // nothingCapsule, а эта раскладка целиком уступает ему место.
-            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive
+            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
             // равен нулю, и остров считал бы свою длину по пустоте.
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
@@ -5043,7 +5111,7 @@ PanelWindow {
             anchors.leftMargin: 18
             anchors.rightMargin: 18
             height: root.pillH
-            visible: root.themeNothing && !root.expanded && !root.btToastActive && !root.acToastActive && !root.recPickActive
+            visible: root.themeNothing && !root.expanded && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
                      && !root.osdActive && !root.toastActive
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
@@ -5349,7 +5417,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: root.pillH
                 spacing: 7
-                visible: !root.expanded && !root.btToastActive && !root.acToastActive && !root.recPickActive
+                visible: !root.expanded && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
                 opacity: root.pillSide ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -5596,8 +5664,8 @@ PanelWindow {
             // позади карточки — экраны «проблёскивали».
             active: (root.expanded || capsule.height > root.pillH + 4)
                     && !root.recPickActive && !root.btToastActive
-                    && !root.acToastActive
-            visible: !root.recPickActive && !root.btToastActive && !root.acToastActive
+                    && !root.acToastActive && !root.voxActive
+            visible: !root.recPickActive && !root.btToastActive && !root.acToastActive && !root.voxActive
             // без этого клавиатура не доходила до содержимого страницы:
             // сам Loader фокуса не имел, и forceActiveFocus() внутри вида
             // ни к чему не приводил

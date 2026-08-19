@@ -401,6 +401,7 @@ ColumnLayout {
             BindRow { bindId: "pillClip";      label: page.sys.tr("Буфер обмена") }
             BindRow { bindId: "pillPower";     label: page.sys.tr("Меню питания") }
             BindRow { bindId: "pillRecord";    label: page.sys.tr("Запись экрана") }
+            BindRow { bindId: "voxDictate";    label: page.sys.tr("Голос в текст") }
             BindRow { bindId: "pillNotif";     label: page.sys.tr("Уведомления") }
             BindRow { bindId: "fileManager";   label: page.sys.tr("Проводник") }
             BindRow { bindId: "pillVault";     label: page.sys.tr("Менеджер паролей") }

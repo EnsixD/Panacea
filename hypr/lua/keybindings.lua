@@ -34,6 +34,22 @@ B("pillNotif",    mainMod .. " + SHIFT + N",     hl.dsp.exec_cmd(QS .. "notifica
 B("pillRecord",   mainMod .. " + P",             hl.dsp.exec_cmd(QS .. "record"))
 B("pillVault",    mainMod .. " + SHIFT + P",     hl.dsp.exec_cmd(QS .. "passwords"))
 
+-- Голос в текст (voxtype): зажми клавишу — говоришь, отпустил — текст
+-- вставляется в активное поле. Одна клавиша, два бинда: нажатие запускает
+-- запись, отпускание — расшифровку и вставку. Обёртка voxtype.sh заодно
+-- показывает индикатор в острове. По умолчанию — правый Alt. id voxDictate
+-- виден в окне Super+/, как остальные сочетания; переопределяется из настроек.
+do
+    local VOX = os.getenv("HOME") .. "/.config/panacea/scripts/voxtype.sh"
+    local combo = ov["voxDictate"]
+    if combo == nil then combo = "Alt_R" end
+    if combo ~= "" then
+        hl.bind(combo, hl.dsp.exec_cmd(VOX .. " start"),
+                { description = "Голос в текст" })
+        hl.bind(combo, hl.dsp.exec_cmd(VOX .. " stop"), { release = true })
+    end
+end
+
 -- Basic binds
 -- Буквы в Hyprland регистронезависимы: SUPER+f == SUPER+F
 B("terminal",     mainMod .. " + T",         hl.dsp.exec_cmd(p.terminal))
