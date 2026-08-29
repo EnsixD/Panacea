@@ -8,6 +8,9 @@
 capsule at the edge of the screen.
 
 <a href="https://archlinux.org"><img alt="Arch Linux" src="https://img.shields.io/badge/Arch%20Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white"></a>
+<a href="https://ubuntu.com"><img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
+<a href="https://debian.org"><img alt="Debian" src="https://img.shields.io/badge/Debian-A81D33?style=for-the-badge&logo=debian&logoColor=white"></a>
+<a href="https://fedoraproject.org"><img alt="Fedora" src="https://img.shields.io/badge/Fedora-51A2DA?style=for-the-badge&logo=fedora&logoColor=white"></a>
 <a href="https://hyprland.org"><img alt="Hyprland" src="https://img.shields.io/badge/Hyprland-00AAAE?style=for-the-badge&logo=hyprland&logoColor=white"></a>
 <a href="https://quickshell.org"><img alt="Quickshell" src="https://img.shields.io/badge/Quickshell-7F7F7F?style=for-the-badge&logo=qt&logoColor=white"></a>
 <a href="https://fishshell.com"><img alt="Fish" src="https://img.shields.io/badge/Fish-111111?style=for-the-badge&logo=gnubash&logoColor=white"></a>
@@ -145,6 +148,11 @@ reason; `systemctl --user unmask dunst.service` puts one back.
 
 ## Install these dotfiles
 
+> [!TIP]
+> **Cross-Distribution Support (Ubuntu, Debian, Linux Mint, Fedora, openSUSE, Arch)**
+> The installer automatically detects your distribution and package manager (`pacman`, `apt`, `dnf`, `zypper`).
+> Running on Ubuntu, Debian or Linux Mint? See [**docs/other-distros.md**](docs/other-distros.md) for build instructions, dependencies, and compatibility notes.
+
 > [!WARNING]
 > **The installer is young.** It has been run on a handful of machines, mostly
 > the author's. It backs up everything it replaces as `*.bak-<timestamp>`, but
@@ -202,8 +210,6 @@ mirror `lua/`; if something is missing there, the answer is to update Hyprland.
 Networking assumes **iwd** (the Wi‑Fi page drives `iwctl` directly — no
 NetworkManager). Power profiles go through `power-profiles-daemon` over D‑Bus.
 Everything resolves `$HOME` at runtime — no hardcoded paths.
-
-Running on Ubuntu, Debian or Linux Mint? See [docs/other-distros.md](docs/other-distros.md) for build instructions, dependencies and compatibility notes.
 
 ## Layout
 
