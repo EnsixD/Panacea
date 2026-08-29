@@ -53,6 +53,8 @@ QtObject {
         "Зарядка": "Charging",
         "Отключение": "Disconnect",
         "Голос": "Voice",
+        "Говорите, текст появится здесь…": "Speak, words will appear here…",
+        "Обработка речи…": "Processing speech…",
         "и ещё": "and",
         "Отключиться": "Disconnect",
         "Забыть сеть": "Forget network",

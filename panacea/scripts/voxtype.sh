@@ -42,7 +42,7 @@ case "${1:-}" in
         fi
         ;;
     stop)
-        VOX=$(find_vox) || { ipc voxDone; exit 1; }
+        VOX=$(find_vox) || { ipc voxDone ""; exit 1; }
         # Пока voxtype расшифровывает и печатает — показываем «Расшифровываю…».
         ipc voxTranscribing
         "$VOX" record stop >/dev/null 2>&1
@@ -54,7 +54,8 @@ case "${1:-}" in
                 sleep 0.05
             done
         fi
-        ipc voxDone
+        TEXT=$(wl-paste 2>/dev/null | head -c 300)
+        ipc voxDone "$TEXT"
         ;;
     toggle)
         VOX=$(find_vox) || { ipc voxUnavailable; exit 1; }
