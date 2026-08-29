@@ -534,6 +534,7 @@ QtObject {
         "Поиск…": "Scanning…",
         "Не удалось подключиться": "Could not connect",
         "Подключено": "Connected",
+        "Отключено": "Disconnected",
         "Доступно": "Available",
         "Защищённая": "Secured",
         "Открытая": "Open",

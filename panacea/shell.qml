@@ -3544,33 +3544,39 @@ PanelWindow {
     readonly property var btAdapter: Bluetooth.defaultAdapter
     readonly property bool btOn: btAdapter ? btAdapter.enabled : false
     readonly property var btDevices: btAdapter ? btAdapter.devices : null
-    readonly property string btConnectedName: {
-        if (!btDevices) return "";
+    readonly property var btConnectedDevice: {
+        if (!btDevices) return null;
         var list = btDevices.values;
         for (var i = 0; i < list.length; i++)
-            if (list[i] && list[i].connected) return list[i].name || "Устройство";
+            if (list[i] && list[i].connected) return list[i];
+        return null;
+    }
+    readonly property string btConnectedName: {
+        if (btConnectedDevice) return btConnectedDevice.name || "Устройство";
         return "";
+    }
+    readonly property string btConnectedType: {
+        if (!btConnectedDevice) return "earbuds";
+        var icon = String(btConnectedDevice.icon || "").toLowerCase();
+        var name = String(btConnectedDevice.name || "").toLowerCase();
+        if (icon === "input-mouse" || name.indexOf("mouse") >= 0 || name.indexOf("мышь") >= 0) return "mouse";
+        if (icon === "input-keyboard" || name.indexOf("keyboard") >= 0 || name.indexOf("клави") >= 0) return "keyboard";
+        if (icon === "input-gaming" || name.indexOf("controller") >= 0 || name.indexOf("gamepad") >= 0 || name.indexOf("dualsense") >= 0 || name.indexOf("xbox") >= 0) return "gamepad";
+        if (icon === "phone" || name.indexOf("phone") >= 0 || name.indexOf("iphone") >= 0 || name.indexOf("android") >= 0) return "phone";
+        if (icon === "audio-speakers" || icon === "audio-speaker" || name.indexOf("speaker") >= 0 || name.indexOf("колонк") >= 0) return "speaker";
+        return "earbuds";
     }
     // Заряд подключённого устройства (наушников). -1, если батарею не сообщают.
     readonly property int btConnectedBattery: {
-        if (!btDevices) return -1;
-        var list = btDevices.values;
-        for (var i = 0; i < list.length; i++) {
-            var d = list[i];
-            if (d && d.connected && d.batteryAvailable)
-                return Math.round(d.battery * 100);
-        }
+        if (btConnectedDevice && btConnectedDevice.batteryAvailable)
+            return Math.round(btConnectedDevice.battery * 100);
         return -1;
     }
 
-    // ---- Тост «наушники подключились» ------------------------------------
-    // После успешного подключения Bluetooth-гарнитуры остров на несколько
-    // секунд сворачивается в карточку: слева иконка наушников, имя устройства
-    // и метка Connected, справа кольцо с зарядом в процентах. Ловим переход
-    // имени подключённого устройства из пустого в непустое — это и есть момент
-    // подключения. btPrevConnected держит уже показанное, чтобы одно и то же
-    // подключение не всплывало дважды (имя пересчитывается на каждый чих BlueZ).
+    // ---- Тост «Bluetooth-устройство подключено / отключено» ----------------
     property string btToastName: ""
+    property string btToastType: "earbuds"
+    property bool   btToastDisconnected: false
     property bool   btToastShown: false
     readonly property bool btToastActive: btToastShown && !expanded
     property string btPrevConnected: ""
@@ -3579,18 +3585,20 @@ PanelWindow {
         var name = root.btConnectedName;
         if (name.length > 0 && name !== root.btPrevConnected) {
             root.btPrevConnected = name;
-            root.showBtToast(name);
-        } else if (name.length === 0) {
+            root.showBtToast(name, root.btConnectedType, false);
+        } else if (name.length === 0 && root.btPrevConnected.length > 0) {
+            var prev = root.btPrevConnected;
+            var prevType = root.btToastType;
             root.btPrevConnected = "";
+            root.showBtToast(prev, prevType, true);
         }
     }
 
-    function showBtToast(name) {
+    function showBtToast(name, type, isDisconnect) {
         root.btToastName = name;
+        root.btToastType = type || "earbuds";
+        root.btToastDisconnected = isDisconnect || false;
         root.btToastShown = true;
-        // Подключение часто идёт из раскрытого меню Bluetooth. Пока панель
-        // раскрыта, тост не виден (btToastActive требует !expanded) — поэтому
-        // сворачиваем её сами, и карточка подключения показывается сразу.
         if (root.expanded) root.collapse();
         btToastTimer.restart();
     }
@@ -3600,7 +3608,7 @@ PanelWindow {
     }
     Timer {
         id: btToastTimer
-        interval: 2300
+        interval: 2500
         onTriggered: root.dismissBtToast()
     }
 
@@ -4374,55 +4382,61 @@ PanelWindow {
             }
         }
 
-        // ---------------------------------- свёрнутое: наушники подключились
-        // Слева иконка наушников, по центру Connected и имя устройства,
-        // справа кольцо с зарядом в процентах. Появляется на несколько секунд
-        // при подключении Bluetooth-гарнитуры (btToastActive).
+        // ---------------------------------- свёрнутое: Bluetooth устройство
+        // Слева иконка устройства (наушники, мышь, клавиатура, геймпад и т.д.),
+        // по центру статус (Подключено / Отключено) и имя, справа кольцо с зарядом.
         RowLayout {
             id: btCapsule
             z: 110
-            // По центру и по ширине содержимого — без растяжки на всю пилюлю,
-            // иначе имя и кольцо разъезжались по краям с большим зазором.
             anchors.centerIn: parent
             spacing: 11
             visible: root.btToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
-            // Иконка наушников: SVG с белой заливкой, поверх тёмной пилюли
-            // видна как есть — без перекраски эффектом, которая с невидимым
-            // источником не обновляла текстуру и оставляла пустое место.
-            Image {
+            Item {
                 Layout.preferredWidth: 22
                 Layout.preferredHeight: 22
                 Layout.alignment: Qt.AlignVCenter
-                // Иконка чуть левее: увеличиваем зазор до текста (капсула
-                // центрирована, поэтому иконка сдвигается к левому краю).
-                Layout.rightMargin: 8
-                source: Quickshell.env("HOME") + "/.config/panacea/assets/earbuds.svg"
-                sourceSize.width: 44
-                sourceSize.height: 44
-                fillMode: Image.PreserveAspectFit
-                smooth: true
+                Layout.rightMargin: 6
+
+                Image {
+                    anchors.fill: parent
+                    visible: root.btToastType === "earbuds" && !root.btToastDisconnected
+                    source: Quickshell.env("HOME") + "/.config/panacea/assets/earbuds.svg"
+                    sourceSize.width: 44
+                    sourceSize.height: 44
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: root.btToastType !== "earbuds" || root.btToastDisconnected
+                    text: root.btToastDisconnected ? String.fromCodePoint(0xF00B2)
+                        : root.btToastType === "mouse" ? String.fromCodePoint(0xF098B)
+                        : root.btToastType === "keyboard" ? String.fromCodePoint(0xF030C)
+                        : root.btToastType === "gamepad" ? String.fromCodePoint(0xF02B4)
+                        : root.btToastType === "phone" ? String.fromCodePoint(0xF011E)
+                        : root.btToastType === "speaker" ? String.fromCodePoint(0xF04C3)
+                        : String.fromCodePoint(0xF00AF)
+                    color: root.btToastDisconnected ? root.colCrit : root.colFg
+                    font { family: root.fontFam; pixelSize: 18 }
+                }
             }
 
             ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 0
-                // Чуть приподнимаем текст относительно центра пилюли —
-                // трансформом, чтобы не менять раскладку строки.
                 transform: Translate { y: -2 }
 
                 Text {
-                    text: root.tr("Подключено")
-                    color: root.colMuted
-                    // Опускаем только эту строку — имя остаётся на месте.
+                    text: root.btToastDisconnected ? root.tr("Отключено") : root.tr("Подключено")
+                    color: root.btToastDisconnected ? root.colCrit : root.colMuted
                     transform: Translate { y: 2 }
                     font { family: root.fontFam; pixelSize: root.fontSize - 4 }
                 }
                 Text {
-                    // Ограничиваем ширину, чтобы длинное имя не растягивало
-                    // пилюлю без края; короткое занимает ровно свою ширину.
                     Layout.maximumWidth: 220
                     text: root.btToastName
                     color: root.colFg
@@ -4431,85 +4445,120 @@ PanelWindow {
                 }
             }
 
-            // Кольцо заряда. Бледный контур на весь круг, поверх — дуга от
-            // верха по часовой, заполненная до доли заряда. При появлении
-            // карточки дуга дорисовывается анимацией от нуля до текущего
-            // процента; батарею BlueZ сообщает не сразу, и когда она приходит,
-            // дуга доигрывает остаток. В центре — процент.
-            Canvas {
-                id: btRing
+            // Правая часть: кольцо заряда или иконка состояния
+            Item {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
                 Layout.alignment: Qt.AlignVCenter
-                // Побольше воздуха между именем и кольцом; кольцо чуть правее.
-                Layout.leftMargin: 64
+                Layout.leftMargin: 48
 
-                readonly property real level:
-                    root.btConnectedBattery >= 0 ? root.btConnectedBattery / 100 : 0
-                property real fill: 0
-                readonly property real lineW: 3.5
+                // Кольцо заряда при наличии батареи
+                Canvas {
+                    id: btRing
+                    anchors.fill: parent
+                    visible: !root.btToastDisconnected && root.btConnectedBattery >= 0
 
-                onFillChanged: requestPaint()
-                onLevelChanged: {
-                    if (!root.btToastActive) return;
-                    btRingAnim.stop();
-                    btRingAnim.from = btRing.fill;
-                    btRingAnim.to = btRing.level;
-                    btRingAnim.start();
-                }
+                    readonly property real level:
+                        root.btConnectedBattery >= 0 ? root.btConnectedBattery / 100 : 0
+                    property real fill: 0
+                    readonly property real lineW: 3.5
 
-                NumberAnimation {
-                    id: btRingAnim
-                    target: btRing; property: "fill"
-                    duration: 900; easing.type: Easing.OutCubic
-                }
-                function play() {
-                    btRingAnim.stop();
-                    btRing.fill = 0;
-                    btRingAnim.from = 0;
-                    btRingAnim.to = btRing.level;
-                    btRingAnim.start();
-                }
-                Connections {
-                    target: root
-                    function onBtToastActiveChanged() {
-                        if (root.btToastActive) btRing.play();
+                    onFillChanged: requestPaint()
+                    onLevelChanged: {
+                        if (!root.btToastActive) return;
+                        btRingAnim.stop();
+                        btRingAnim.from = btRing.fill;
+                        btRingAnim.to = btRing.level;
+                        btRingAnim.start();
                     }
-                }
 
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.reset();
-                    if (width <= 0 || height <= 0) return;
-                    var c = root.colFg;
-                    var r = (Math.min(width, height) - lineW) / 2;
-                    var cx = width / 2, cy = height / 2;
+                    NumberAnimation {
+                        id: btRingAnim
+                        target: btRing; property: "fill"
+                        duration: 900; easing.type: Easing.OutCubic
+                    }
+                    function play() {
+                        btRingAnim.stop();
+                        btRing.fill = 0;
+                        btRingAnim.from = 0;
+                        btRingAnim.to = btRing.level;
+                        btRingAnim.start();
+                    }
+                    Connections {
+                        target: root
+                        function onBtToastActiveChanged() {
+                            if (root.btToastActive) btRing.play();
+                        }
+                    }
 
-                    ctx.lineWidth = lineW;
-                    ctx.lineCap = "round";
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.reset();
+                        if (width <= 0 || height <= 0) return;
+                        var c = root.colFg;
+                        if (root.btConnectedBattery >= 0 && root.btConnectedBattery <= 20) {
+                            c = root.colCrit;
+                        } else if (root.themeNothing) {
+                            c = root.colOn;
+                        } else if (root.btConnectedBattery > 20) {
+                            c = "#34d399";
+                        }
+                        var r = (Math.min(width, height) - lineW) / 2;
+                        var cx = width / 2, cy = height / 2;
 
-                    // бледный контур на весь круг
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-                    ctx.strokeStyle = Qt.rgba(c.r, c.g, c.b, 0.22);
-                    ctx.stroke();
+                        ctx.lineWidth = lineW;
+                        ctx.lineCap = "round";
 
-                    // дуга заряда от верхней точки по часовой
-                    if (fill > 0) {
-                        var start = -Math.PI / 2;
+                        // бледный контур
                         ctx.beginPath();
-                        ctx.arc(cx, cy, r, start, start + 2 * Math.PI * fill);
-                        ctx.strokeStyle = c;
+                        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+                        ctx.strokeStyle = Qt.rgba(c.r, c.g, c.b, 0.22);
                         ctx.stroke();
+
+                        // дуга заряда
+                        if (fill > 0) {
+                            var start = -Math.PI / 2;
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, r, start, start + 2 * Math.PI * fill);
+                            ctx.strokeStyle = c;
+                            ctx.stroke();
+                        }
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: String(root.btConnectedBattery)
+                        color: root.btConnectedBattery <= 20 ? root.colCrit : root.colFg
+                        font { family: root.fontFam; pixelSize: root.fontSize - 6; bold: true }
                     }
                 }
 
-                Text {
-                    anchors.centerIn: parent
-                    visible: root.btConnectedBattery >= 0
-                    text: String(root.btConnectedBattery)
-                    color: root.colFg
-                    font { family: root.fontFam; pixelSize: root.fontSize - 6; bold: true }
+                // Иконка без батареи
+                Rectangle {
+                    anchors.fill: parent
+                    visible: !root.btToastDisconnected && root.btConnectedBattery < 0
+                    radius: 14
+                    color: Qt.rgba(1, 1, 1, 0.10)
+                    Text {
+                        anchors.centerIn: parent
+                        text: String.fromCodePoint(0xF00AF)
+                        color: root.colFg
+                        font { family: root.fontFam; pixelSize: 14 }
+                    }
+                }
+
+                // Индикатор отключения
+                Rectangle {
+                    anchors.fill: parent
+                    visible: root.btToastDisconnected
+                    radius: 14
+                    color: Qt.rgba(1, 0, 0, 0.12)
+                    Text {
+                        anchors.centerIn: parent
+                        text: String.fromCodePoint(0xF00B2)
+                        color: root.colCrit
+                        font { family: root.fontFam; pixelSize: 14 }
+                    }
                 }
             }
         }
