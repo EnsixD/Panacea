@@ -145,6 +145,8 @@ QtObject {
         "Выключить, если блокировкой занимается другая программа.": "Turn off if another program handles locking.",
         "Выключить, если в системе уже стоит свой демон уведомлений.": "Turn off if the system already runs its own notification daemon.",
         "Громкость и устройства": "Volume and devices",
+        "Громкость приложений": "App volume",
+        "Нет активных приложений со звуком": "No apps playing audio",
         "Дата и время вручную": "Date and time by hand",
         "День недели рядом с датой": "Weekday next to the date",
         "Диск /": "Disk /",

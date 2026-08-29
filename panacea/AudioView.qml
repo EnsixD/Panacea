@@ -12,10 +12,35 @@ Item {
 
     focus: true
     Component.onCompleted: forceActiveFocus()
-    Keys.onEscapePressed: view.sys.page = "main"
+    function goBack() { view.sys.page = "main"; return true; }
+    Keys.onEscapePressed: view.goBack()
 
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property var sinkAudio: sink ? sink.audio : null
+
+    function getStreamName(node) {
+        if (!node) return view.sys.tr("Приложение");
+        var props = node.properties || {};
+        return props["application.name"] || props["media.name"] || node.nickname || node.description || node.name || view.sys.tr("Приложение");
+    }
+
+    function getStreamIcon(node) {
+        if (!node) return String.fromCodePoint(0xF04C3);
+        var props = node.properties || {};
+        var name = String(props["application.name"] || node.name || "").toLowerCase();
+        var bin = String(props["application.process.binary"] || "").toLowerCase();
+        var icon = String(props["application.icon_name"] || props["application.icon-name"] || "").toLowerCase();
+
+        if (name.indexOf("telegram") >= 0 || bin.indexOf("telegram") >= 0 || icon.indexOf("telegram") >= 0) return String.fromCodePoint(0xF00BA);
+        if (name.indexOf("spotify") >= 0 || bin.indexOf("spotify") >= 0 || icon.indexOf("spotify") >= 0) return String.fromCodePoint(0xF04C7);
+        if (name.indexOf("firefox") >= 0 || bin.indexOf("firefox") >= 0 || icon.indexOf("firefox") >= 0) return String.fromCodePoint(0xF0239);
+        if (name.indexOf("chrome") >= 0 || bin.indexOf("chrome") >= 0 || name.indexOf("chromium") >= 0) return String.fromCodePoint(0xF02AF);
+        if (name.indexOf("discord") >= 0 || bin.indexOf("discord") >= 0 || name.indexOf("vesktop") >= 0) return String.fromCodePoint(0xF066F);
+        if (name.indexOf("steam") >= 0 || bin.indexOf("steam") >= 0) return String.fromCodePoint(0xF04D3);
+        if (name.indexOf("vlc") >= 0 || name.indexOf("mpv") >= 0) return String.fromCodePoint(0xF057C);
+        if (name.indexOf("game") >= 0) return String.fromCodePoint(0xF02B4);
+        return String.fromCodePoint(0xF04C3);
+    }
 
     ColumnLayout {
         id: col
@@ -222,6 +247,171 @@ Item {
             color: view.sys.colMuted
             horizontalAlignment: Text.AlignHCenter
             font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
+        }
+
+        // ------------------------------------------ громкость приложений (микшер)
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            spacing: 8
+
+            Text {
+                text: view.sys.tr("Громкость приложений")
+                color: view.sys.colMuted
+                font {
+                    family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4
+                    bold: true; capitalization: Font.AllUppercase; letterSpacing: 1
+                }
+            }
+
+            Rectangle {
+                visible: view.sys.audioStreams.length > 0
+                Layout.preferredHeight: 16
+                Layout.preferredWidth: streamCountText.implicitWidth + 10
+                radius: 8
+                color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.2)
+
+                Text {
+                    id: streamCountText
+                    anchors.centerIn: parent
+                    text: String(view.sys.audioStreams.length)
+                    color: view.sys.colOn
+                    font { family: view.sys.fontFam; pixelSize: 10; bold: true }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+        }
+
+        Repeater {
+            model: view.sys.audioStreams
+
+            Rectangle {
+                id: strCard
+                required property var modelData
+                readonly property var strAudio: strCard.modelData ? strCard.modelData.audio : null
+
+                Layout.fillWidth: true
+                Layout.preferredHeight: 58
+                radius: 12
+                color: Qt.rgba(1, 1, 1, 0.05)
+                border.color: view.sys.colLine
+                border.width: 1
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 9
+                    spacing: 4
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            text: view.getStreamIcon(strCard.modelData)
+                            color: strCard.strAudio && strCard.strAudio.muted ? view.sys.colMuted : view.sys.colOn
+                            font { family: view.sys.fontFam; pixelSize: view.sys.iconSize - 2 }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: view.getStreamName(strCard.modelData)
+                            color: view.sys.colFg
+                            elide: Text.ElideRight
+                            font {
+                                family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2
+                                bold: true
+                            }
+                        }
+
+                        Text {
+                            text: strCard.strAudio ? Math.round(strCard.strAudio.volume * 100) + "%" : "—"
+                            color: view.sys.colMuted
+                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                        }
+
+                        Text {
+                            text: !strCard.strAudio ? String.fromCodePoint(0xF075F)
+                                : strCard.strAudio.muted ? String.fromCodePoint(0xF075F)
+                                : strCard.strAudio.volume < 0.34 ? String.fromCodePoint(0xF057F)
+                                : strCard.strAudio.volume < 0.67 ? String.fromCodePoint(0xF0580)
+                                                                 : String.fromCodePoint(0xF057E)
+                            color: strCard.strAudio && strCard.strAudio.muted ? view.sys.colMuted : view.sys.colFg
+                            font { family: view.sys.fontFam; pixelSize: view.sys.iconSize - 3 }
+                            MouseArea {
+                                anchors.fill: parent
+                                anchors.margins: -6
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (strCard.strAudio) strCard.strAudio.muted = !strCard.strAudio.muted
+                            }
+                        }
+                    }
+
+                    // Ползунок громкости конкретного приложения
+                    Item {
+                        id: appSl
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 18
+
+                        readonly property real pos: strCard.strAudio ? strCard.strAudio.volume : 0
+                        readonly property real usable: width - appKnob.width
+
+                        function setFromX(x) {
+                            if (!strCard.strAudio) return;
+                            var r = Math.max(0, Math.min(1, (x - appKnob.width / 2) / Math.max(1, usable)));
+                            strCard.strAudio.volume = Math.round(r * 20) / 20;
+                        }
+
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: appKnob.width / 2
+                            width: parent.usable
+                            height: 4
+                            radius: 2
+                            color: Qt.rgba(1, 1, 1, 0.12)
+                            Rectangle {
+                                width: parent.width * Math.min(1, appSl.pos)
+                                height: parent.height
+                                radius: 2
+                                color: strCard.strAudio && strCard.strAudio.muted ? view.sys.colMuted : view.sys.colOn
+                            }
+                        }
+
+                        Rectangle {
+                            id: appKnob
+                            width: 14; height: 14; radius: 7
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: Math.min(1, appSl.pos) * appSl.usable
+                            color: "#ffffff"
+                            border.color: view.sys.colBg
+                            border.width: view.sys.themeNothing ? 2 : 0
+                            scale: appDrag.pressed ? 1.25 : (appDrag.containsMouse ? 1.1 : 1.0)
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+                        }
+
+                        MouseArea {
+                            id: appDrag
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            preventStealing: true
+                            cursorShape: Qt.PointingHandCursor
+                            onPressed: mouse => appSl.setFromX(mouse.x)
+                            onPositionChanged: mouse => { if (pressed) appSl.setFromX(mouse.x); }
+                        }
+                    }
+                }
+            }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: view.sys.audioStreams.length === 0
+            text: view.sys.tr("Нет активных приложений со звуком")
+            color: view.sys.colMuted
+            horizontalAlignment: Text.AlignHCenter
+            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2; italic: true }
+            Layout.topMargin: 4
+            Layout.bottomMargin: 4
         }
     }
 }
