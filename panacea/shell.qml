@@ -4400,20 +4400,10 @@ PanelWindow {
                 Layout.alignment: Qt.AlignVCenter
                 Layout.rightMargin: 6
 
-                Image {
-                    anchors.fill: parent
-                    visible: root.btToastType === "earbuds" && !root.btToastDisconnected
-                    source: Quickshell.env("HOME") + "/.config/panacea/assets/earbuds.svg"
-                    sourceSize.width: 44
-                    sourceSize.height: 44
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                }
-
                 Text {
                     anchors.centerIn: parent
-                    visible: root.btToastType !== "earbuds" || root.btToastDisconnected
                     text: root.btToastDisconnected ? String.fromCodePoint(0xF00B2)
+                        : root.btToastType === "earbuds" ? String.fromCodePoint(0xF15C6)
                         : root.btToastType === "mouse" ? String.fromCodePoint(0xF098B)
                         : root.btToastType === "keyboard" ? String.fromCodePoint(0xF030C)
                         : root.btToastType === "gamepad" ? String.fromCodePoint(0xF02B4)
@@ -4421,7 +4411,7 @@ PanelWindow {
                         : root.btToastType === "speaker" ? String.fromCodePoint(0xF04C3)
                         : String.fromCodePoint(0xF00AF)
                     color: root.btToastDisconnected ? root.colCrit : root.colFg
-                    font { family: root.fontFam; pixelSize: 18 }
+                    font { family: root.fontFam; pixelSize: 20 }
                 }
             }
 
