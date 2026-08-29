@@ -1351,6 +1351,7 @@ PanelWindow {
     property bool   wallpaperPickMode: false
     property string wallpaperPick: ""       // путь выбранной, ждёт имени
     function startWallpaperPick() {
+        wallsOpen = false;
         wallpaperPickMode = true;
         togglePage("files");
     }

@@ -59,6 +59,16 @@ add)
     src="$2"
     [ -f "$src" ] || { echo "error" >&2; exit 1; }
     mkdir -p "$CUSTOM"
+
+    # Если такой же файл уже добавлен в свои обои — используем его без дубликатов
+    for existing in "$CUSTOM"/*; do
+        if [ -f "$existing" ] && cmp -s "$src" "$existing"; then
+            "$SWITCH" "$existing" >/dev/null 2>&1
+            basename "$existing" | sed 's/\.[^.]*$//'
+            exit 0
+        fi
+    done
+
     base=$(basename "$src")
     slug=$(printf '%s' "${base%.*}" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' \
            | tr -cd '[:alnum:]_-')

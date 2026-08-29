@@ -411,6 +411,7 @@ Item {
                     id: frame
                     anchors.fill: parent
                     readonly property int r: 22
+                    z: 1
 
                     Item {
                         id: shot
@@ -764,14 +765,14 @@ Item {
     Timer {
         id: delTimer
         interval: 250
-        onTriggered: view.reload()
+        onTriggered: view.sys.refreshWalls()
     }
 
     // Свои обои приходят из проводника уже путём — имя спрашивать незачем,
     // оно берётся из имени файла.
     Process {
         id: pAdd
-        onRunningChanged: if (!running) { view.sys.wallpaperPick = ""; view.reload(); }
+        onRunningChanged: if (!running) { view.sys.wallpaperPick = ""; view.sys.refreshWalls(); }
     }
     onVisibleChanged: if (visible) view.takePick()
     function takePick() {
