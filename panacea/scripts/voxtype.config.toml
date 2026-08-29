@@ -155,10 +155,11 @@ fallback_to_clipboard = true
 type_delay_ms = 0
 
 # Delay before typing starts (ms)
-pre_type_delay_ms = 60
+pre_type_delay_ms = 50
 
 # Keystroke for paste mode (when mode = "paste")
-paste_keys = "ctrl+v"
+# "shift+insert" is universal across both GUI apps and terminal emulators (foot, kitty, etc.)
+paste_keys = "shift+insert"
 
 restore_clipboard = false
 wait_for_modifier_release = true
