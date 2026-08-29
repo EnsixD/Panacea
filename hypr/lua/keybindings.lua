@@ -39,16 +39,26 @@ B("pillVault",    mainMod .. " + SHIFT + P",     hl.dsp.exec_cmd(QS .. "password
 -- запись, отпускание — расшифровку и вставку. Обёртка voxtype.sh заодно
 -- показывает индикатор в острове. По умолчанию — правый Alt. id voxDictate
 -- виден в окне Super+/, как остальные сочетания; переопределяется из настроек.
-do
+-- Обёрнуто в pcall нарочно: на некоторых версиях Hyprland/hl параметры бинда
+-- (release, description) или отпускание модификатора могут не поддерживаться, и
+-- голая ошибка здесь роняла ВЕСЬ конфиг Hyprland — сбрасывались все сочетания
+-- на аварийные, а следом не поднимался и qs. Пусть в худшем случае отвалится
+-- только голосовой ввод, а остальные сочетания останутся на месте.
+pcall(function()
     local VOX = os.getenv("HOME") .. "/.config/panacea/scripts/voxtype.sh"
     local combo = ov["voxDictate"]
-    if combo == nil then combo = "Alt_R" end
-    if combo ~= "" then
-        hl.bind(combo, hl.dsp.exec_cmd(VOX .. " start"),
-                { description = "Голос в текст" })
-        hl.bind(combo, hl.dsp.exec_cmd(VOX .. " stop"), { release = true })
+    if combo == nil or combo == "" or combo == "Alt_R" then
+        hl.bind("Alt_R", hl.dsp.exec_cmd(VOX .. " start"), { description = "Voice to text", ignore_mods = true, locked = true })
+        hl.bind("Alt_R", hl.dsp.exec_cmd(VOX .. " stop"), { release = true, ignore_mods = true, locked = true })
+        hl.bind("code:108", hl.dsp.exec_cmd(VOX .. " start"), { description = "Voice to text", ignore_mods = true, locked = true })
+        hl.bind("code:108", hl.dsp.exec_cmd(VOX .. " stop"), { release = true, ignore_mods = true, locked = true })
+        hl.bind("ISO_Level3_Shift", hl.dsp.exec_cmd(VOX .. " start"), { description = "Voice to text", ignore_mods = true, locked = true })
+        hl.bind("ISO_Level3_Shift", hl.dsp.exec_cmd(VOX .. " stop"), { release = true, ignore_mods = true, locked = true })
+    else
+        hl.bind(combo, hl.dsp.exec_cmd(VOX .. " start"), { description = "Voice to text", ignore_mods = true, locked = true })
+        hl.bind(combo, hl.dsp.exec_cmd(VOX .. " stop"), { release = true, ignore_mods = true, locked = true })
     end
-end
+end)
 
 -- Basic binds
 -- Буквы в Hyprland регистронезависимы: SUPER+f == SUPER+F
