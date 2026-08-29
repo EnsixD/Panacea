@@ -207,13 +207,40 @@ OBSOLETE_PKGS=(
     "hyprlock|1.0.7"
 )
 
+# ------------------------------------------------------------------- distro detection
+detect_distro() {
+    DISTRO="unknown"
+    PKG_MGR="unknown"
+
+    if [ -f /etc/os-release ]; then
+        # shellcheck disable=SC1091
+        . /etc/os-release
+        DISTRO="${ID:-unknown}"
+        DISTRO_LIKE="${ID_LIKE:-}"
+    fi
+
+    if command -v pacman >/dev/null 2>&1; then
+        PKG_MGR="pacman"
+        [ "$DISTRO" = "unknown" ] && DISTRO="arch"
+    elif command -v apt-get >/dev/null 2>&1 || command -v apt >/dev/null 2>&1; then
+        PKG_MGR="apt"
+        [ "$DISTRO" = "unknown" ] && DISTRO="debian"
+    elif command -v dnf >/dev/null 2>&1; then
+        PKG_MGR="dnf"
+        [ "$DISTRO" = "unknown" ] && DISTRO="fedora"
+    elif command -v zypper >/dev/null 2>&1; then
+        PKG_MGR="zypper"
+        [ "$DISTRO" = "unknown" ] && DISTRO="opensuse"
+    elif command -v apk >/dev/null 2>&1; then
+        PKG_MGR="apk"
+        [ "$DISTRO" = "unknown" ] && DISTRO="alpine"
+    elif command -v xbps-install >/dev/null 2>&1; then
+        PKG_MGR="xbps"
+        [ "$DISTRO" = "unknown" ] && DISTRO="void"
+    fi
+}
+
 # ------------------------------------------------------------------- drivers
-# Железо у всех разное, и ставить всё подряд нельзя: пакеты Nvidia на машине
-# с одной интеловской графикой — это лишние гигабайты и лишний DKMS-модуль.
-# Поэтому смотрим, что в машине на самом деле, и предлагаем ровно это.
-#
-# Микрокод обязателен: без него процессор живёт с ошибками, которые давно
-# исправлены, и это то, о чём вспоминают в последнюю очередь.
 detect_drivers() {
     DRIVERS=()
     DRIVER_NOTES=()
@@ -224,10 +251,6 @@ detect_drivers() {
         GenuineIntel) DRIVERS+=(intel-ucode); DRIVER_NOTES+=("intel-ucode — Intel CPU microcode") ;;
     esac
 
-    # Вендора определяем по идентификатору PCI, а не по названию: строка
-    # «VGA compatible controller» содержит «ati», и поиск по имени выдавал
-    # AMD на любой машине, включая чисто nvidia'шную.
-    #   1002 — AMD, 10de — Nvidia, 8086 — Intel
     local gpus; gpus=$(lspci -nn 2>/dev/null | grep -iE 'vga|3d controller|display controller')
 
     if printf '%s' "$gpus" | grep -q '\[1002:'; then
@@ -239,72 +262,85 @@ detect_drivers() {
         DRIVER_NOTES+=("mesa, vulkan-intel, intel-media-driver — Intel graphics")
     fi
     if printf '%s' "$gpus" | grep -q '\[10de:'; then
-        # Открытые модули или закрытые — не вопрос вкуса. Начиная с Turing
-        # (RTX 20xx, GTX 16xx) Nvidia ведёт именно открытые, а для Blackwell
-        # (RTX 50xx) закрытых не существует вовсе: на них система остаётся
-        # с nouveau, который эти карты не тянет и роняет машину в перезагрузку.
-        # Старым картам, наоборот, открытые модули не подходят.
-        #
-        # dkms, а не готовый модуль: собирается под любое ядро, включая -lts
-        # и -zen, и переживает обновление ядра без чёрного экрана на следующем
-        # старте. egl-wayland обязателен — без него Hyprland на Nvidia не
-        # запускается совсем.
-        # Заголовки установленного ядра: без них dkms собрать модуль не может,
-        # и вместо драйвера получается «Failed to find module nvidia_uvm» в
-        # журнале, nouveau на карте и монитор без EDID. Ядер может быть
-        # несколько (linux, -lts, -zen) — заголовки нужны каждому.
-        local k
-        for k in linux linux-lts linux-zen linux-hardened; do
-            pacman -Qq "$k" >/dev/null 2>&1 && DRIVERS+=("$k-headers")
-        done
-        DRIVER_NOTES+=("kernel headers — needed to build the driver module")
+        if [ "$PKG_MGR" = "pacman" ]; then
+            local k
+            for k in linux linux-lts linux-zen linux-hardened; do
+                pacman -Qq "$k" >/dev/null 2>&1 && DRIVERS+=("$k-headers")
+            done
+            DRIVER_NOTES+=("kernel headers — needed to build the driver module")
 
-        if printf '%s' "$gpus" | grep -qiE 'rtx|gtx 16'; then
-            DRIVERS+=(nvidia-open-dkms nvidia-utils egl-wayland)
-            DRIVER_NOTES+=("nvidia-open-dkms, nvidia-utils, egl-wayland — Nvidia graphics (Turing and newer)")
+            if printf '%s' "$gpus" | grep -qiE 'rtx|gtx 16'; then
+                DRIVERS+=(nvidia-open-dkms nvidia-utils egl-wayland)
+                DRIVER_NOTES+=("nvidia-open-dkms, nvidia-utils, egl-wayland — Nvidia graphics (Turing and newer)")
+            else
+                DRIVERS+=(nvidia-dkms nvidia-utils egl-wayland)
+                DRIVER_NOTES+=("nvidia-dkms, nvidia-utils, egl-wayland — Nvidia graphics (pre-Turing)")
+            fi
         else
-            DRIVERS+=(nvidia-dkms nvidia-utils egl-wayland)
-            DRIVER_NOTES+=("nvidia-dkms, nvidia-utils, egl-wayland — Nvidia graphics (pre-Turing)")
+            DRIVER_NOTES+=("Nvidia graphics drivers")
         fi
     fi
 }
 
 install_drivers() {
+    detect_distro
     detect_drivers
-    if [ "${#DRIVERS[@]}" -eq 0 ]; then
+    if [ "${#DRIVERS[@]}" -eq 0 ] && [ "${#DRIVER_NOTES[@]}" -eq 0 ]; then
         warn "could not tell what hardware this is — skipping drivers"
         return
     fi
     printf '  found:\n'
     printf '    %s\n' "${DRIVER_NOTES[@]}"
-    ask "Install these?" || { ok "drivers skipped"; return; }
+    ask "Install graphics & microcode drivers?" || { ok "drivers skipped"; return; }
 
-    local uniq; mapfile -t uniq < <(printf '%s\n' "${DRIVERS[@]}" | sort -u)
-    $SUDO pacman -S --needed "${uniq[@]}" || { warn "driver install failed"; return; }
+    local gpus; gpus=$(lspci -nn 2>/dev/null | grep -iE 'vga|3d controller|display controller')
+
+    case "$PKG_MGR" in
+        pacman)
+            local uniq; mapfile -t uniq < <(printf '%s\n' "${DRIVERS[@]}" | sort -u)
+            $SUDO pacman -S --needed "${uniq[@]}" || { warn "driver install failed"; return; }
+            ;;
+        apt)
+            if printf '%s' "$gpus" | grep -q '\[10de:'; then
+                $SUDO ubuntu-drivers install 2>/dev/null || $SUDO apt-get install -y nvidia-driver-550 2>/dev/null || true
+            elif printf '%s' "$gpus" | grep -q '\[1002:'; then
+                $SUDO apt-get install -y mesa-vulkan-drivers libgl1-mesa-dri 2>/dev/null || true
+            elif printf '%s' "$gpus" | grep -q '\[8086:'; then
+                $SUDO apt-get install -y mesa-vulkan-drivers intel-media-va-driver 2>/dev/null || true
+            fi
+            $SUDO apt-get install -y intel-microcode amd64-microcode 2>/dev/null || true
+            ;;
+        dnf)
+            if printf '%s' "$gpus" | grep -q '\[10de:'; then
+                $SUDO dnf install -y akmod-nvidia xorg-x11-drv-nvidia-cuda 2>/dev/null || true
+            elif printf '%s' "$gpus" | grep -q '\[1002:'; then
+                $SUDO dnf install -y mesa-dri-drivers mesa-vulkan-drivers 2>/dev/null || true
+            elif printf '%s' "$gpus" | grep -q '\[8086:'; then
+                $SUDO dnf install -y mesa-dri-drivers mesa-vulkan-drivers intel-media-driver 2>/dev/null || true
+            fi
+            $SUDO dnf install -y microcode_ctl 2>/dev/null || true
+            ;;
+        *)
+            ok "drivers skipped for $DISTRO"
+            return
+            ;;
+    esac
     ok "drivers in place"
 
-    # Nvidia на Wayland без этого либо не стартует, либо идёт рывками. Пишем
-    # в отдельный файл, а не в конфиг Hyprland: он принадлежит машине, а не
-    # дотфайлам, и переустановка их не затрёт.
-    if printf '%s' "${uniq[*]}" | grep -q nvidia; then
+    # Nvidia Wayland setup
+    if printf '%s' "$gpus" | grep -q '\[10de:'; then
         printf 'options nvidia_drm modeset=1\n' | $SUDO tee /etc/modprobe.d/nvidia-panacea.conf >/dev/null
-
-        # Собрать модуль и переложить его в initramfs. pacman этого не делает
-        # сам: свежепоставленный dkms-пакет собирается хуком, но если хук не
-        # отработал (или заголовки приехали позже), модуля не будет, и карта
-        # останется на nouveau без единой ошибки при установке.
-        $SUDO dkms autoinstall >/dev/null 2>&1
-        $SUDO mkinitcpio -P >/dev/null 2>&1
-        if lsmod | grep -q '^nvidia' || modinfo nvidia >/dev/null 2>&1; then
-            ok "Nvidia module built — reboot to load it"
-        else
-            warn "Nvidia module still missing — check 'dkms status' after reboot"
-        fi
+        if command -v dkms >/dev/null 2>&1; then $SUDO dkms autoinstall >/dev/null 2>&1 || true; fi
+        if command -v mkinitcpio >/dev/null 2>&1; then $SUDO mkinitcpio -P >/dev/null 2>&1 || true; fi
+        if command -v update-initramfs >/dev/null 2>&1; then $SUDO update-initramfs -u >/dev/null 2>&1 || true; fi
+        if command -v dracut >/dev/null 2>&1; then $SUDO dracut --force >/dev/null 2>&1 || true; fi
+        ok "Nvidia DRM modeset configured"
     fi
 }
 
 MISSING=()
 check_deps() {
+    detect_distro
     for row in "${DEPS[@]}"; do
         IFS='|' read -r bin pkg why <<<"$row"
         if command -v "$bin" >/dev/null 2>&1; then ok "$bin"
@@ -315,24 +351,17 @@ check_deps() {
         if [ -e "$path" ]; then ok "$pkg"
         else warn "missing $pkg — $why"; MISSING+=("$pkg"); fi
     done
-    # grep -q закрыл бы пайп на первом совпадении, fc-list получил бы SIGPIPE,
-    # и pipefail засчитал бы всей проверке провал: шрифт «отсутствовал» даже
-    # когда стоял на месте. Дочитываем вывод до конца.
     if fc-list 2>/dev/null | grep -i "JetBrainsMono.*Nerd" >/dev/null; then ok "JetBrainsMono Nerd Font"
     else warn "missing the Nerd Font — every icon is a glyph"; MISSING+=("$FONT_PKG"); fi
-    # these have no simple binary to probe — let pacman skip what's present
-    MISSING+=("${EXTRA_PKGS[@]}")
+    if [ "$PKG_MGR" = "pacman" ]; then
+        MISSING+=("${EXTRA_PKGS[@]}")
+    fi
 }
 
 aur_helper() {
     for h in yay paru pikaur; do command -v "$h" >/dev/null 2>&1 && { echo "$h"; return; }; done
 }
 
-# Часть оболочки живёт в AUR (сам quickshell, mpvpaper), и без помощника
-# установка останавливалась на полпути с советом «поставьте yay сначала».
-# Совет верный, но человек пришёл ставить оболочку, а не собирать помощник
-# руками, — поэтому предлагаем собрать его тут же. yay-bin, а не yay: это
-# готовый бинарник, его не надо компилировать и тянуть ради этого Go.
 install_aur_helper() {
     ask "quickshell и ещё пара пакетов живут в AUR, а помощника в системе нет. Собрать yay?" || return 1
 
@@ -344,7 +373,6 @@ install_aur_helper() {
         cd "$tmp" || exit 1
         git clone -q --depth 1 https://aur.archlinux.org/yay-bin.git || exit 1
         cd yay-bin || exit 1
-        # makepkg отказывается работать от root и сам зовёт sudo на установку
         makepkg -si --noconfirm
     ) >/dev/null 2>&1
     local rc=$?
@@ -357,18 +385,6 @@ install_aur_helper() {
     return 1
 }
 
-# Отдельный шаг вместо молчаливой проверки внутри установки пакетов.
-#
-# Раньше про помощника вспоминали в середине установки — когда доходило до
-# первого пакета из AUR. Выглядело это так, будто установка вдруг споткнулась
-# и просит собрать что-то постороннее; согласиться или отказаться приходилось,
-# уже начав. Теперь про него спрашивают до того, как что-либо ставится, и с
-# понятным ответом на оба исхода: помощник есть — говорим какой и идём дальше,
-# нет — предлагаем собрать.
-#
-# Отказ не прерывает установку: из AUR приезжают quickshell и mpvpaper, без
-# них оболочка беднее, но всё остальное встанет. Что именно не доедет, скажет
-# следующий шаг.
 check_aur_helper() {
     local h; h=$(aur_helper)
     if [ -n "$h" ]; then
@@ -378,12 +394,105 @@ check_aur_helper() {
     install_aur_helper || warn "no AUR helper — packages from the AUR will be skipped"
 }
 
-install_deps() {
-    command -v pacman >/dev/null 2>&1 || {
-        warn "not an Arch system — install these yourself, then rerun with --no-deps:"
-        printf '    %s\n' "${MISSING[@]}"; return 1
-    }
-    # unique
+# ------------------------------------------------------------------- standalone helpers
+ensure_nerd_font() {
+    if fc-list 2>/dev/null | grep -i "JetBrainsMono.*Nerd" >/dev/null; then
+        ok "JetBrainsMono Nerd Font present"
+        return 0
+    fi
+    step "Installing JetBrains Mono Nerd Font..."
+    local font_dir="$HOME/.local/share/fonts/JetBrainsMono"
+    mkdir -p "$font_dir"
+    if command -v curl >/dev/null 2>&1; then
+        local tmp_font; tmp_font="$(mktemp -d)"
+        if curl -sL "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz" -o "$tmp_font/jb.tar.xz"; then
+            tar -xf "$tmp_font/jb.tar.xz" -C "$font_dir" 2>/dev/null
+            fc-cache -f "$font_dir" >/dev/null 2>&1 || true
+            rm -rf "$tmp_font"
+            ok "JetBrains Mono Nerd Font installed to ~/.local/share/fonts"
+            return 0
+        fi
+        rm -rf "$tmp_font"
+    fi
+    warn "could not download JetBrains Mono Nerd Font"
+    return 1
+}
+
+ensure_yazi() {
+    command -v yazi >/dev/null 2>&1 && return 0
+    step "Installing Yazi (file manager for terminal)..."
+    mkdir -p "$HOME/.local/bin"
+    local tmp_yazi; tmp_yazi="$(mktemp -d)"
+    if curl -sL "https://github.com/sxyazi/yazi/releases/latest/download/yazi-x86_64-unknown-linux-musl.zip" -o "$tmp_yazi/yazi.zip" 2>/dev/null; then
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -q "$tmp_yazi/yazi.zip" -d "$tmp_yazi"
+            cp "$tmp_yazi"/yazi-*/yazi "$HOME/.local/bin/" 2>/dev/null || cp "$tmp_yazi"/yazi "$HOME/.local/bin/" 2>/dev/null
+            chmod +x "$HOME/.local/bin/yazi"
+            ok "Yazi installed to ~/.local/bin/yazi"
+        fi
+    fi
+    rm -rf "$tmp_yazi"
+}
+
+ensure_bat_symlink() {
+    if ! command -v bat >/dev/null 2>&1 && command -v batcat >/dev/null 2>&1; then
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"
+        ok "bat alias linked to batcat"
+    fi
+}
+
+ensure_bibata_cursor() {
+    local icon_dir="$HOME/.local/share/icons/Bibata-Modern-Classic"
+    [ -d "$icon_dir" ] || [ -d "/usr/share/icons/Bibata-Modern-Classic" ] && return 0
+    mkdir -p "$HOME/.local/share/icons"
+    local tmp_cur; tmp_cur="$(mktemp -d)"
+    if curl -sL "https://github.com/ful1e5/Bibata_Cursor/releases/latest/download/Bibata-Modern-Classic.tar.xz" -o "$tmp_cur/bibata.tar.xz" 2>/dev/null; then
+        tar -xf "$tmp_cur/bibata.tar.xz" -C "$HOME/.local/share/icons/" 2>/dev/null
+        ok "Bibata Modern Classic cursor installed"
+    fi
+    rm -rf "$tmp_cur"
+}
+
+ensure_quickshell() {
+    command -v qs >/dev/null 2>&1 || command -v quickshell >/dev/null 2>&1 && return 0
+    step "Installing Quickshell..."
+    if [ "$PKG_MGR" = "apt" ]; then
+        local qt_dir="$HOME/Qt/6.7.3/gcc_64"
+        if [ ! -d "$qt_dir" ]; then
+            step "Installing Qt 6.7.3 via aqtinstall for Quickshell..."
+            pip3 install --quiet --break-system-packages aqtinstall 2>/dev/null || pip install --quiet aqtinstall 2>/dev/null || true
+            python3 -m aqt install-qt linux desktop 6.7.3 linux_gcc_64 -O "$HOME/Qt" -m qtshadertools qtmultimedia >/dev/null 2>&1 || true
+        fi
+        if [ -d "$qt_dir" ]; then
+            local build_tmp; build_tmp="$(mktemp -d)"
+            (
+                cd "$build_tmp" || exit 1
+                git clone --depth 1 -q https://github.com/quickshell-mirror/quickshell.git || exit 1
+                cd quickshell || exit 1
+                cmake -GNinja -B build -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_PREFIX_PATH="$qt_dir" \
+                  -DCMAKE_CXX_COMPILER=clang++ \
+                  -DCRASH_HANDLER=OFF -DX11=OFF -DI3=OFF -DI3_IPC=OFF \
+                  -DSERVICE_PAM=ON -DSERVICE_POLKIT=ON -DSCREENCOPY=ON \
+                  -DNO_PCH=ON \
+                  -DINSTALL_QMLDIR="$qt_dir/qml" >/dev/null 2>&1 || exit 1
+                cmake --build build >/dev/null 2>&1 || exit 1
+                $SUDO cmake --install build >/dev/null 2>&1 || exit 1
+            )
+            rm -rf "$build_tmp"
+            if command -v qs >/dev/null 2>&1 || command -v quickshell >/dev/null 2>&1; then
+                ok "Quickshell built and installed successfully"
+                return 0
+            fi
+        fi
+    fi
+    warn "Quickshell not found — see docs/other-distros.md for instructions"
+    return 1
+}
+
+# ------------------------------------------------------------------- distro package installers
+install_deps_arch() {
     local uniq; mapfile -t uniq < <(printf '%s\n' "${MISSING[@]}" | sort -u)
     local repo=() aur=()
     for p in "${uniq[@]}"; do
@@ -401,6 +510,111 @@ install_deps() {
         "$h" -S --needed "${aur[@]}" || return 1
     fi
     ok "dependencies in place"
+}
+
+install_deps_debian() {
+    step "Updating package lists (apt)..."
+    $SUDO apt-get update -qq || true
+
+    local deb_pkgs=(
+        hyprland fish foot swaylock jq wl-clipboard cliphist grim slurp ffmpeg wf-recorder
+        wtype brightnessctl ddcutil playerctl wireplumber eza zoxide bat fastfetch python3
+        openssl xdg-utils libglib2.0-bin upower util-linux cava curl file git pciutils unzip
+        qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-shapes
+        qml6-module-qtquick-effects qml6-module-qtmultimedia power-profiles-daemon bluez
+        iwd papirus-icon-theme fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk
+        fonts-noto-extra udisks2 udiskie gvfs gvfs-backends python3-secretstorage
+        python3-cryptography os-prober
+        cmake ninja-build pkg-config clang qt6-base-dev qt6-declarative-dev qt6-shadertools-dev
+        qt6-wayland-dev libqt6svg6-dev qt6-declarative-private-dev qt6-base-private-dev
+        qt6-wayland-private-dev libdrm-dev libwayland-dev wayland-protocols libwayland-bin
+        libxkbcommon-dev libpipewire-0.3-dev spirv-tools libcli11-dev libjemalloc-dev
+        libpam0g-dev libpolkit-agent-1-dev libglib2.0-dev libgbm-dev
+    )
+
+    printf '  installing packages via apt...\n'
+    $SUDO apt-get install -y --no-install-recommends "${deb_pkgs[@]}" 2>/dev/null || {
+        for p in "${deb_pkgs[@]}"; do
+            $SUDO apt-get install -y --no-install-recommends "$p" >/dev/null 2>&1 || true
+        done
+    }
+
+    ensure_bat_symlink
+    ensure_nerd_font
+    ensure_yazi
+    ensure_quickshell
+    ensure_bibata_cursor
+    ok "dependencies in place for $DISTRO"
+}
+
+install_deps_fedora() {
+    step "Setting up packages (dnf)..."
+    $SUDO dnf copr enable -y solopasha/hyprland 2>/dev/null || true
+
+    local fedora_pkgs=(
+        hyprland quickshell fish foot hyprpaper hyprsunset swaylock jq wl-clipboard cliphist
+        grim slurp ffmpeg wf-recorder wtype brightnessctl ddcutil playerctl wireplumber
+        eza zoxide bat fastfetch yazi python3 openssl xdg-utils glib2 upower util-linux
+        cava curl file git pciutils unzip qt6-qtmultimedia qt6-qtdeclarative power-profiles-daemon
+        bluez iwd papirus-icon-theme google-noto-fonts-common google-noto-emoji-fonts
+        google-noto-cjk-fonts udisks2 udiskie gvfs gvfs-mtp python3-secretstorage
+        python3-cryptography os-prober
+    )
+
+    printf '  installing packages via dnf...\n'
+    $SUDO dnf install -y "${fedora_pkgs[@]}" 2>/dev/null || {
+        for p in "${fedora_pkgs[@]}"; do
+            $SUDO dnf install -y "$p" >/dev/null 2>&1 || true
+        done
+    }
+
+    ensure_nerd_font
+    ensure_yazi
+    ensure_quickshell
+    ensure_bibata_cursor
+    ok "dependencies in place for $DISTRO"
+}
+
+install_deps_opensuse() {
+    local suse_pkgs=(
+        hyprland fish foot swaylock jq wl-clipboard cliphist grim slurp ffmpeg wf-recorder
+        wtype brightnessctl ddcutil playerctl wireplumber eza zoxide bat fastfetch python3
+        openssl xdg-utils glib2-tools upower util-linux cava curl file git pciutils unzip
+        libqt6-multimedia libqt6-declarative power-profiles-daemon bluez iwd papirus-icon-theme
+        noto-sans-fonts noto-coloremoji-fonts udisks2 udiskie gvfs gvfs-backend-mtp
+        python3-SecretStorage python3-cryptography os-prober
+    )
+    $SUDO zypper --non-interactive install --no-recommends "${suse_pkgs[@]}" 2>/dev/null || {
+        for p in "${suse_pkgs[@]}"; do
+            $SUDO zypper --non-interactive install --no-recommends "$p" >/dev/null 2>&1 || true
+        done
+    }
+    ensure_nerd_font
+    ensure_yazi
+    ensure_quickshell
+    ensure_bibata_cursor
+    ok "dependencies in place for $DISTRO"
+}
+
+install_deps_generic() {
+    warn "generic/unsupported distribution ($DISTRO) — attempting standalone setup"
+    ensure_nerd_font
+    ensure_yazi
+    ensure_bibata_cursor
+    ensure_quickshell
+}
+
+install_deps() {
+    detect_distro
+    step "Installing dependencies for $DISTRO (using $PKG_MGR)..."
+
+    case "$PKG_MGR" in
+        pacman) install_deps_arch ;;
+        apt)    install_deps_debian ;;
+        dnf)    install_deps_fedora ;;
+        zypper) install_deps_opensuse ;;
+        *)      install_deps_generic ;;
+    esac
 }
 
 # --------------------------------------------------------------------- copying
@@ -691,6 +905,17 @@ enable_services() {
                 && ok "$svc enabled" || warn "could not enable $svc"
         fi
     done
+
+    # NetworkManager + iwd integration (Ubuntu, Mint, Debian, Fedora)
+    if systemctl is-active NetworkManager.service >/dev/null 2>&1 || systemctl list-unit-files NetworkManager.service >/dev/null 2>&1; then
+        if command -v iwd >/dev/null 2>&1; then
+            $SUDO mkdir -p /etc/NetworkManager/conf.d
+            printf '[device]\nwifi.backend=iwd\n' | $SUDO tee /etc/NetworkManager/conf.d/wifi_backend.conf >/dev/null 2>&1 \
+                && ok "NetworkManager configured to use iwd backend" || true
+            $SUDO systemctl restart NetworkManager >/dev/null 2>&1 || true
+        fi
+    fi
+
     # soft-unblock radios so Bluetooth/Wi-Fi come up without a manual rfkill
     command -v rfkill >/dev/null 2>&1 && rfkill unblock all 2>/dev/null
 
