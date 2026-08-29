@@ -85,30 +85,28 @@ max_duration_secs = 60
 model = "medium"
 
 # Language for transcription
-# Use "en" for English, "auto" for auto-detection
-# See: https://github.com/openai/whisper#available-models-and-languages
-language = "auto"
+# Use "ru" for Russian, "en" for English, "auto" for auto-detection
+language = "ru"
 
 # Translate non-English speech to English
 translate = false
 
 # Number of CPU threads for inference (omit for auto-detection)
-# threads = 4
+threads = 6
 
 # Load model on-demand when recording starts (true) or keep loaded (false)
 # When true, model is loaded when recording starts and unloaded after transcription
 # When false, model is kept in memory for faster response times (default)
 on_demand_loading = false
 
-# GPU memory isolation mode
-# Enable on laptops with hybrid graphics to let dGPU sleep between transcriptions.
-# gpu_isolation = true
-
 # Context window optimization for short recordings (disabled by default)
-# Speeds up transcription for clips under 22.5 seconds. Disabled by default
-# because some models (especially large-v3/turbo) may experience repetition
-# loops. Enable if you want faster transcription and don't experience issues.
-# context_window_optimization = true
+context_window_optimization = true
+
+[vad]
+# Voice Activity Detection - filters silence-only recordings
+enabled = true
+threshold = 0.5
+min_speech_duration_ms = 100
 
 # --- Remote mode settings (used when mode = "remote") ---
 # remote_endpoint = "http://192.168.1.100:8080"  # Required
@@ -183,6 +181,9 @@ pre_type_delay_ms = 0
 # pre_recording_command = "hyprctl dispatch submap voxtype_recording"
 # pre_output_command = "hyprctl dispatch submap voxtype_suppress"
 # post_output_command = "hyprctl dispatch submap reset"
+
+[osd]
+enabled = false
 
 [output.notification]
 # Show notification when recording starts (hotkey pressed)
