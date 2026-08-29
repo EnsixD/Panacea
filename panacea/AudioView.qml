@@ -25,12 +25,15 @@ Item {
 
     // -------------------------------------------------- микшер приложений (pactl)
     property var streamsList: []
+    property bool isUserDragging: false
 
     Process {
         id: pStreams
         command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/audio_streams.sh list"]
         stdout: SplitParser {
             onRead: data => {
+                // Не перезаписываем список, если пользователь прямо сейчас тянет ползунок
+                if (view.isUserDragging) return;
                 try {
                     var parsed = JSON.parse(data.trim());
                     if (Array.isArray(parsed)) {
@@ -47,7 +50,7 @@ Item {
         repeat: true
         running: view.visible
         onTriggered: {
-            if (!pStreams.running) pStreams.running = true;
+            if (!view.isUserDragging && !pStreams.running) pStreams.running = true;
         }
     }
 
@@ -72,7 +75,7 @@ Item {
 
     Timer {
         id: quickRefresh
-        interval: 120
+        interval: 150
         onTriggered: {
             if (!pStreams.running) pStreams.running = true;
         }
@@ -84,10 +87,10 @@ Item {
         if (s.indexOf("telegram") >= 0) return String.fromCodePoint(0xF2C6); // 
         if (s.indexOf("spotify") >= 0) return String.fromCodePoint(0xF1BC);  // 
         if (s.indexOf("firefox") >= 0) return String.fromCodePoint(0xF269);  // 
-        if (s.indexOf("chrome") >= 0 || s.indexOf("chromium") >= 0 || s.indexOf("brave") >= 0) return String.fromCodePoint(0xF268); // 
+        if (s.indexOf("chrome") >= 0 || s.indexOf("chromium") >= 0 || s.indexOf("brave") >= 0 || s.indexOf("zen") >= 0) return String.fromCodePoint(0xF268); // 
         if (s.indexOf("discord") >= 0 || s.indexOf("vesktop") >= 0 || s.indexOf("webcord") >= 0) return String.fromCodePoint(0xF392); // 
         if (s.indexOf("steam") >= 0) return String.fromCodePoint(0xF1B6);    // 
-        if (s.indexOf("vlc") >= 0 || s.indexOf("mpv") >= 0 || s.indexOf("video") >= 0 || s.indexOf("player") >= 0) return String.fromCodePoint(0xF144); // 
+        if (s.indexOf("vlc") >= 0 || s.indexOf("mpv") >= 0 || s.indexOf("video") >= 0 || s.indexOf("player") >= 0 || s.indexOf("music") >= 0) return String.fromCodePoint(0xF144); // 
         if (s.indexOf("game") >= 0 || s.indexOf("retroarch") >= 0 || s.indexOf("wine") >= 0 || s.indexOf("lutris") >= 0) return String.fromCodePoint(0xF11B); // 
         return String.fromCodePoint(0xF028); //  Speaker
     }
@@ -157,14 +160,14 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 26
 
-                readonly property real pos: view.sinkAudio ? view.sinkAudio.volume : 0
+                readonly property real pos: view.sinkAudio ? Math.max(0, Math.min(1, view.sinkAudio.volume)) : 0
                 readonly property real usable: width - knob.width
 
                 function setFromX(x) {
                     if (!view.sinkAudio) return;
                     var r = Math.max(0, Math.min(1, (x - knob.width / 2) / Math.max(1, usable)));
-                    // шаг 5%, как у мультимедийных клавиш
-                    view.sinkAudio.volume = Math.round(r * 20) / 20;
+                    // Полностью плавная регулировка без ступенек
+                    view.sinkAudio.volume = r;
                 }
 
                 Rectangle {
@@ -398,7 +401,7 @@ Item {
                         }
                     }
 
-                    // Ползунок громкости конкретного приложения
+                    // Ползунок громкости конкретного приложения (плавный, мгновенный прыжок)
                     Item {
                         id: appSl
                         Layout.fillWidth: true
@@ -409,7 +412,7 @@ Item {
 
                         function setFromX(x) {
                             var r = Math.max(0, Math.min(1, (x - appKnob.width / 2) / Math.max(1, usable)));
-                            var pct = Math.round(r * 20) * 5; // шаг 5%
+                            var pct = Math.round(r * 100);
                             strCard.currentVolPct = pct;
                             view.setAppVolume(strCard.modelData.id, pct);
                         }
@@ -447,8 +450,22 @@ Item {
                             hoverEnabled: true
                             preventStealing: true
                             cursorShape: Qt.PointingHandCursor
-                            onPressed: mouse => appSl.setFromX(mouse.x)
-                            onPositionChanged: mouse => { if (pressed) appSl.setFromX(mouse.x); }
+                            onPressed: mouse => {
+                                view.isUserDragging = true;
+                                appSl.setFromX(mouse.x);
+                            }
+                            onPositionChanged: mouse => {
+                                if (pressed) {
+                                    view.isUserDragging = true;
+                                    appSl.setFromX(mouse.x);
+                                }
+                            }
+                            onReleased: {
+                                view.isUserDragging = false;
+                            }
+                            onCanceled: {
+                                view.isUserDragging = false;
+                            }
                         }
                     }
                 }

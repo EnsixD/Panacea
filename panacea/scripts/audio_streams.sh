@@ -18,18 +18,19 @@ for line in out.splitlines():
     line_str = line.strip()
     if line.startswith("Sink Input #"):
         if current and "id" in current:
-            name = (current.get("name") or "").lower()
-            bin_name = (current.get("binary") or "").lower()
-            if "cava" not in name and "cava" not in bin_name and "quickshell" not in name:
-                inputs.append(current)
+            inputs.append(current)
         current = {
             "id": int(line.split("#")[1]),
             "muted": False,
             "volume": 1.0,
             "volume_pct": 100,
-            "name": "",
+            "app_name": "",
+            "node_name": "",
+            "dev_desc": "",
+            "binary": "",
             "icon": "",
-            "binary": ""
+            "media_name": "",
+            "window_name": ""
         }
     elif current is not None:
         if line_str.startswith("Mute:"):
@@ -43,21 +44,55 @@ for line in out.splitlines():
             except Exception:
                 pass
         elif "application.name =" in line_str:
-            current["name"] = line_str.split("=", 1)[1].strip().strip("\"")
+            current["app_name"] = line_str.split("=", 1)[1].strip().strip("\"")
+        elif "device.description =" in line_str:
+            current["dev_desc"] = line_str.split("=", 1)[1].strip().strip("\"")
+        elif "node.name =" in line_str:
+            current["node_name"] = line_str.split("=", 1)[1].strip().strip("\"")
         elif "application.icon_name =" in line_str or "application.icon-name =" in line_str:
             current["icon"] = line_str.split("=", 1)[1].strip().strip("\"")
         elif "application.process.binary =" in line_str:
             current["binary"] = line_str.split("=", 1)[1].strip().strip("\"")
-        elif "media.name =" in line_str and not current.get("name"):
-            current["name"] = line_str.split("=", 1)[1].strip().strip("\"")
+        elif "media.name =" in line_str:
+            current["media_name"] = line_str.split("=", 1)[1].strip().strip("\"")
+        elif "window.name =" in line_str or "window.title =" in line_str:
+            current["window_name"] = line_str.split("=", 1)[1].strip().strip("\"")
 
 if current and "id" in current:
-    name = (current.get("name") or "").lower()
-    bin_name = (current.get("binary") or "").lower()
-    if "cava" not in name and "cava" not in bin_name and "quickshell" not in name:
-        inputs.append(current)
+    inputs.append(current)
 
-print(json.dumps(inputs))
+cleaned = []
+for item in inputs:
+    # Filter internal monitors, cava, speech-dispatcher
+    name_check = (item["app_name"] + " " + item["node_name"] + " " + item["binary"]).lower()
+    if "cava" in name_check or "quickshell" in name_check or "speech-dispatcher" in name_check:
+        continue
+
+    # Determine best readable name
+    name = ""
+    for candidate in [item["app_name"], item["dev_desc"], item["node_name"]]:
+        if candidate and candidate.lower() not in ["playback stream", "alsa playback", "alsa stream", "audio stream"]:
+            name = candidate
+            break
+    if not name:
+        if item["media_name"] and item["media_name"].lower() not in ["playback stream", "alsa playback"]:
+            name = item["media_name"]
+        elif item["binary"]:
+            name = item["binary"].replace("-", " ").title()
+        else:
+            name = "Audio"
+
+    cleaned.append({
+        "id": item["id"],
+        "name": name,
+        "binary": item["binary"] or item["node_name"],
+        "icon": item["icon"] or item["node_name"],
+        "muted": item["muted"],
+        "volume": item["volume"],
+        "volume_pct": item["volume_pct"]
+    })
+
+print(json.dumps(cleaned))
 '
         ;;
     set-volume)
