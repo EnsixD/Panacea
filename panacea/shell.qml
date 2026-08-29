@@ -2548,7 +2548,8 @@ PanelWindow {
         // человек: важные с нулевым сроком висят до ответа.
         var crit = n.urgency === NotificationUrgency.Critical;
         var want = crit ? root.cfg.notifCritTimeout : root.cfg.notifTimeout;
-        var ms = n.expireTimeout > 0 ? n.expireTimeout * 1000 : want;
+        var ms = n.expireTimeout > 0 ? (n.expireTimeout < 100 ? n.expireTimeout * 1000 : n.expireTimeout) : want;
+        if (!crit && want > 0 && ms > want) ms = want;
         if (crit && want === 0) ms = 0;
         toastTimer.interval = ms > 0 ? Math.max(1000, ms) : 24 * 60 * 60 * 1000;
         toastTimer.restart();
@@ -4683,13 +4684,13 @@ PanelWindow {
         }
 
         // ---- свёрнутое: голосовой ввод (voxtype) ------------------------
-        // Пока зажата кнопка/клавиша — «Слушаю…» с пульсирующей точкой; после
-        // отпускания, пока voxtype печатает текст, — «Расшифровываю…».
+        // Пока зажата кнопка/клавиша — «Слушаю…» с живым эквалайзером микрофона (cava);
+        // после отпускания, пока voxtype печатает текст, — «Расшифровываю…».
         RowLayout {
             id: voxCapsule
             z: 120
             anchors.centerIn: parent
-            spacing: 9
+            spacing: 10
             visible: root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
@@ -4697,24 +4698,37 @@ PanelWindow {
             Text {
                 Layout.alignment: Qt.AlignVCenter
                 text: String.fromCodePoint(0xF036C)   // микрофон
-                color: root.voxState === "listening" ? root.colCrit : root.colOn
+                color: root.voxState === "listening"
+                    ? (root.themeNothing ? root.colCrit : "#60a5fa")
+                    : (root.themeNothing ? root.colFg : root.colOn)
                 font { family: root.fontFam; pixelSize: root.iconSize + 3 }
 
-                // мягкое пульсирование, пока слушаем
                 SequentialAnimation on opacity {
-                    running: root.voxState === "listening"
+                    running: root.voxState === "transcribing"
                     loops: Animation.Infinite
-                    NumberAnimation { from: 1.0; to: 0.35; duration: 650; easing.type: Easing.InOutSine }
-                    NumberAnimation { from: 0.35; to: 1.0; duration: 650; easing.type: Easing.InOutSine }
+                    NumberAnimation { from: 1.0; to: 0.35; duration: 500; easing.type: Easing.InOutSine }
+                    NumberAnimation { from: 0.35; to: 1.0; duration: 500; easing.type: Easing.InOutSine }
                 }
                 onVisibleChanged: if (!visible) opacity = 1
             }
+
             Text {
                 Layout.alignment: Qt.AlignVCenter
                 text: root.voxState === "transcribing" ? root.tr("Расшифровываю…")
                                                        : root.tr("Слушаю…")
                 color: root.colFg
                 font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
+            }
+
+            MicWaveBars {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: 48
+                Layout.preferredHeight: 18
+                visible: root.voxState === "listening"
+                active: root.voxState === "listening" && root.voxActive
+                barColor: root.themeNothing ? root.colCrit : "#60a5fa"
+                barCount: 9
+                gap: 2.5
             }
         }
 

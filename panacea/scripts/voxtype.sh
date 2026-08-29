@@ -46,6 +46,14 @@ case "${1:-}" in
         # Пока voxtype расшифровывает и печатает — показываем «Расшифровываю…».
         ipc voxTranscribing
         "$VOX" record stop >/dev/null 2>&1
+        STATE_FILE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/voxtype/state"
+        if [ -f "$STATE_FILE" ]; then
+            for _ in $(seq 1 200); do
+                s=$(cat "$STATE_FILE" 2>/dev/null)
+                [ "$s" = "transcribing" ] || [ "$s" = "recording" ] || break
+                sleep 0.05
+            done
+        fi
         ipc voxDone
         ;;
     toggle)
