@@ -1832,6 +1832,7 @@ PanelWindow {
         // и промах по рамке видно, не открывая файл.
         var name = String(path).split("/").pop();
         pShotSay.command = ["notify-send", "-a", "Panacea", "-i", String(path),
+                            "-h", "int:transient:1",
                             root.tr("Скриншот"),
                             root.tr("В буфере обмена") + " · " + name];
         pShotSay.running = false;
@@ -2511,16 +2512,30 @@ PanelWindow {
         onNotification: n => {
             n.tracked = true;
 
-            notifModel.insert(0, {
-                nId: Number(n.id),
-                nSummary: String(n.summary || ""),
-                nBody: String(n.body || ""),
-                nApp: String(n.appName || ""),
-                nImage: root.notifIconFor(n),
-                nUrgent: n.urgency === NotificationUrgency.Critical,
-                nTime: Qt.formatDateTime(new Date(), "HH:mm")
-            });
-            while (notifModel.count > 50) notifModel.remove(notifModel.count - 1);
+            var app = String(n.appName || "");
+            var sum = String(n.summary || "");
+            var isTransient = (app === "Panacea"
+                               || sum === root.tr("Скриншот")
+                               || sum === "Скриншот"
+                               || sum === "Screenshot"
+                               || sum.indexOf("Скриншот") >= 0
+                               || sum.indexOf("Screenshot") >= 0);
+            if (n.hints && (n.hints["transient"] === true || n.hints["transient"] === 1 || n.hints["transient"] === "1")) {
+                isTransient = true;
+            }
+
+            if (!isTransient) {
+                notifModel.insert(0, {
+                    nId: Number(n.id),
+                    nSummary: String(n.summary || ""),
+                    nBody: String(n.body || ""),
+                    nApp: String(n.appName || ""),
+                    nImage: root.notifIconFor(n),
+                    nUrgent: n.urgency === NotificationUrgency.Critical,
+                    nTime: Qt.formatDateTime(new Date(), "HH:mm")
+                });
+                while (notifModel.count > 50) notifModel.remove(notifModel.count - 1);
+            }
 
             // Программа сама закрывает уведомление, когда оно потеряло смысл:
             // Telegram делает это, как только сообщение прочитано в самом
