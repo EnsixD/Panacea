@@ -291,5 +291,59 @@ ColumnLayout {
                 if (value) page.sys.playSound("connect");
             }
         }
+
+        // Кнопки предпрослушивания звуков
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            spacing: 8
+            visible: page.sys.cfg.uiSounds !== false
+
+            Repeater {
+                model: [
+                    { id: "charge",      label: page.sys.tr("Зарядка"),     icon: "󰂄" },
+                    { id: "connect",     label: "Bluetooth",               icon: "󰂯" },
+                    { id: "disconnect",  label: page.sys.tr("Отключение"),  icon: "󰂲" },
+                    { id: "screenshot",  label: page.sys.tr("Скриншот"),    icon: "󰄀" },
+                    { id: "voice_start", label: page.sys.tr("Голос"),       icon: "󰍬" }
+                ]
+
+                Rectangle {
+                    id: sndBtn
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    radius: 8
+                    color: sndMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.05)
+                    border.color: sndMa.containsMouse ? page.sys.colOn : page.sys.colLine
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Text {
+                            text: modelData.icon
+                            color: sndMa.containsMouse ? page.sys.colOn : page.sys.colMuted
+                            font { family: page.sys.fontFam; pixelSize: 13 }
+                        }
+                        Text {
+                            text: modelData.label
+                            color: sndMa.containsMouse ? page.sys.colFg : page.sys.colMuted
+                            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    MouseArea {
+                        id: sndMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: page.sys.playSound(modelData.id)
+                    }
+                }
+            }
+        }
     }
 }
