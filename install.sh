@@ -675,7 +675,7 @@ personalize_paths() {
     local n=0
     while IFS= read -r f; do
         sed -i "s|/home/ensi|$HOME|g" "$f" && n=$((n + 1))
-    done < <(grep -rl '/home/ensi' "$CONF/hypr" "$CONF/panacea" "$HOME/.local/bin" 2>/dev/null)
+    done < <(grep -rl '/home/ensi' "$CONF" "$HOME/.local/bin" 2>/dev/null)
     [ "$n" -gt 0 ] && ok "paths rewritten to $HOME in $n files"
     return 0
 }

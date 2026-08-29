@@ -21,7 +21,7 @@ programs.bar = "env QSG_RENDER_LOOP=threaded qs -c "
 -- обвести их рамкой. Путь абсолютный: exec без шелла тильду не раскрывает.
 programs.screenshot = os.getenv("HOME") .. "/.config/panacea/scripts/shot.sh"
 programs.browser = "firefox"
-programs.lock = "/home/ensi/.config/panacea/scripts/lock.sh"
+programs.lock = os.getenv("HOME") .. "/.config/panacea/scripts/lock.sh"
 programs.note = "obsidian"
 
 return programs

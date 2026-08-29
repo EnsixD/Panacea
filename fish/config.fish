@@ -78,5 +78,4 @@ alias c clear
 abbr -a ff 'fastfetch'
 
 
-# Added by Antigravity CLI installer
-set -gx PATH "/home/ensi/.local/bin" $PATH
+set -gx PATH "$HOME/.local/bin" $PATH
