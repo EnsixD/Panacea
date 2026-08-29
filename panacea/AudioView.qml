@@ -1,9 +1,11 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Pipewire
 
-// Звук: громкость и выбор устройства вывода.
+// Звук: общая громкость, выбор устройства вывода и раздельный микшер приложений.
 Item {
     id: view
     property var sys
@@ -11,35 +13,83 @@ Item {
     implicitHeight: col.implicitHeight
 
     focus: true
-    Component.onCompleted: forceActiveFocus()
+    Component.onCompleted: {
+        forceActiveFocus();
+        pStreams.running = true;
+    }
     function goBack() { view.sys.page = "main"; return true; }
     Keys.onEscapePressed: view.goBack()
 
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property var sinkAudio: sink ? sink.audio : null
 
-    function getStreamName(node) {
-        if (!node) return view.sys.tr("Приложение");
-        var props = node.properties || {};
-        return props["application.name"] || props["media.name"] || node.nickname || node.description || node.name || view.sys.tr("Приложение");
+    // -------------------------------------------------- микшер приложений (pactl)
+    property var streamsList: []
+
+    Process {
+        id: pStreams
+        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/audio_streams.sh list"]
+        stdout: SplitParser {
+            onRead: data => {
+                try {
+                    var parsed = JSON.parse(data.trim());
+                    if (Array.isArray(parsed)) {
+                        view.streamsList = parsed;
+                    }
+                } catch (e) {}
+            }
+        }
     }
 
-    function getStreamIcon(node) {
-        if (!node) return String.fromCodePoint(0xF04C3);
-        var props = node.properties || {};
-        var name = String(props["application.name"] || node.name || "").toLowerCase();
-        var bin = String(props["application.process.binary"] || "").toLowerCase();
-        var icon = String(props["application.icon_name"] || props["application.icon-name"] || "").toLowerCase();
+    Timer {
+        id: streamsTimer
+        interval: 1000
+        repeat: true
+        running: view.visible
+        onTriggered: {
+            if (!pStreams.running) pStreams.running = true;
+        }
+    }
 
-        if (name.indexOf("telegram") >= 0 || bin.indexOf("telegram") >= 0 || icon.indexOf("telegram") >= 0) return String.fromCodePoint(0xF00BA);
-        if (name.indexOf("spotify") >= 0 || bin.indexOf("spotify") >= 0 || icon.indexOf("spotify") >= 0) return String.fromCodePoint(0xF04C7);
-        if (name.indexOf("firefox") >= 0 || bin.indexOf("firefox") >= 0 || icon.indexOf("firefox") >= 0) return String.fromCodePoint(0xF0239);
-        if (name.indexOf("chrome") >= 0 || bin.indexOf("chrome") >= 0 || name.indexOf("chromium") >= 0) return String.fromCodePoint(0xF02AF);
-        if (name.indexOf("discord") >= 0 || bin.indexOf("discord") >= 0 || name.indexOf("vesktop") >= 0) return String.fromCodePoint(0xF066F);
-        if (name.indexOf("steam") >= 0 || bin.indexOf("steam") >= 0) return String.fromCodePoint(0xF04D3);
-        if (name.indexOf("vlc") >= 0 || name.indexOf("mpv") >= 0) return String.fromCodePoint(0xF057C);
-        if (name.indexOf("game") >= 0) return String.fromCodePoint(0xF02B4);
-        return String.fromCodePoint(0xF04C3);
+    Process {
+        id: pStreamAction
+    }
+
+    function setAppVolume(streamId, pct) {
+        pStreamAction.command = ["sh", "-c", Quickshell.env("HOME")
+                                 + "/.config/panacea/scripts/audio_streams.sh set-volume "
+                                 + streamId + " " + pct];
+        pStreamAction.running = true;
+    }
+
+    function toggleAppMute(streamId) {
+        pStreamAction.command = ["sh", "-c", Quickshell.env("HOME")
+                                 + "/.config/panacea/scripts/audio_streams.sh toggle-mute "
+                                 + streamId];
+        pStreamAction.running = true;
+        quickRefresh.restart();
+    }
+
+    Timer {
+        id: quickRefresh
+        interval: 120
+        onTriggered: {
+            if (!pStreams.running) pStreams.running = true;
+        }
+    }
+
+    function getStreamIcon(name, bin, icon) {
+        var s = (String(name || "") + " " + String(bin || "") + " " + String(icon || "")).toLowerCase();
+
+        if (s.indexOf("telegram") >= 0) return String.fromCodePoint(0xF2C6); // 
+        if (s.indexOf("spotify") >= 0) return String.fromCodePoint(0xF1BC);  // 
+        if (s.indexOf("firefox") >= 0) return String.fromCodePoint(0xF269);  // 
+        if (s.indexOf("chrome") >= 0 || s.indexOf("chromium") >= 0 || s.indexOf("brave") >= 0) return String.fromCodePoint(0xF268); // 
+        if (s.indexOf("discord") >= 0 || s.indexOf("vesktop") >= 0 || s.indexOf("webcord") >= 0) return String.fromCodePoint(0xF392); // 
+        if (s.indexOf("steam") >= 0) return String.fromCodePoint(0xF1B6);    // 
+        if (s.indexOf("vlc") >= 0 || s.indexOf("mpv") >= 0 || s.indexOf("video") >= 0 || s.indexOf("player") >= 0) return String.fromCodePoint(0xF144); // 
+        if (s.indexOf("game") >= 0 || s.indexOf("retroarch") >= 0 || s.indexOf("wine") >= 0 || s.indexOf("lutris") >= 0) return String.fromCodePoint(0xF11B); // 
+        return String.fromCodePoint(0xF028); //  Speaker
     }
 
     ColumnLayout {
@@ -79,7 +129,7 @@ Item {
             }
         }
 
-        // ------------------------------------------------------- громкость
+        // ------------------------------------------------------- общая громкость
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
@@ -137,10 +187,6 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     x: sl.pos * sl.usable
                     color: "#ffffff"
-                    // Ручка едет по границе залитой части, и на светлом
-                    // акценте белое по белому сливается. Обводка цветом фона
-                    // очерчивает её с обеих сторон разом — перекрашивать
-                    // саму ручку нельзя, слева от неё дорожка тёмная.
                     border.color: view.sys.colBg
                     border.width: view.sys.themeNothing ? 2 : 0
                     scale: drag.pressed ? 1.25 : (drag.containsMouse ? 1.1 : 1.0)
@@ -265,7 +311,7 @@ Item {
             }
 
             Rectangle {
-                visible: view.sys.audioStreams.length > 0
+                visible: view.streamsList.length > 0
                 Layout.preferredHeight: 16
                 Layout.preferredWidth: streamCountText.implicitWidth + 10
                 radius: 8
@@ -274,7 +320,7 @@ Item {
                 Text {
                     id: streamCountText
                     anchors.centerIn: parent
-                    text: String(view.sys.audioStreams.length)
+                    text: String(view.streamsList.length)
                     color: view.sys.colOn
                     font { family: view.sys.fontFam; pixelSize: 10; bold: true }
                 }
@@ -284,12 +330,15 @@ Item {
         }
 
         Repeater {
-            model: view.sys.audioStreams
+            model: view.streamsList
 
             Rectangle {
                 id: strCard
                 required property var modelData
-                readonly property var strAudio: strCard.modelData ? strCard.modelData.audio : null
+                required property int index
+
+                property int currentVolPct: modelData.volume_pct !== undefined ? modelData.volume_pct : Math.round((modelData.volume || 1.0) * 100)
+                property bool isMuted: modelData.muted || false
 
                 Layout.fillWidth: true
                 Layout.preferredHeight: 58
@@ -308,14 +357,14 @@ Item {
                         spacing: 8
 
                         Text {
-                            text: view.getStreamIcon(strCard.modelData)
-                            color: strCard.strAudio && strCard.strAudio.muted ? view.sys.colMuted : view.sys.colOn
+                            text: view.getStreamIcon(strCard.modelData.name, strCard.modelData.binary, strCard.modelData.icon)
+                            color: strCard.isMuted ? view.sys.colMuted : view.sys.colOn
                             font { family: view.sys.fontFam; pixelSize: view.sys.iconSize - 2 }
                         }
 
                         Text {
                             Layout.fillWidth: true
-                            text: view.getStreamName(strCard.modelData)
+                            text: strCard.modelData.name || strCard.modelData.binary || view.sys.tr("Приложение")
                             color: view.sys.colFg
                             elide: Text.ElideRight
                             font {
@@ -325,24 +374,26 @@ Item {
                         }
 
                         Text {
-                            text: strCard.strAudio ? Math.round(strCard.strAudio.volume * 100) + "%" : "—"
+                            text: strCard.currentVolPct + "%"
                             color: view.sys.colMuted
                             font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
                         }
 
                         Text {
-                            text: !strCard.strAudio ? String.fromCodePoint(0xF075F)
-                                : strCard.strAudio.muted ? String.fromCodePoint(0xF075F)
-                                : strCard.strAudio.volume < 0.34 ? String.fromCodePoint(0xF057F)
-                                : strCard.strAudio.volume < 0.67 ? String.fromCodePoint(0xF0580)
-                                                                 : String.fromCodePoint(0xF057E)
-                            color: strCard.strAudio && strCard.strAudio.muted ? view.sys.colMuted : view.sys.colFg
+                            text: strCard.isMuted ? String.fromCodePoint(0xF075F)
+                                : strCard.currentVolPct < 34 ? String.fromCodePoint(0xF057F)
+                                : strCard.currentVolPct < 67 ? String.fromCodePoint(0xF0580)
+                                                             : String.fromCodePoint(0xF057E)
+                            color: strCard.isMuted ? view.sys.colMuted : view.sys.colFg
                             font { family: view.sys.fontFam; pixelSize: view.sys.iconSize - 3 }
                             MouseArea {
                                 anchors.fill: parent
                                 anchors.margins: -6
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: if (strCard.strAudio) strCard.strAudio.muted = !strCard.strAudio.muted
+                                onClicked: {
+                                    strCard.isMuted = !strCard.isMuted;
+                                    view.toggleAppMute(strCard.modelData.id);
+                                }
                             }
                         }
                     }
@@ -353,13 +404,14 @@ Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 18
 
-                        readonly property real pos: strCard.strAudio ? strCard.strAudio.volume : 0
+                        readonly property real pos: Math.max(0, Math.min(1, strCard.currentVolPct / 100))
                         readonly property real usable: width - appKnob.width
 
                         function setFromX(x) {
-                            if (!strCard.strAudio) return;
                             var r = Math.max(0, Math.min(1, (x - appKnob.width / 2) / Math.max(1, usable)));
-                            strCard.strAudio.volume = Math.round(r * 20) / 20;
+                            var pct = Math.round(r * 20) * 5; // шаг 5%
+                            strCard.currentVolPct = pct;
+                            view.setAppVolume(strCard.modelData.id, pct);
                         }
 
                         Rectangle {
@@ -370,10 +422,10 @@ Item {
                             radius: 2
                             color: Qt.rgba(1, 1, 1, 0.12)
                             Rectangle {
-                                width: parent.width * Math.min(1, appSl.pos)
+                                width: parent.width * appSl.pos
                                 height: parent.height
                                 radius: 2
-                                color: strCard.strAudio && strCard.strAudio.muted ? view.sys.colMuted : view.sys.colOn
+                                color: strCard.isMuted ? view.sys.colMuted : view.sys.colOn
                             }
                         }
 
@@ -381,7 +433,7 @@ Item {
                             id: appKnob
                             width: 14; height: 14; radius: 7
                             anchors.verticalCenter: parent.verticalCenter
-                            x: Math.min(1, appSl.pos) * appSl.usable
+                            x: appSl.pos * appSl.usable
                             color: "#ffffff"
                             border.color: view.sys.colBg
                             border.width: view.sys.themeNothing ? 2 : 0
@@ -405,7 +457,7 @@ Item {
 
         Text {
             Layout.fillWidth: true
-            visible: view.sys.audioStreams.length === 0
+            visible: view.streamsList.length === 0
             text: view.sys.tr("Нет активных приложений со звуком")
             color: view.sys.colMuted
             horizontalAlignment: Text.AlignHCenter
