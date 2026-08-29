@@ -203,6 +203,8 @@ Networking assumes **iwd** (the Wi‑Fi page drives `iwctl` directly — no
 NetworkManager). Power profiles go through `power-profiles-daemon` over D‑Bus.
 Everything resolves `$HOME` at runtime — no hardcoded paths.
 
+Running on Ubuntu, Debian or Linux Mint? See [docs/other-distros.md](docs/other-distros.md) for build instructions, dependencies and compatibility notes.
+
 ## Layout
 
 ```
