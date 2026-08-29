@@ -86,7 +86,10 @@ model = "medium"
 
 # Language for transcription
 # Use "ru" for Russian, "en" for English, "auto" for auto-detection
-language = "ru"
+language = "auto"
+
+# Initial prompt to provide context and support bilingual English/Russian transcription
+initial_prompt = "Привет, hello."
 
 # Translate non-English speech to English
 translate = false
