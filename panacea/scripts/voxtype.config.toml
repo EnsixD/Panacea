@@ -196,7 +196,7 @@ on_recording_start = false
 on_recording_stop = false
 
 # Show notification with transcribed text after transcription completes
-on_transcription = true
+on_transcription = false
 
 # [output.post_process]
 # Pipe transcribed text through an external command for cleanup before output.
