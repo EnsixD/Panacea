@@ -47,6 +47,9 @@ QtObject {
         "Пропустить": "Skip",
 
         // строки нового окна настроек
+        "Звуки": "Sounds",
+        "Звуковые эффекты системы": "System sound effects",
+        "Зарядка, подключение Bluetooth, скриншоты, голосовой ввод": "Charging, Bluetooth, screenshots, voice input",
         "и ещё": "and",
         "Отключиться": "Disconnect",
         "Забыть сеть": "Forget network",

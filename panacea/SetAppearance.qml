@@ -273,4 +273,23 @@ ColumnLayout {
             onMoved: v => { page.sys.cfg.smallRadius = v; page.sys.saveCfg(); }
         }
     }
+
+    // ------------------------------------------------------------- звуки
+    SetCard {
+        sys: page.sys
+
+        SetLabel { sys: page.sys; text: page.sys.tr("Звуки") }
+
+        SetToggle {
+            sys: page.sys
+            label: page.sys.tr("Звуковые эффекты системы")
+            sub: page.sys.tr("Зарядка, подключение Bluetooth, скриншоты, голосовой ввод")
+            on: page.sys.cfg.uiSounds !== false
+            onToggled: value => {
+                page.sys.cfg.uiSounds = value;
+                page.sys.saveCfg();
+                if (value) page.sys.playSound("connect");
+            }
+        }
+    }
 }

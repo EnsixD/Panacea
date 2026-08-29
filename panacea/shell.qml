@@ -299,8 +299,19 @@ PanelWindow {
         vibrance: 50, mouseSens: 0, mouseRaw: false,
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
         weatherKey: "", weatherCity: "", weatherUnits: "metric",
-        weatherOnIsland: true, featWidgets: false, termAlpha: 0.90
+        weatherOnIsland: true, featWidgets: false, termAlpha: 0.90,
+        uiSounds: true
     })
+
+    // ------------------------------------------------------------------ звуки
+    Process { id: pSound }
+    function playSound(name) {
+        if (root.cfg.uiSounds === false) return;
+        var p = Quickshell.env("HOME") + "/.config/panacea/sounds/" + name + ".wav";
+        pSound.command = ["sh", "-c", "command -v pw-play >/dev/null 2>&1 && pw-play \"$1\" >/dev/null 2>&1 || (command -v paplay >/dev/null 2>&1 && paplay \"$1\" >/dev/null 2>&1)", "_", p];
+        pSound.running = false;
+        pSound.running = true;
+    }
 
     function resetCfg() {
         for (var k in root.defaultCfg) cfg[k] = root.defaultCfg[k];
@@ -1825,6 +1836,7 @@ PanelWindow {
                             root.tr("В буфере обмена") + " · " + name];
         pShotSay.running = false;
         pShotSay.running = true;
+        root.playSound("screenshot");
     }
 
     // Настройки — единственная страница, которая отрывается от верхней кромки
@@ -3601,6 +3613,7 @@ PanelWindow {
         root.btToastShown = true;
         if (root.expanded) root.collapse();
         btToastTimer.restart();
+        root.playSound(isDisconnect ? "disconnect" : "connect");
     }
     function dismissBtToast() {
         root.btToastShown = false;
@@ -3631,6 +3644,7 @@ PanelWindow {
         root.acToastShown = true;
         if (root.expanded) root.collapse();
         acToastTimer.restart();
+        root.playSound("charge");
     }
     function dismissAcToast() {
         root.acToastShown = false;
@@ -3675,9 +3689,15 @@ PanelWindow {
     IpcHandler {
         target: "pill"
         // индикатор голосового ввода: зовёт voxtype.sh на разных этапах
-        function voxListening(): void { root.voxState = "listening"; }
+        function voxListening(): void {
+            root.voxState = "listening";
+            root.playSound("voice_start");
+        }
         function voxTranscribing(): void { root.voxState = "transcribing"; }
-        function voxDone(): void { root.voxState = ""; }
+        function voxDone(): void {
+            root.voxState = "";
+            root.playSound("voice_done");
+        }
         function voxUnavailable(): void {
             root.voxState = "";
             root.recError = root.tr("voxtype не установлен");
