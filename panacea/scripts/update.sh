@@ -440,6 +440,55 @@ cmd_apply() {
         rm -f "$CONF/panacea/.obsoletedeps"
     fi
 
+    # voxtype (голос → текст): проверяем модели, обновляем конфиг и перезапускаем
+    local vox_cmd
+    vox_cmd="$(command -v voxtype 2>/dev/null || true)"
+    [ -z "$vox_cmd" ] && [ -x "/usr/lib/voxtype/voxtype-vulkan" ] && vox_cmd="/usr/lib/voxtype/voxtype-vulkan"
+    [ -z "$vox_cmd" ] && [ -x "/usr/bin/voxtype" ] && vox_cmd="/usr/bin/voxtype"
+
+    if [ -n "$vox_cmd" ]; then
+        local models_dir="$HOME/.local/share/voxtype/models"
+        mkdir -p "$models_dir" "$CONF/voxtype"
+
+        # Обновляем конфиг voxtype из актуального шаблона
+        if [ -f "$CONF/panacea/scripts/voxtype.config.toml" ]; then
+            cp "$CONF/panacea/scripts/voxtype.config.toml" "$CONF/voxtype/config.toml"
+        fi
+
+        # Vulkan GPU ускорение
+        if [ -x "/usr/lib/voxtype/voxtype-vulkan" ]; then
+            mkdir -p "$HOME/.local/bin" "$CONF/systemd/user/voxtype.service.d"
+            ln -sf /usr/lib/voxtype/voxtype-vulkan "$HOME/.local/bin/voxtype"
+            cat << 'EOF' > "$CONF/systemd/user/voxtype.service.d/override.conf"
+[Service]
+ExecStart=
+ExecStart=/usr/lib/voxtype/voxtype-vulkan -q daemon
+Environment="VOXTYPE_VULKAN_DEVICE=amd"
+EOF
+            systemctl --user daemon-reload >/dev/null 2>&1 || true
+        fi
+
+        # Проверка и скачивание модели Medium, если её ещё нет
+        if [ ! -f "$models_dir/ggml-medium.bin" ]; then
+            echo "step=voxtype_model"
+            if command -v curl >/dev/null 2>&1; then
+                curl -sL "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin" -o "$models_dir/ggml-medium.bin" 2>/dev/null || true
+            else
+                "$vox_cmd" setup --download --model medium >/dev/null 2>&1 || true
+            fi
+        fi
+
+        # Silero VAD
+        if [ ! -f "$models_dir/ggml-silero-vad.bin" ]; then
+            if command -v curl >/dev/null 2>&1; then
+                curl -sL "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-silero-vad.bin" -o "$models_dir/ggml-silero-vad.bin" 2>/dev/null || true
+            fi
+        fi
+
+        systemctl --user enable --now voxtype.service >/dev/null 2>&1 || true
+        systemctl --user restart voxtype.service >/dev/null 2>&1 || true
+    fi
+
     # Список изменений между тем, что стояло, и тем, что встало. Оболочка
     # покажет его один раз после перезапуска и файл сотрёт. История берётся
     # с GitHub: клон делается мелкий, в нём её нет.

@@ -634,14 +634,13 @@ install_configs() {
             && ok "screen mode written into the compositor config"
     fi
 
-    # Конфиг voxtype (голос → текст): кладём наш, если своего ещё нет. Правый
+    # Конфиг voxtype (голос → текст): кладём наш. Правый
     # Alt слушает Hyprland, а не сам voxtype, поэтому в нашем конфиге встроенный
-    # хоткей выключен. Чужой конфиг не трогаем.
-    if [ ! -f "$CONF/voxtype/config.toml" ] \
-       && [ -f "$CONF/panacea/scripts/voxtype.config.toml" ]; then
+    # хоткей выключен.
+    if [ -f "$CONF/panacea/scripts/voxtype.config.toml" ]; then
         mkdir -p "$CONF/voxtype"
         cp "$CONF/panacea/scripts/voxtype.config.toml" "$CONF/voxtype/config.toml" \
-            && ok "voxtype config written (voice-to-text on Right Alt)"
+            && ok "voxtype config written (voice-to-text on Right Alt, Russian, VAD, GPU)"
     fi
 
     stamp_version
@@ -696,16 +695,55 @@ enable_services() {
     command -v rfkill >/dev/null 2>&1 && rfkill unblock all 2>/dev/null
 
     # voxtype (голос → текст): демон принимает `voxtype record start/stop`,
-    # которые дёргает Hyprland по правому Alt. Модель нужна одна, и она большая
-    # (сотни МБ) — качаем только с согласия. Сервис включаем пользовательский.
-    if command -v voxtype >/dev/null 2>&1; then
-        if ask "Download the voxtype speech model (~hundreds of MB) for voice-to-text?"; then
-            voxtype setup --download --model medium >/dev/null 2>&1 \
-                && ok "voxtype model downloaded" || warn "voxtype model download failed"
+    # которые дёргает Hyprland по правому Alt. Модель нужна одна (medium ~1.5 GB),
+    # плюс VAD модель (Silero VAD) для фильтрации фонового шума и тишины.
+    local vox_cmd
+    vox_cmd="$(command -v voxtype 2>/dev/null || true)"
+    [ -z "$vox_cmd" ] && [ -x "/usr/lib/voxtype/voxtype-vulkan" ] && vox_cmd="/usr/lib/voxtype/voxtype-vulkan"
+    [ -z "$vox_cmd" ] && [ -x "/usr/bin/voxtype" ] && vox_cmd="/usr/bin/voxtype"
+
+    if [ -n "$vox_cmd" ]; then
+        local models_dir="$HOME/.local/share/voxtype/models"
+        mkdir -p "$models_dir" "$CONF/systemd/user/voxtype.service.d" "$HOME/.local/bin"
+
+        # GPU acceleration (Vulkan)
+        if [ -x "/usr/lib/voxtype/voxtype-vulkan" ]; then
+            ln -sf /usr/lib/voxtype/voxtype-vulkan "$HOME/.local/bin/voxtype"
+            cat << 'EOF' > "$CONF/systemd/user/voxtype.service.d/override.conf"
+[Service]
+ExecStart=
+ExecStart=/usr/lib/voxtype/voxtype-vulkan -q daemon
+Environment="VOXTYPE_VULKAN_DEVICE=amd"
+EOF
+            systemctl --user daemon-reload >/dev/null 2>&1 || true
         fi
-        voxtype setup systemd >/dev/null 2>&1
+
+        # Whisper speech model (medium ~1.5 GB)
+        if [ ! -f "$models_dir/ggml-medium.bin" ]; then
+            step "Downloading Whisper Medium speech model (~1.5 GB) for voxtype..."
+            printf '  %sℹ%s Downloading ggml-medium.bin (this may take a few minutes depending on your internet connection)...%s\n' "$DIM" "$N" "$N"
+            if command -v curl >/dev/null 2>&1; then
+                curl -L --progress-bar "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin" -o "$models_dir/ggml-medium.bin" \
+                    && ok "Whisper Medium model downloaded" \
+                    || warn "Could not download Whisper Medium model via curl"
+            else
+                "$vox_cmd" setup --download --model medium >/dev/null 2>&1 \
+                    && ok "Whisper Medium model downloaded" || warn "voxtype model download failed"
+            fi
+        else
+            ok "Whisper Medium model already present"
+        fi
+
+        # Silero VAD model
+        if [ ! -f "$models_dir/ggml-silero-vad.bin" ]; then
+            if command -v curl >/dev/null 2>&1; then
+                curl -sL "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-silero-vad.bin" -o "$models_dir/ggml-silero-vad.bin" 2>/dev/null || true
+            fi
+        fi
+
+        "$vox_cmd" setup systemd >/dev/null 2>&1 || true
         systemctl --user enable --now voxtype.service >/dev/null 2>&1 \
-            && ok "voxtype service enabled" \
+            && ok "voxtype service enabled and active" \
             || warn "could not enable the voxtype service — enable it by hand: systemctl --user enable --now voxtype"
     fi
 
