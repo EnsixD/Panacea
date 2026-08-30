@@ -3879,6 +3879,15 @@ PanelWindow {
     // нужно показать уровень громкости/яркости.
     visible: !root.fullscreenActive || root.expanded || root.osdActive
 
+    Process {
+        id: pCloseWin
+        command: ["sh", "-c", "out=$(hyprctl dispatch 'hl.dsp.window.close()' 2>&1); case \"$out\" in ok*) ;; *) hyprctl dispatch killactive ;; esac"]
+    }
+    function closeActiveWindow(): void {
+        pCloseWin.running = false;
+        pCloseWin.running = true;
+    }
+
     // Закрытие раскрытой панели по Escape или Super+Q / Meta+W
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Escape) {
@@ -3887,7 +3896,11 @@ PanelWindow {
             return;
         }
         if ((event.key === Qt.Key_Q || event.key === Qt.Key_W) && (event.modifiers & Qt.MetaModifier)) {
-            root.collapse();
+            if (root.cfg.closePanaceaFirst) {
+                root.collapse();
+            } else {
+                root.closeActiveWindow();
+            }
             event.accepted = true;
             return;
         }

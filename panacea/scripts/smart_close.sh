@@ -19,4 +19,9 @@ if [ "$PREF" = 1 ]; then
     fi
 fi
 
-hyprctl dispatch killactive >/dev/null 2>&1
+# Close active window in Hyprland (supports both lua plugin dispatcher and standard killactive)
+out=$(hyprctl dispatch 'hl.dsp.window.close()' 2>&1)
+case "$out" in
+    ok*) ;;
+    *) hyprctl dispatch killactive >/dev/null 2>&1 ;;
+esac
