@@ -206,9 +206,36 @@ EOF
         ;;
 
     trash)
-        P="${2:?}"
-        P="${P/#\~/$HOME}"
-        gio trash "$P"
+        shift
+        for P; do
+            P="${P/#\~/$HOME}"
+            gio trash "$P" 2>/dev/null || rm -rf -- "$P"
+        done
+        ;;
+
+    extract)
+        SRC="${2:?}"
+        DST="${3:-}"
+        SRC="${SRC/#\~/$HOME}"
+        [ -f "$SRC" ] || exit 1
+
+        if [ -z "$DST" ]; then
+            DST="$(dirname "$SRC")"
+        fi
+        DST="${DST/#\~/$HOME}"
+        mkdir -p "$DST" || exit 1
+
+        if command -v bsdtar >/dev/null 2>&1; then
+            bsdtar -xf "$SRC" -C "$DST"
+        elif [[ "$SRC" =~ \.zip$ ]] && command -v unzip >/dev/null 2>&1; then
+            unzip -q -o "$SRC" -d "$DST"
+        elif [[ "$SRC" =~ \.7z$ ]] && command -v 7z >/dev/null 2>&1; then
+            7z x -y -o"$DST" "$SRC"
+        elif [[ "$SRC" =~ \.rar$ ]] && command -v unrar >/dev/null 2>&1; then
+            unrar x -y "$SRC" "$DST/"
+        else
+            tar -xf "$SRC" -C "$DST"
+        fi
         ;;
 
     # Каталог назначения идёт первым, источники — списком: так один вызов

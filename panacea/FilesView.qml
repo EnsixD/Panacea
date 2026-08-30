@@ -52,8 +52,14 @@ Item {
     property string openWithFile: ""
 
     // буфер обмена проводника
-    property string clipPath: ""
+    property var    clipPaths: []
+    property string clipPath: clipPaths.length ? clipPaths[0] : ""
     property string clipMode: ""        // "copy" | "cut"
+
+    // мультивыделение файлов
+    property var    selectedPaths: []
+    readonly property int selectedCount: selectedPaths.length
+    property int    anchorIndex: -1
 
     // контекстное меню
     property bool   menuOpen: false
@@ -482,35 +488,192 @@ Item {
         pApps.running = false;
         pApps.running = true;
     }
-    function doCopy(path) {
-        view.clipPath = path; view.clipMode = "copy";
+    // ---------------------------------------------------- мультивыделение
+    function isSelected(path) {
+        return view.selectedPaths.indexOf(path) !== -1;
+    }
+    function toggleSelection(path, idx) {
+        var copy = view.selectedPaths.slice();
+        var i = copy.indexOf(path);
+        if (i !== -1) copy.splice(i, 1);
+        else copy.push(path);
+        view.selectedPaths = copy;
+        if (idx !== undefined) view.anchorIndex = idx;
+    }
+    function selectSingle(path, idx) {
+        view.selectedPaths = [path];
+        if (idx !== undefined) view.anchorIndex = idx;
+    }
+    function selectRange(targetIdx) {
+        if (view.anchorIndex < 0) view.anchorIndex = view.current;
+        var start = Math.min(view.anchorIndex, targetIdx);
+        var end = Math.max(view.anchorIndex, targetIdx);
+        var res = [];
+        for (var i = start; i <= end; i++) {
+            if (i >= 0 && i < entries.count) {
+                res.push(view.fullPath(entries.get(i).eName));
+            }
+        }
+        view.selectedPaths = res;
+    }
+    function selectAll() {
+        var res = [];
+        for (var i = 0; i < entries.count; i++) {
+            res.push(view.fullPath(entries.get(i).eName));
+        }
+        view.selectedPaths = res;
+    }
+    function clearSelection() {
+        view.selectedPaths = [];
+        view.anchorIndex = -1;
+    }
+    function updateSelectionByRect(rx, ry, rw, rh) {
+        var rectX2 = rx + rw;
+        var rectY2 = ry + rh;
+        var matched = [];
+
+        if (view.mode === "list") {
+            var rowH = 42;
+            var scrollY = list.contentY;
+            for (var i = 0; i < entries.count; i++) {
+                var itemY = i * rowH - scrollY;
+                var itemY2 = itemY + rowH;
+                if (itemY2 >= ry && itemY <= rectY2) {
+                    matched.push(view.fullPath(entries.get(i).eName));
+                }
+            }
+        } else {
+            var cols = view.gridCols;
+            var cellW = grid.cellWidth;
+            var cellH = grid.cellHeight;
+            var scrollY = grid.contentY;
+            for (var j = 0; j < entries.count; j++) {
+                var colIdx = j % cols;
+                var rowIdx = Math.floor(j / cols);
+                var itemX = colIdx * cellW;
+                var itemX2 = itemX + cellW;
+                var itemY = rowIdx * cellH - scrollY;
+                var itemY2 = itemY + cellH;
+
+                if (itemX2 >= rx && itemX <= rectX2 && itemY2 >= ry && itemY <= rectY2) {
+                    matched.push(view.fullPath(entries.get(j).eName));
+                }
+            }
+        }
+        view.selectedPaths = matched;
+    }
+
+    // ----------------------------------------------------------- архивы
+    function isArchive(path) {
+        if (!path) return false;
+        var l = String(path).toLowerCase();
+        return l.endsWith(".zip") || l.endsWith(".tar.gz") || l.endsWith(".tgz")
+            || l.endsWith(".tar.xz") || l.endsWith(".txz") || l.endsWith(".tar.bz2")
+            || l.endsWith(".tbz2") || l.endsWith(".tar.zst") || l.endsWith(".tar")
+            || l.endsWith(".7z") || l.endsWith(".rar") || l.endsWith(".gz")
+            || l.endsWith(".xz") || l.endsWith(".zst") || l.endsWith(".bz2")
+            || l.endsWith(".iso");
+    }
+    function archiveFolderName(path) {
+        var name = view.baseName(path);
+        name = name.replace(/\.(tar\.(gz|xz|bz2|zst)|tgz|txz|tbz2|zip|7z|rar|iso|gz|xz|zst|bz2)$/i, "");
+        return name || "extracted";
+    }
+    function hasArchiveSelected() {
+        for (var i = 0; i < view.selectedPaths.length; i++) {
+            if (view.isArchive(view.selectedPaths[i])) return true;
+        }
+        return false;
+    }
+    function doExtractHere(path) {
         closeMenu();
-        view.say(view.sys.tr("Скопировано: ") + view.baseName(path));
+        runLong(["sh", "-c", view.scripts + " extract \"$1\" \"$2\"", "_", path, view.dir],
+                view.sys.tr("Распаковано: ") + view.baseName(path),
+                view.baseName(path));
+    }
+    function doExtractToFolder(path) {
+        closeMenu();
+        var folder = view.dir + "/" + view.archiveFolderName(path);
+        runLong(["sh", "-c", view.scripts + " extract \"$1\" \"$2\"", "_", path, folder],
+                view.sys.tr("Распаковано в ") + view.archiveFolderName(path) + "/",
+                view.baseName(path));
+    }
+    function doExtractAllSelected(toSubfolders) {
+        closeMenu();
+        var paths = view.selectedPaths.filter(view.isArchive);
+        if (!paths.length && view.isArchive(view.menuPath)) paths = [view.menuPath];
+        if (!paths.length) return;
+        for (var i = 0; i < paths.length; i++) {
+            var p = paths[i];
+            var dst = toSubfolders ? (view.dir + "/" + view.archiveFolderName(p)) : view.dir;
+            view.runLong(["sh", "-c", view.scripts + " extract \"$1\" \"$2\"", "_", p, dst],
+                         view.sys.tr("Распаковано: ") + view.baseName(p),
+                         view.baseName(p));
+        }
+    }
+
+    function doCopy(path) {
+        var targets = (view.selectedCount > 1 && (path === "" || view.isSelected(path)))
+                    ? view.selectedPaths.slice()
+                    : (path ? [path] : []);
+        if (!targets.length) return;
+        view.clipPaths = targets;
+        view.clipMode = "copy";
+        closeMenu();
+        if (targets.length === 1) {
+            view.say(view.sys.tr("Скопировано: ") + view.baseName(targets[0]));
+        } else {
+            view.say(view.sys.tr("Скопировано файлов: ") + targets.length);
+        }
     }
     function doCut(path) {
-        view.clipPath = path; view.clipMode = "cut";
+        var targets = (view.selectedCount > 1 && (path === "" || view.isSelected(path)))
+                    ? view.selectedPaths.slice()
+                    : (path ? [path] : []);
+        if (!targets.length) return;
+        view.clipPaths = targets;
+        view.clipMode = "cut";
         closeMenu();
-        view.say(view.sys.tr("Вырезано: ") + view.baseName(path));
+        if (targets.length === 1) {
+            view.say(view.sys.tr("Вырезано: ") + view.baseName(targets[0]));
+        } else {
+            view.say(view.sys.tr("Вырезано файлов: ") + targets.length);
+        }
     }
     function doPaste() {
-        if (!view.clipPath.length) return;
+        if (!view.clipPaths.length) return;
         var op = view.clipMode === "cut" ? "move" : "copy";
         closeMenu();
-        runLong(["sh", "-c", view.scripts + " " + op + " \"$1\" \"$2\"", "_", view.dir, view.clipPath],
-                (view.clipMode === "cut" ? view.sys.tr("Перемещено: ")
-                                         : view.sys.tr("Вставлено: ")) + view.baseName(view.clipPath),
-                view.baseName(view.clipPath));
-        if (view.clipMode === "cut") { view.clipPath = ""; view.clipMode = ""; }
+        var label = view.clipPaths.length === 1 ? view.baseName(view.clipPaths[0])
+                                               : (view.clipPaths.length + " " + view.sys.tr("файлов"));
+        var note = (view.clipMode === "cut" ? view.sys.tr("Перемещено: ")
+                                            : view.sys.tr("Вставлено: ")) + label;
+        var cmd = ["sh", "-c", view.scripts + " " + op + " \"$1\" \"keepboth\" \"${@:2}\"", "_", view.dir];
+        cmd = cmd.concat(view.clipPaths);
+        runLong(cmd, note, label);
+        if (view.clipMode === "cut") { view.clipPaths = []; view.clipMode = ""; }
     }
     function doCopyPath(path) {
+        var targets = (view.selectedCount > 1 && (path === "" || view.isSelected(path)))
+                    ? view.selectedPaths.slice()
+                    : (path ? [path] : []);
+        if (!targets.length) return;
         closeMenu();
-        run(["sh", "-c", view.scripts + " copypath \"$1\"", "_", path],
+        var text = targets.join("\n");
+        run(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", text],
             view.sys.tr("Путь скопирован"));
     }
     function doTrash(path) {
+        var targets = (view.selectedCount > 1 && (path === "" || view.isSelected(path)))
+                    ? view.selectedPaths.slice()
+                    : (path ? [path] : []);
+        if (!targets.length) return;
         closeMenu();
-        run(["sh", "-c", view.scripts + " trash \"$1\"", "_", path],
-            view.sys.tr("В корзину: ") + view.baseName(path));
+        var cmd = ["sh", "-c", view.scripts + " trash \"$@\"", "_"].concat(targets);
+        var label = targets.length === 1 ? view.baseName(targets[0])
+                                         : (targets.length + " " + view.sys.tr("файлов"));
+        run(cmd, view.sys.tr("В корзину: ") + label);
+        view.clearSelection();
     }
 
     // ---------------------------------------------------------- свойства
@@ -584,6 +747,7 @@ Item {
     Keys.onEscapePressed: {
         if (view.dialogMode.length) { view.cancelDialog(); return; }
         if (view.menuOpen) { view.closeMenu(); return; }
+        if (view.selectedCount > 0) { view.clearSelection(); return; }
         if (view.openWithFile.length) { view.openWithFile = ""; return; }
         if (view.filter.length) { view.filter = ""; applyFilter(); return; }
         view.leave();
@@ -620,11 +784,20 @@ Item {
             event.accepted = true;
             return;
         }
-        if (event.key === Qt.Key_Delete) { view.trashCurrent(); event.accepted = true; return; }
+        if (event.key === Qt.Key_Delete) {
+            if (view.selectedCount > 0) {
+                view.doTrash("");
+            } else {
+                view.trashCurrent();
+            }
+            event.accepted = true;
+            return;
+        }
         if (event.modifiers & Qt.ControlModifier) {
+            if (event.key === Qt.Key_A) { view.selectAll(); event.accepted = true; return; }
             var p = view.currentPath();
-            if (event.key === Qt.Key_C && p.length) { view.doCopy(p); event.accepted = true; return; }
-            if (event.key === Qt.Key_X && p.length) { view.doCut(p); event.accepted = true; return; }
+            if (event.key === Qt.Key_C) { view.doCopy(p); event.accepted = true; return; }
+            if (event.key === Qt.Key_X) { view.doCut(p); event.accepted = true; return; }
             if (event.key === Qt.Key_V) { view.doPaste(); event.accepted = true; return; }
             if (event.key === Qt.Key_N) { view.startMkdir(); event.accepted = true; return; }
             return;
@@ -1276,6 +1449,17 @@ Item {
                     highlightMoveDuration: 130
                     onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
 
+                    // Рамка выделения внутри ListView
+                    Rectangle {
+                        id: listRubberBand
+                        z: 90
+                        visible: false
+                        color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
+                        border.color: view.sys.colOn
+                        border.width: 1
+                        radius: 4
+                    }
+
                     // Мышью список не таскается. ListView — это Flickable, а он
                     // по умолчанию понимает зажатую кнопку как прокрутку: то
                     // есть ровно тем же движением, которым файл берут, чтобы
@@ -1305,12 +1489,61 @@ Item {
                     // даёт меню самой папки. Живёт внутри ListView, иначе
                     // anchors ругались бы на управление со стороны Layout.
                     MouseArea {
+                        id: listBgMa
                         anchors.fill: parent
                         z: -1
-                        acceptedButtons: Qt.RightButton
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        hoverEnabled: true
+
+                        property real startX: 0
+                        property real startY: 0
+                        property bool selecting: false
+
+                        onPressed: mouse => {
+                            if (mouse.button === Qt.LeftButton) {
+                                startX = mouse.x;
+                                startY = mouse.y;
+                                selecting = true;
+                                if (!(mouse.modifiers & Qt.ControlModifier)) {
+                                    view.clearSelection();
+                                }
+                            }
+                        }
+
+                        onPositionChanged: mouse => {
+                            if (!selecting || mouse.buttons !== Qt.LeftButton) return;
+                            var rx = Math.min(startX, mouse.x);
+                            var ry = Math.min(startY, mouse.y);
+                            var rw = Math.abs(mouse.x - startX);
+                            var rh = Math.abs(mouse.y - startY);
+
+                            if (rw > 5 || rh > 5) {
+                                listRubberBand.x = rx;
+                                listRubberBand.y = ry;
+                                listRubberBand.width = rw;
+                                listRubberBand.height = rh;
+                                listRubberBand.visible = true;
+
+                                view.updateSelectionByRect(rx, ry, rw, rh);
+                            }
+                        }
+
+                        onReleased: mouse => {
+                            if (selecting) {
+                                selecting = false;
+                                listRubberBand.visible = false;
+                            }
+                        }
+
                         onClicked: mouse => {
-                            var p = mapToItem(view, mouse.x, mouse.y);
-                            view.openMenu("", true, p.x, p.y);
+                            if (mouse.button === Qt.RightButton) {
+                                var p = mapToItem(view, mouse.x, mouse.y);
+                                view.openMenu("", true, p.x, p.y);
+                            } else if (mouse.button === Qt.LeftButton) {
+                                if (listRubberBand.width <= 5 && listRubberBand.height <= 5) {
+                                    view.clearSelection();
+                                }
+                            }
                         }
                     }
 
@@ -1324,15 +1557,22 @@ Item {
                         radius: 12
                         readonly property bool dropTarget:
                             row.model.eType === "d" && rowDrop.containsDrag
+                        readonly property bool isSelected:
+                            view.isSelected(view.fullPath(row.model.eName))
 
                         color: row.dropTarget
                                ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
                                          view.sys.colOn.b, 0.28)
+                             : row.isSelected
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                         view.sys.colOn.b, 0.20)
                              : index === view.current ? Qt.rgba(1, 1, 1, 0.09)
                              : (rowMa.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
                         Behavior on color { ColorAnimation { duration: 120 } }
-                        border.color: view.sys.colOn
-                        border.width: row.dropTarget ? 1 : 0
+                        border.color: row.dropTarget ? view.sys.colOn
+                                    : row.isSelected ? view.sys.colOn
+                                    : "transparent"
+                        border.width: (row.dropTarget || row.isSelected) ? 1 : 0
 
                         // Папку можно выбрать курсором: бросили на строку —
                         // кладём внутрь неё, а не в открытый каталог.
@@ -1366,7 +1606,7 @@ Item {
                                 font {
                                     family: view.sys.fontFam
                                     pixelSize: view.sys.fontSize
-                                    bold: row.index === view.current
+                                    bold: row.index === view.current || row.isSelected
                                 }
                             }
                             // дата изменения — у всех, включая папки
@@ -1405,18 +1645,31 @@ Item {
                                     && Math.abs(mouse.y - pressY) < 12) return;
                                 view.current = row.index;
                                 dragging = true;
+                                var p = view.fullPath(row.model.eName);
+                                if (!view.isSelected(p)) view.selectSingle(p, row.index);
                                 // панель сворачивается, файл остаётся на курсоре
-                                view.sys.startFileDrag(view.fullPath(row.model.eName), view.windowMode);
+                                view.sys.startFileDrag(p, view.windowMode);
                             }
 
                             onClicked: mouse => {
                                 if (rowMa.dragging) return;
+                                var p = view.fullPath(row.model.eName);
                                 view.current = row.index;
                                 view.forceActiveFocus();
                                 if (mouse.button === Qt.RightButton) {
-                                    var p = mapToItem(view, mouse.x, mouse.y);
-                                    view.openMenu(view.fullPath(row.model.eName),
-                                                  row.model.eType === "d", p.x, p.y);
+                                    if (!view.isSelected(p)) {
+                                        view.selectSingle(p, row.index);
+                                    }
+                                    var pos = mapToItem(view, mouse.x, mouse.y);
+                                    view.openMenu(p, row.model.eType === "d", pos.x, pos.y);
+                                    return;
+                                }
+                                if (mouse.modifiers & Qt.ControlModifier) {
+                                    view.toggleSelection(p, row.index);
+                                } else if (mouse.modifiers & Qt.ShiftModifier) {
+                                    view.selectRange(row.index);
+                                } else {
+                                    view.selectSingle(p, row.index);
                                 }
                             }
                             onDoubleClicked: view.activate(row.index)
@@ -1461,13 +1714,73 @@ Item {
                         }
                     }
 
+                    // Рамка выделения внутри GridView
+                    Rectangle {
+                        id: gridRubberBand
+                        z: 90
+                        visible: false
+                        color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
+                        border.color: view.sys.colOn
+                        border.width: 1
+                        radius: 4
+                    }
+
                     MouseArea {
+                        id: gridBgMa
                         anchors.fill: parent
                         z: -1
-                        acceptedButtons: Qt.RightButton
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        hoverEnabled: true
+
+                        property real startX: 0
+                        property real startY: 0
+                        property bool selecting: false
+
+                        onPressed: mouse => {
+                            if (mouse.button === Qt.LeftButton) {
+                                startX = mouse.x;
+                                startY = mouse.y;
+                                selecting = true;
+                                if (!(mouse.modifiers & Qt.ControlModifier)) {
+                                    view.clearSelection();
+                                }
+                            }
+                        }
+
+                        onPositionChanged: mouse => {
+                            if (!selecting || mouse.buttons !== Qt.LeftButton) return;
+                            var rx = Math.min(startX, mouse.x);
+                            var ry = Math.min(startY, mouse.y);
+                            var rw = Math.abs(mouse.x - startX);
+                            var rh = Math.abs(mouse.y - startY);
+
+                            if (rw > 5 || rh > 5) {
+                                gridRubberBand.x = rx;
+                                gridRubberBand.y = ry;
+                                gridRubberBand.width = rw;
+                                gridRubberBand.height = rh;
+                                gridRubberBand.visible = true;
+
+                                view.updateSelectionByRect(rx, ry, rw, rh);
+                            }
+                        }
+
+                        onReleased: mouse => {
+                            if (selecting) {
+                                selecting = false;
+                                gridRubberBand.visible = false;
+                            }
+                        }
+
                         onClicked: mouse => {
-                            var p = mapToItem(view, mouse.x, mouse.y);
-                            view.openMenu(view.dir, true, p.x, p.y);
+                            if (mouse.button === Qt.RightButton) {
+                                var p = mapToItem(view, mouse.x, mouse.y);
+                                view.openMenu(view.dir, true, p.x, p.y);
+                            } else if (mouse.button === Qt.LeftButton) {
+                                if (gridRubberBand.width <= 5 && gridRubberBand.height <= 5) {
+                                    view.clearSelection();
+                                }
+                            }
                         }
                     }
 
@@ -1481,15 +1794,22 @@ Item {
                         radius: 14
                         readonly property bool dropTarget:
                             tile.model.eType === "d" && tileDrop.containsDrag
+                        readonly property bool isSelected:
+                            view.isSelected(view.fullPath(tile.model.eName))
 
                         color: tile.dropTarget
                                ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
                                          view.sys.colOn.b, 0.28)
+                             : tile.isSelected
+                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
+                                         view.sys.colOn.b, 0.20)
                              : index === view.current ? Qt.rgba(1, 1, 1, 0.09)
                              : (tileMa.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
                         Behavior on color { ColorAnimation { duration: 120 } }
-                        border.color: view.sys.colOn
-                        border.width: tile.dropTarget ? 1 : 0
+                        border.color: tile.dropTarget ? view.sys.colOn
+                                    : tile.isSelected ? view.sys.colOn
+                                    : "transparent"
+                        border.width: (tile.dropTarget || tile.isSelected) ? 1 : 0
 
                         DropArea {
                             id: tileDrop
@@ -1526,7 +1846,11 @@ Item {
                                 wrapMode: Text.Wrap
                                 maximumLineCount: 2
                                 elide: Text.ElideRight
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                                font {
+                                    family: view.sys.fontFam
+                                    pixelSize: view.sys.fontSize - 4
+                                    bold: tile.index === view.current || tile.isSelected
+                                }
                             }
                         }
 
@@ -1549,18 +1873,30 @@ Item {
                                     && Math.abs(mouse.y - pressY) < 12) return;
                                 view.current = tile.index;
                                 dragging = true;
-                                view.sys.startFileDrag(view.fullPath(tile.model.eName),
-                                                       view.windowMode);
+                                var p = view.fullPath(tile.model.eName);
+                                if (!view.isSelected(p)) view.selectSingle(p, tile.index);
+                                view.sys.startFileDrag(p, view.windowMode);
                             }
 
                             onClicked: mouse => {
                                 if (tileMa.dragging) return;
+                                var p = view.fullPath(tile.model.eName);
                                 view.current = tile.index;
                                 view.forceActiveFocus();
                                 if (mouse.button === Qt.RightButton) {
-                                    var p = mapToItem(view, mouse.x, mouse.y);
-                                    view.openMenu(view.fullPath(tile.model.eName),
-                                                  tile.model.eType === "d", p.x, p.y);
+                                    if (!view.isSelected(p)) {
+                                        view.selectSingle(p, tile.index);
+                                    }
+                                    var pos = mapToItem(view, mouse.x, mouse.y);
+                                    view.openMenu(p, tile.model.eType === "d", pos.x, pos.y);
+                                    return;
+                                }
+                                if (mouse.modifiers & Qt.ControlModifier) {
+                                    view.toggleSelection(p, tile.index);
+                                } else if (mouse.modifiers & Qt.ShiftModifier) {
+                                    view.selectRange(tile.index);
+                                } else {
+                                    view.selectSingle(p, tile.index);
                                 }
                             }
                             onDoubleClicked: view.activate(tile.index)
@@ -2075,20 +2411,40 @@ Item {
 
             // ---- меню для файла или папки
             MenuItem {
-                visible: view.menuPath.length > 0
+                visible: view.menuPath.length > 0 && view.selectedCount <= 1
                 glyph: String.fromCodePoint(0xF0770)
                 label: view.menuIsDir ? view.sys.tr("Открыть папку") : view.sys.tr("Открыть")
                 onChosen: view.doOpen(view.menuPath)
             }
             MenuItem {
-                visible: view.menuPath.length > 0 && !view.menuIsDir
+                visible: view.menuPath.length > 0 && !view.menuIsDir && view.selectedCount <= 1
                 glyph: String.fromCodePoint(0xF03CB)
                 label: view.sys.tr("Открыть с помощью…")
                 onChosen: view.doOpenWith(view.menuPath)
             }
 
+            // ---- меню для архивов
+            MenuItem {
+                visible: view.menuPath.length > 0 && !view.menuIsDir && view.isArchive(view.menuPath) && view.selectedCount <= 1
+                glyph: String.fromCodePoint(0xF05C0)
+                label: view.sys.tr("Распаковать сюда")
+                onChosen: view.doExtractHere(view.menuPath)
+            }
+            MenuItem {
+                visible: view.menuPath.length > 0 && !view.menuIsDir && view.isArchive(view.menuPath) && view.selectedCount <= 1
+                glyph: String.fromCodePoint(0xF024B)
+                label: view.sys.tr("Распаковать в ") + view.archiveFolderName(view.menuPath) + "/"
+                onChosen: view.doExtractToFolder(view.menuPath)
+            }
+            MenuItem {
+                visible: view.selectedCount > 1 && view.hasArchiveSelected()
+                glyph: String.fromCodePoint(0xF05C0)
+                label: view.sys.tr("Распаковать архивы в папки")
+                onChosen: view.doExtractAllSelected(true)
+            }
+
             Rectangle {
-                visible: view.menuPath.length > 0
+                visible: view.menuPath.length > 0 || view.selectedCount > 0
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
                 Layout.topMargin: 3
@@ -2097,38 +2453,41 @@ Item {
             }
 
             MenuItem {
-                visible: view.menuPath.length > 0
+                visible: view.menuPath.length > 0 || view.selectedCount > 0
                 glyph: String.fromCodePoint(0xF018F)
-                label: view.sys.tr("Копировать")
+                label: view.selectedCount > 1 ? (view.sys.tr("Копировать (") + view.selectedCount + ")")
+                                             : view.sys.tr("Копировать")
                 onChosen: view.doCopy(view.menuPath)
             }
             MenuItem {
-                visible: view.menuPath.length > 0
+                visible: view.menuPath.length > 0 || view.selectedCount > 0
                 glyph: String.fromCodePoint(0xF0190)
-                label: view.sys.tr("Вырезать")
+                label: view.selectedCount > 1 ? (view.sys.tr("Вырезать (") + view.selectedCount + ")")
+                                             : view.sys.tr("Вырезать")
                 onChosen: view.doCut(view.menuPath)
             }
             MenuItem {
                 visible: view.menuKind !== "trash"
                 glyph: String.fromCodePoint(0xF0192)
-                label: view.sys.tr("Вставить")
-                enabledItem: view.clipPath.length > 0
+                label: view.clipPaths.length > 1 ? (view.sys.tr("Вставить (") + view.clipPaths.length + ")")
+                                                : view.sys.tr("Вставить")
+                enabledItem: view.clipPaths.length > 0
                 onChosen: view.doPaste()
             }
             MenuItem {
-                visible: view.menuPath.length > 0
+                visible: view.menuPath.length > 0 && view.selectedCount <= 1
                 glyph: String.fromCodePoint(0xF03EB)
                 label: view.sys.tr("Переименовать")
                 onChosen: view.startRename(view.menuPath)
             }
             MenuItem {
-                visible: view.menuPath.length > 0
+                visible: view.menuPath.length > 0 || view.selectedCount > 0
                 glyph: String.fromCodePoint(0xF0219)
                 label: view.sys.tr("Копировать путь")
                 onChosen: view.doCopyPath(view.menuPath)
             }
             MenuItem {
-                visible: view.menuPath.length > 0 && view.menuKind !== "trash"
+                visible: view.menuPath.length > 0 && view.menuKind !== "trash" && view.selectedCount <= 1
                 glyph: String.fromCodePoint(0xF02FD)   // информация
                 label: view.sys.tr("Свойства")
                 onChosen: view.showProps(view.menuPath)
@@ -2166,11 +2525,144 @@ Item {
                 onChosen: view.emptyTrash()
             }
             MenuItem {
-                visible: view.menuPath.length > 0
+                visible: view.menuPath.length > 0 || view.selectedCount > 0
                 glyph: String.fromCodePoint(0xF0A79)
-                label: view.sys.tr("В корзину")
+                label: view.selectedCount > 1 ? (view.sys.tr("В корзину (") + view.selectedCount + ")")
+                                             : view.sys.tr("В корзину")
                 danger: true
                 onChosen: view.doTrash(view.menuPath)
+            }
+        }
+    }
+
+    // ------------------------------------------------ плашка мультивыделения
+    Rectangle {
+        id: multiActionBar
+        z: 88
+        visible: view.selectedCount > 1
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 10
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Math.min(view.width - 24, multiRow.implicitWidth + 32)
+        height: 42
+        radius: 21
+        color: Qt.rgba(0.06, 0.06, 0.08, 0.96)
+        border.color: view.sys.colLine
+        border.width: 1
+
+        RowLayout {
+            id: multiRow
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 10
+            spacing: 8
+
+            Text {
+                text: view.selectedCount + " " + view.sys.tr("выбрано")
+                color: view.sys.colFg
+                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2; bold: true }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: 18
+                color: view.sys.colLine
+            }
+
+            // Копировать
+            Rectangle {
+                width: 30; height: 30; radius: 15
+                color: btnCopyMa.containsMouse ? view.sys.colHover : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: String.fromCodePoint(0xF018F)
+                    color: view.sys.colFg
+                    font { family: view.sys.fontFam; pixelSize: 15 }
+                }
+                MouseArea {
+                    id: btnCopyMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.doCopy(view.selectedPaths[0])
+                }
+            }
+
+            // Вырезать
+            Rectangle {
+                width: 30; height: 30; radius: 15
+                color: btnCutMa.containsMouse ? view.sys.colHover : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: String.fromCodePoint(0xF0190)
+                    color: view.sys.colFg
+                    font { family: view.sys.fontFam; pixelSize: 15 }
+                }
+                MouseArea {
+                    id: btnCutMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.doCut(view.selectedPaths[0])
+                }
+            }
+
+            // Распаковать
+            Rectangle {
+                visible: view.hasArchiveSelected()
+                width: 30; height: 30; radius: 15
+                color: btnExtMa.containsMouse ? view.sys.colHover : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: String.fromCodePoint(0xF05C0)
+                    color: view.sys.colOn
+                    font { family: view.sys.fontFam; pixelSize: 15 }
+                }
+                MouseArea {
+                    id: btnExtMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.doExtractAllSelected(true)
+                }
+            }
+
+            // В корзину
+            Rectangle {
+                width: 30; height: 30; radius: 15
+                color: btnTrashMa.containsMouse ? Qt.rgba(0.94, 0.27, 0.27, 0.18) : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: String.fromCodePoint(0xF0A79)
+                    color: view.sys.colCrit
+                    font { family: view.sys.fontFam; pixelSize: 15 }
+                }
+                MouseArea {
+                    id: btnTrashMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.doTrash("")
+                }
+            }
+
+            // Снять выделение
+            Rectangle {
+                width: 26; height: 26; radius: 13
+                color: btnCloseMa.containsMouse ? view.sys.colHover : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "✕"
+                    color: view.sys.colMuted
+                    font { family: view.sys.fontFam; pixelSize: 12 }
+                }
+                MouseArea {
+                    id: btnCloseMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.clearSelection()
+                }
             }
         }
     }
