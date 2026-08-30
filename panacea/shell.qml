@@ -51,6 +51,8 @@ PanelWindow {
             // себя, окна получают весь экран. Возвращается наведением на
             // узкую полоску у самого края.
             property bool   pillAutoHide: false
+            // Режим оверлея: остров парит поверх окон без резервирования полосы
+            property bool   pillOverlay: true
 
             // Настройки мониторов из вкладки Display, JSON вида
             // {"eDP-1":{w,h,rr,scale,transform,vrr,pos}}. Hyprland их не
@@ -284,7 +286,7 @@ PanelWindow {
         fontDisplay: "JetBrainsMono Nerd Font", fontSize: 15, iconSize: 17,
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
-        pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false,
+        pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false, pillOverlay: true,
         pillDrag: false, panelW: 540,
         monOverrides: "",
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
@@ -3852,14 +3854,28 @@ PanelWindow {
     // окно тоже должно задать само
     implicitWidth: root.screen ? root.screen.width : 1920
     color: "transparent"
-    // зазор между пилюлей и окнами
-    exclusiveZone: (root.pillHidden || (root.fullscreenActive && !root.expanded))
+    // зазор между пилюлей и окнами (0 в режиме оверлея или при скрытии)
+    exclusiveZone: (root.cfg.pillOverlay || root.pillHidden || (root.fullscreenActive && !root.expanded))
                    ? 0 : pillH + gap
     WlrLayershell.layer: WlrLayer.Overlay
     // Пока поверх экрана развёрнутое окно, пилюли не видно совсем.
     // Показываем её обратно, если панель раскрыли клавишами или если
     // нужно показать уровень громкости/яркости.
     visible: !root.fullscreenActive || root.expanded || root.osdActive
+
+    // Закрытие раскрытой панели по Escape или Super+Q / Meta+W
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_Escape) {
+            root.collapse();
+            event.accepted = true;
+            return;
+        }
+        if ((event.key === Qt.Key_Q || event.key === Qt.Key_W) && (event.modifiers & Qt.MetaModifier)) {
+            root.collapse();
+            event.accepted = true;
+            return;
+        }
+    }
     // клики ловим только там, где нарисована пилюля
     // Пока открыта закреплённая страница, ввод принимает всё окно:
     // иначе клики по панели (особенно по центрированным настройкам)

@@ -2014,14 +2014,12 @@ Item {
                 }
             }
 
-            // менеджер паролей: замок открыт, когда хранилище разблокировано
+            // кнопка питания: меню выключения, перезагрузки, блокировки и сна
             IconBtn {
-                visible: view.sys.cfg.featVault
-                glyph: String.fromCodePoint(view.sys.vaultUnlocked ? 0xF0FC6 : 0xF033E)
-                tip: view.sys.tr("Пароли")
-                active: view.sys.vaultUnlocked
-                activeColor: view.sys.colOk
-                onAct: view.sys.togglePage("vault")
+                glyph: String.fromCodePoint(0xF0425)
+                tip: view.sys.tr("Питание")
+                activeColor: view.sys.colCrit
+                onAct: view.sys.togglePage("power")
             }
 
             // колокольчик: активные уведомления и история

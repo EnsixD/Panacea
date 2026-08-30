@@ -710,6 +710,12 @@ QtObject {
         "Карточки на обоях: дата, погода и часы. Начертание берут у выбранной темы.":
             "Cards on the wallpaper: date, weather and clock. They take their type from the current theme.",
         "Впишите ключ и город во вкладке Weather, иначе карточка погоды останется пустой.":
-            "Enter a key and city in the Weather tab, or the weather card stays empty."
+            "Enter a key and city in the Weather tab, or the weather card stays empty.",
+
+        // --------------------------------------------- Floating overlay & Power
+        "Режим оверлея (Floating)": "Floating overlay mode",
+        "Остров парит поверх окон без резервирования верхней строки: окна приложений не сжимаются и не прыгают при открытии или скрытии.":
+            "The island floats above windows without reserving top bar space: tiled windows do not resize or bounce when the island expands or auto-hides.",
+        "Питание": "Power"
     })
 }

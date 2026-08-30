@@ -113,6 +113,23 @@ FocusScope {
                             if (list.currentIndex > 0) list.currentIndex--
                     }
 
+                    // доступ к хранилищу паролей (Vault)
+                    Text {
+                        visible: view.sys.cfg.featVault
+                        text: String.fromCodePoint(view.sys.vaultUnlocked ? 0xF0FC6 : 0xF033E)
+                        color: view.sys.vaultUnlocked ? view.sys.colOk : (vaultMa.containsMouse ? view.sys.colFg : view.sys.colMuted)
+                        font { family: view.sys.fontFam; pixelSize: view.sys.iconSize - 3 }
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        MouseArea {
+                            id: vaultMa
+                            anchors.fill: parent
+                            anchors.margins: -6
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: view.sys.togglePage("vault")
+                        }
+                    }
+
                     // очистить историю
                     Text {
                         text: "󰩹"

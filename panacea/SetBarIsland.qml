@@ -33,6 +33,14 @@ ColumnLayout {
             onToggled: value => { page.sys.cfg.pillAutoHide = value; page.sys.saveCfg(); }
         }
 
+        SetToggle {
+            sys: page.sys
+            label: page.sys.tr("Режим оверлея (Floating)")
+            sub: page.sys.tr("Остров парит поверх окон без резервирования верхней строки: окна приложений не сжимаются и не прыгают при открытии или скрытии.")
+            on: page.sys.cfg.pillOverlay
+            onToggled: value => { page.sys.cfg.pillOverlay = value; page.sys.saveCfg(); }
+        }
+
         SetSlider {
             sys: page.sys
             enabled: page.notch
