@@ -41,6 +41,14 @@ ColumnLayout {
             onToggled: value => { page.sys.cfg.pillOverlay = value; page.sys.saveCfg(); }
         }
 
+        SetToggle {
+            sys: page.sys
+            label: page.sys.tr("Закрывать окна Panacea по Super+Q")
+            sub: page.sys.tr("При открытых панелях или настройках Panacea нажатие Super+Q закрывает оверлей. Выключить — Super+Q всегда закрывает активное приложение на фоне.")
+            on: page.sys.cfg.closePanaceaFirst
+            onToggled: value => { page.sys.cfg.closePanaceaFirst = value; page.sys.saveCfg(); }
+        }
+
         SetSlider {
             sys: page.sys
             enabled: page.notch

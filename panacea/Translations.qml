@@ -716,6 +716,9 @@ QtObject {
         "Режим оверлея (Floating)": "Floating overlay mode",
         "Остров парит поверх окон без резервирования верхней строки: окна приложений не сжимаются и не прыгают при открытии или скрытии.":
             "The island floats above windows without reserving top bar space: tiled windows do not resize or bounce when the island expands or auto-hides.",
+        "Закрывать окна Panacea по Super+Q": "Close Panacea windows on Super+Q",
+        "При открытых панелях или настройках Panacea нажатие Super+Q закрывает оверлей. Выключить — Super+Q всегда закрывает активное приложение на фоне.":
+            "When Panacea panels or settings are open, Super+Q closes the overlay. Turn off to always close the background application.",
         "Питание": "Power"
     })
 }

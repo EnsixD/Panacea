@@ -53,6 +53,8 @@ PanelWindow {
             property bool   pillAutoHide: false
             // Режим оверлея: остров парит поверх окон без резервирования полосы
             property bool   pillOverlay: true
+            // Закрывать оверлей Panacea по Super+Q (иначе убивать фоновое окно)
+            property bool   closePanaceaFirst: true
 
             // Настройки мониторов из вкладки Display, JSON вида
             // {"eDP-1":{w,h,rr,scale,transform,vrr,pos}}. Hyprland их не
@@ -287,6 +289,7 @@ PanelWindow {
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
         pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false, pillOverlay: true,
+        closePanaceaFirst: true,
         pillDrag: false, panelW: 540,
         monOverrides: "",
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
@@ -3758,6 +3761,19 @@ PanelWindow {
         function shortcuts(): void { root.toggleKeysWindow(); }
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }
+        function smartClose(): string {
+            if (!root.cfg.closePanaceaFirst) return "disabled";
+            var anyOpen = root.expanded || root.overviewOpen || root.wallsOpen || root.keysWindowOpen || root.whatsNewOpen;
+            if (anyOpen) {
+                if (root.overviewOpen) root.closeOverview();
+                else if (root.wallsOpen) root.closeWalls();
+                else if (root.keysWindowOpen) root.closeKeysWindow();
+                else if (root.whatsNewOpen) root.dismissWhatsNew();
+                else if (root.expanded) root.collapse();
+                return "closed_overlay";
+            }
+            return "none";
+        }
         function cancelCapture(): void { root.cancelCaptureRequested(); }
         // Стоп-кадр под выделение области, см. scripts/shot.sh
         function freeze(path: string): void { root.freezeShot = "file://" + path; }
