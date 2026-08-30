@@ -1688,9 +1688,7 @@ PanelWindow {
     function collapse() {
         expanded = false;
         holdOpen = false;
-        // Страницу НЕ сбрасываем сразу: панель ещё едет вниз, и подмена
-        // содержимого на «главную» успевала мелькнуть. Сбросим, когда
-        // капсула действительно схлопнется.
+        weatherDetailsOpen = false;
         pageResetTimer.restart();
     }
     Timer {
@@ -2135,6 +2133,39 @@ PanelWindow {
         repeat: true
         triggeredOnStart: true
         onTriggered: root.refreshWeather()
+    }
+
+    // ------------------------------------------------ детальный прогноз
+    property bool weatherDetailsOpen: false
+    property var  weatherForecastData: null
+
+    Process {
+        id: pWeatherForecast
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var parsed = JSON.parse(text);
+                    if (parsed && !parsed.err) {
+                        root.weatherForecastData = parsed;
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+
+    function openWeatherDetails() {
+        root.weatherDetailsOpen = true;
+        root.refreshWeatherForecast();
+    }
+
+    function refreshWeatherForecast() {
+        if (!root.cfg.weatherCity.length) return;
+        pWeatherForecast.command = ["sh", "-c",
+            root.scriptDir + "/weather_forecast.sh \"$1\" \"$2\" \"$3\" \"$4\"", "_",
+            String(root.cfg.weatherKey), String(root.cfg.weatherCity),
+            String(root.cfg.weatherUnits), root.isEn ? "en" : "ru"];
+        pWeatherForecast.running = false;
+        pWeatherForecast.running = true;
     }
 
     // --------------------------------------------------------- нагрузка
@@ -3761,11 +3792,13 @@ PanelWindow {
         function shortcuts(): void { root.toggleKeysWindow(); }
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }
+        function weather(): void { root.openWeatherDetails(); }
         function smartClose(): string {
             if (!root.cfg.closePanaceaFirst) return "disabled";
-            var anyOpen = root.expanded || root.overviewOpen || root.wallsOpen || root.keysWindowOpen || root.whatsNewOpen;
+            var anyOpen = root.expanded || root.overviewOpen || root.wallsOpen || root.keysWindowOpen || root.whatsNewOpen || root.weatherDetailsOpen;
             if (anyOpen) {
-                if (root.overviewOpen) root.closeOverview();
+                if (root.weatherDetailsOpen) root.weatherDetailsOpen = false;
+                else if (root.overviewOpen) root.closeOverview();
                 else if (root.wallsOpen) root.closeWalls();
                 else if (root.keysWindowOpen) root.closeKeysWindow();
                 else if (root.whatsNewOpen) root.dismissWhatsNew();
@@ -5151,14 +5184,22 @@ PanelWindow {
                 Text {
                     Layout.alignment: Qt.AlignVCenter
                     text: root.weatherGlyph
-                    color: root.colFg
+                    color: islWthMa1.containsMouse ? root.colOn : root.colFg
                     font { family: root.fontFam; pixelSize: root.iconSize - 1 }
                 }
                 Text {
                     Layout.alignment: Qt.AlignVCenter
                     text: root.weatherTemp + "°"
-                    color: root.colFg
+                    color: islWthMa1.containsMouse ? root.colOn : root.colFg
                     font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                }
+
+                MouseArea {
+                    id: islWthMa1
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.openWeatherDetails()
                 }
 
                 // разделитель — чтобы погода читалась отдельно от даты
@@ -5391,7 +5432,7 @@ PanelWindow {
                         Layout.alignment: Qt.AlignVCenter
                         code: root.weatherIcon
                         size: root.dotHClock
-                        color: root.colFg
+                        color: islWthMa2.containsMouse ? root.colOn : root.colFg
                     }
                     // Градусы обычным шрифтом. Точки оставлены часам и
                     // столам — тому, что на этой теме и должно быть набрано
@@ -5400,8 +5441,16 @@ PanelWindow {
                     Text {
                         Layout.alignment: Qt.AlignVCenter
                         text: root.weatherTemp + "°"
-                        color: root.colFg
+                        color: islWthMa2.containsMouse ? root.colOn : root.colFg
                         font { family: root.fontFam; pixelSize: root.fontSize }
+                    }
+
+                    MouseArea {
+                        id: islWthMa2
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.openWeatherDetails()
                     }
                 }
             }
@@ -6161,18 +6210,51 @@ Instantiator {
 // снимается с замершего слоя, так что обрезать исходный файл не нужно —
 // иначе понадобился бы ещё и ImageMagick.
 //
+// Окно детального прогноза погоды на несколько дней
+PanelWindow {
+    id: weatherDetailsWin
+    visible: root.weatherDetailsOpen
+    anchors { top: true; bottom: true; left: true; right: true }
+    screen: root.screen
+    color: "transparent"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: root.weatherDetailsOpen ? WlrKeyboardFocus.Exclusive
+                                                         : WlrKeyboardFocus.None
+
+    // Затемнение фона при клике на которое окно закрывается
+    Rectangle {
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.45)
+        opacity: root.weatherDetailsOpen ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.weatherDetailsOpen = false
+        }
+    }
+
+    Keys.onEscapePressed: root.weatherDetailsOpen = false
+
+    WeatherDetailsView {
+        anchors.centerIn: parent
+        sys: root
+        forecastData: root.weatherForecastData
+        scale: root.weatherDetailsOpen ? 1 : 0.93
+        opacity: root.weatherDetailsOpen ? 1 : 0
+        Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutBack } }
+        Behavior on opacity { NumberAnimation { duration: 140 } }
+    }
+}
+
 // ---------------------------------------------------- настольные виджеты
 // Карточки на обоях: дата, погода, часы. Раскладка у них общая для тем, а
 // начертание своё: на Nothing числа точками, на остальных обычным шрифтом.
 // Выбирает его сама карточка — слою достаточно знать, включены ли виджеты.
 //
-// Слой Bottom: над обоями, но под окнами. На Overlay они висели бы поверх
-// всего, включая полноэкранное видео, а это украшение рабочего стола, а не
-// оболочка.
-//
-// Область ввода пустая. Карточки ничего не ловят мышью: перехватывать клики
-// по рабочему столу значило бы отбирать их у окон и у самих обоев, а нажимать
-// здесь не на что.
+// Слой Bottom: над обоями, но под окнами.
+// Область ввода ограничена карточками виджетов: клик по карточке погоды
+// открывает подробный прогноз, а пустой рабочий стол остаётся свободным.
 PanelWindow {
     id: widgetsWin
 
@@ -6185,7 +6267,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Bottom
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    mask: Region {}
+    mask: Region { item: widgets }
 
     WidgetsView {
         id: widgets

@@ -729,6 +729,23 @@ QtObject {
         "Распаковать в ": "Extract to ",
         "Распаковать архивы в папки": "Extract archives to folders",
         "Распаковано: ": "Extracted: ",
-        "Распаковано в ": "Extracted to "
+        "Распаковано в ": "Extracted to ",
+
+        // --------------------------------------------- Weather Forecast
+        "Прогноз погоды": "Weather forecast",
+        "ПОЧАСОВОЙ ПРОГНОЗ": "HOURLY FORECAST",
+        "ПРОГНОЗ НА 7 ДНЕЙ": "7-DAY FORECAST",
+        "Сейчас": "Now",
+        "Сегодня": "Today",
+        "Завтра": "Tomorrow",
+        "Прокрутка": "Scroll",
+        "Ощущается": "Feels like",
+        "Осадки": "Precipitation",
+        "УФ-индекс": "UV index",
+        "Восход": "Sunrise",
+        "Закат": "Sunset",
+        "Высокий": "High",
+        "Умеренный": "Moderate",
+        "Низкий": "Low"
     })
 }

@@ -176,9 +176,14 @@ Item {
             // столбец на восемь пикселей не сходился с левым — в наборе из
             // прямоугольников такой перекос видно сразу.
             Card {
+                id: mainWeatherCard
                 Layout.preferredWidth: view.col
                 Layout.preferredHeight: 62 + view.gap + 66
                 Layout.alignment: Qt.AlignTop
+                color: wCardMa.containsMouse ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
+                border.color: wCardMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06)
+                Behavior on color { ColorAnimation { duration: 120 } }
+                Behavior on border.color { ColorAnimation { duration: 120 } }
 
                 ColumnLayout {
                     anchors.centerIn: parent
@@ -212,6 +217,14 @@ Item {
                         font { family: view.sys.fontFam; pixelSize: 11 }
                     }
                 }
+
+                MouseArea {
+                    id: wCardMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.sys.openWeatherDetails()
+                }
             }
 
             ColumnLayout {
@@ -224,6 +237,10 @@ Item {
                 Card {
                     Layout.preferredWidth: view.col
                     Layout.preferredHeight: 62
+                    color: descCardMa.containsMouse ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
+                    border.color: descCardMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06)
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on border.color { ColorAnimation { duration: 120 } }
 
                     RowLayout {
                         anchors.fill: parent
@@ -254,6 +271,14 @@ Item {
                             font { family: view.sys.fontFam; pixelSize: 11 }
                         }
                     }
+
+                    MouseArea {
+                        id: descCardMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: view.sys.openWeatherDetails()
+                    }
                 }
 
                 // Два кружка: влажность и ветер. Круглые, чтобы не спорить
@@ -275,12 +300,14 @@ Item {
                         ]
 
                         Rectangle {
+                            id: circleCard
                             required property var modelData
                             Layout.preferredWidth: 66
                             Layout.preferredHeight: 66
                             radius: 33
-                            color: Qt.rgba(0.09, 0.09, 0.09, 0.96)
-                            border.color: Qt.rgba(1, 1, 1, 0.06)
+                            color: circleMa.containsMouse ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
+                            border.color: circleMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06)
+                            Behavior on color { ColorAnimation { duration: 120 } }
                             border.width: 1
 
                             ColumnLayout {
@@ -290,7 +317,7 @@ Item {
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: view.sys.weatherReady
-                                          ? modelData.v + modelData.suffix : "--"
+                                          ? circleCard.modelData.v + circleCard.modelData.suffix : "--"
                                     color: view.sys.colFg
                                     font { family: view.sys.fontFam; pixelSize: 15 }
                                 }
@@ -303,8 +330,16 @@ Item {
                                     horizontalAlignment: Text.AlignHCenter
                                     font.pixelSize: 8
                                     font.letterSpacing: 0.3
-                                    text: modelData.cap
+                                    text: circleCard.modelData.cap
                                 }
+                            }
+
+                            MouseArea {
+                                id: circleMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: view.sys.openWeatherDetails()
                             }
                         }
                     }
