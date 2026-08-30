@@ -204,7 +204,18 @@ restore_user_state() {
     for f in "${KEEP[@]}"; do
         if [ -f "$STASH/${f#$HOME/}" ]; then
             mkdir -p "$(dirname "$f")"
-            cp "$STASH/${f#$HOME/}" "$f"
+            if [ "$f" = "$CONF/panacea/settings.json" ] && command -v jq >/dev/null 2>&1 && [ -f "$f" ]; then
+                local tmp_json
+                tmp_json="$(mktemp)"
+                if jq -s '.[0] * .[1]' "$f" "$STASH/${f#$HOME/}" > "$tmp_json" 2>/dev/null; then
+                    mv "$tmp_json" "$f"
+                else
+                    rm -f "$tmp_json"
+                    cp "$STASH/${f#$HOME/}" "$f"
+                fi
+            else
+                cp "$STASH/${f#$HOME/}" "$f"
+            fi
         fi
     done
     # Каталоги возвращаем содержимым, а не целиком: установщик уже создал

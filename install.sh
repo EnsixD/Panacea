@@ -729,7 +729,19 @@ keep_restore() {
     for f in "${KEEP_FILES[@]}"; do
         [ -f "$KEEP_STASH/$f" ] || continue
         mkdir -p "$CONF/$(dirname "$f")"
-        cp "$KEEP_STASH/$f" "$CONF/$f" && restored=1
+        if [ "$f" = "panacea/settings.json" ] && command -v jq >/dev/null 2>&1 && [ -f "$CONF/$f" ]; then
+            local tmp_json
+            tmp_json="$(mktemp)"
+            if jq -s '.[0] * .[1]' "$CONF/$f" "$KEEP_STASH/$f" > "$tmp_json" 2>/dev/null; then
+                mv "$tmp_json" "$CONF/$f"
+                restored=1
+            else
+                rm -f "$tmp_json"
+                cp "$KEEP_STASH/$f" "$CONF/$f" && restored=1
+            fi
+        else
+            cp "$KEEP_STASH/$f" "$CONF/$f" && restored=1
+        fi
     done
     # Каталоги вливаем в свежий, а не заменяем им: в repo-версии лежат свои
     # файлы (логотипы, обои по умолчанию), и `cp -r dir dst` на существующем

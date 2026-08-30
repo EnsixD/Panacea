@@ -2112,8 +2112,8 @@ PanelWindow {
     }
 
     function refreshWeather() {
-        if (!root.cfg.weatherKey.length || !root.cfg.weatherCity.length) {
-            root.weatherErr = root.cfg.weatherKey.length ? "no-city" : "no-key";
+        if (!root.cfg.weatherCity.length) {
+            root.weatherErr = "no-city";
             return;
         }
         root.weatherBusy = true;
@@ -2131,7 +2131,7 @@ PanelWindow {
     Timer {
         interval: 900000
         running: (root.cfg.featWidgets || root.cfg.weatherOnIsland)
-                 && root.cfg.weatherKey.length > 0
+                 && (root.cfg.weatherCity.length > 0 || root.cfg.weatherKey.length > 0)
         repeat: true
         triggeredOnStart: true
         onTriggered: root.refreshWeather()
