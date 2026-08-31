@@ -3979,8 +3979,14 @@ PanelWindow {
         id: capsuleRegion
         item: capsule
         // спрятанный остров вне экрана, и без полоски его не позвать
-        Region { item: revealStrip; intersection: Intersection.Combine }
-        Region { item: detachedPanel; intersection: Intersection.Combine }
+        Region {
+            item: root.cfg.pillAutoHide ? revealStrip : null
+            intersection: Intersection.Combine
+        }
+        Region {
+            item: (root.cfg.pillKeepVisible && !root.settingsMode && (root.expanded || detachedPanel.opacity > 0.005)) ? detachedPanel : null
+            intersection: Intersection.Combine
+        }
     }
     mask: root.holdOpen ? null : capsuleRegion
     // Лаунчер забирает клавиатуру сразу (Exclusive), чтобы можно было
@@ -5999,10 +6005,12 @@ PanelWindow {
 
         readonly property real panelGap: root.cfg.islandGap > 0 ? root.cfg.islandGap : 10
 
-        width: root.panelW
+        width: (root.cfg.pillKeepVisible && !root.settingsMode && (root.expanded || opacity > 0.005)) ? root.panelW : 0
 
         readonly property real detachedTargetH: Math.min(capsule.contentH, root.cfg.expandedH)
-        height: Math.min(detachedTargetH, root.height - (capsule.y + capsule.height + panelGap + 24))
+        height: (root.cfg.pillKeepVisible && !root.settingsMode && (root.expanded || opacity > 0.005))
+                ? Math.min(detachedTargetH, root.height - (capsule.y + capsule.height + panelGap + 24))
+                : 0
         Behavior on height { NumberAnimation { duration: root.animQuick; easing.type: Easing.OutCubic } }
 
         x: root.pillSide
