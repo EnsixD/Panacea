@@ -6027,8 +6027,7 @@ PanelWindow {
 
         radius: root.cfg.islandRadius > 0 ? root.cfg.islandRadius : 24
         color: root.colBg
-        border.color: root.colLine
-        border.width: 1
+        border.width: 0
         clip: true
 
         HoverHandler {
