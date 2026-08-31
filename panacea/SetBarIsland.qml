@@ -43,6 +43,14 @@ ColumnLayout {
 
         SetToggle {
             sys: page.sys
+            label: page.sys.tr("Остров виден при раскрытии")
+            sub: page.sys.tr("Остров остаётся на своём месте в свёрнутом виде, а панель быстрых настроек и страницы открываются отдельной плавающей карточкой под ним.")
+            on: page.sys.cfg.pillKeepVisible
+            onToggled: value => { page.sys.cfg.pillKeepVisible = value; page.sys.saveCfg(); }
+        }
+
+        SetToggle {
+            sys: page.sys
             label: page.sys.tr("Закрывать окна Panacea по Super+Q")
             sub: page.sys.tr("При открытых панелях или настройках Panacea нажатие Super+Q закрывает оверлей. Выключить — Super+Q всегда закрывает активное приложение на фоне.")
             on: page.sys.cfg.closePanaceaFirst

@@ -746,6 +746,10 @@ QtObject {
         "Закат": "Sunset",
         "Высокий": "High",
         "Умеренный": "Moderate",
-        "Низкий": "Low"
+        "Низкий": "Low",
+
+        // --------------------------------------------- Bar & Island
+        "Остров виден при раскрытии": "Keep bar visible on expand",
+        "Остров остаётся на своём месте в свёрнутом виде, а панель быстрых настроек и страницы открываются отдельной плавающей карточкой под ним.": "Keep the top bar/island visible in its collapsed state while opening quick settings and pages as a separate floating card below it."
     })
 }

@@ -53,6 +53,8 @@ PanelWindow {
             property bool   pillAutoHide: false
             // Режим оверлея: остров парит поверх окон без резервирования полосы
             property bool   pillOverlay: true
+            // Остров виден при раскрытии (панель открывается отдельной плавающей карточкой)
+            property bool   pillKeepVisible: false
             // Закрывать оверлей Panacea по Super+Q (иначе убивать фоновое окно)
             property bool   closePanaceaFirst: true
 
@@ -289,7 +291,7 @@ PanelWindow {
         colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
         spacingUnit: 8, smallRadius: 10,
         pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false, pillOverlay: true,
-        closePanaceaFirst: true,
+        pillKeepVisible: false, closePanaceaFirst: true,
         pillDrag: false, panelW: 540,
         monOverrides: "",
         notchMode: true, notchFlare: 12, collapsedW: 260, expandedH: 620,
@@ -3978,6 +3980,7 @@ PanelWindow {
         item: capsule
         // спрятанный остров вне экрана, и без полоски его не позвать
         Region { item: revealStrip; intersection: Intersection.Combine }
+        Region { item: detachedPanel; intersection: Intersection.Combine }
     }
     mask: root.holdOpen ? null : capsuleRegion
     // Лаунчер забирает клавиатуру сразу (Exclusive), чтобы можно было
@@ -3985,27 +3988,28 @@ PanelWindow {
     WlrLayershell.keyboardFocus: root.holdOpen ? WlrKeyboardFocus.Exclusive
                                               : WlrKeyboardFocus.None
 
+    readonly property var activePanel: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
+
     // Клик мимо закреплённой панели — закрыть.
-    // Раньше это была одна MouseArea на всё окно под капсулой: если хоть один
-    // элемент панели не принимал нажатие, оно проваливалось вниз и панель
-    // закрывалась. Теперь области лежат строго ВОКРУГ капсулы, поэтому клик
-    // по самой панели до них физически не доходит.
+    // Области лежат строго ВОКРУГ активной панели, поэтому клики по элементам
+    // и тумблерам внутри панели физически до них не доходят и панель не сбрасывается.
     Repeater {
         model: 4
         MouseArea {
             required property int index
             enabled: root.holdOpen
             visible: enabled
-            // 0 — сверху, 1 — снизу, 2 — слева, 3 — справа от капсулы
-            x: index === 3 ? capsule.x + capsule.width : 0
-            y: index === 1 ? capsule.y + capsule.height
-             : index >= 2 ? capsule.y : 0
+            z: 5
+            // 0 — сверху, 1 — снизу, 2 — слева, 3 — справа от активной панели
+            x: index === 3 ? root.activePanel.x + root.activePanel.width : 0
+            y: index === 1 ? root.activePanel.y + root.activePanel.height
+             : index >= 2 ? root.activePanel.y : 0
             width:  index < 2 ? root.width
-                  : index === 2 ? capsule.x
-                                : Math.max(0, root.width - capsule.x - capsule.width)
-            height: index === 0 ? capsule.y
-                  : index === 1 ? Math.max(0, root.height - capsule.y - capsule.height)
-                                : capsule.height
+                  : index === 2 ? root.activePanel.x
+                                : Math.max(0, root.width - root.activePanel.x - root.activePanel.width)
+            height: index === 0 ? root.activePanel.y
+                  : index === 1 ? Math.max(0, root.height - root.activePanel.y - root.activePanel.height)
+                                : root.activePanel.height
             onClicked: root.collapse()
         }
     }
@@ -4146,7 +4150,7 @@ PanelWindow {
                 ? toastCapsule.implicitHeight + 24 : root.pillH
 
         width: root.settingsMode ? root.settingsW
-             : root.expanded     ? root.panelW
+             : (root.expanded && !root.cfg.pillKeepVisible) ? root.panelW
              : root.pillSide     ? idleThick
                                  : idleLen
         // целевая высота — к ней анимируется height и по ней же сразу
@@ -4191,8 +4195,8 @@ PanelWindow {
 
         // Раскрытая панель не выше expandedH: страницы бывают длинные, но
         // их высоту ограничивает уже своя прокрутка, а не остров.
-        readonly property real targetH: root.expanded
-                ? Math.min(contentH, root.settingsMode ? root.height - 48 : root.cfg.expandedH)
+        readonly property real targetH: root.settingsMode ? Math.min(contentH, root.height - 48)
+                : (root.expanded && !root.cfg.pillKeepVisible) ? Math.min(contentH, root.cfg.expandedH)
                 : root.pillSide ? idleLen
                                 : idleThick
         // Не выше экрана: у боковых кромок вертикальная раскладка страницы
@@ -4240,7 +4244,7 @@ PanelWindow {
         readonly property real edgeR: (root.settingsMode || !root.cfg.notchMode)
                                       ? (root.cfg.islandRadius > 0 ? root.cfg.islandRadius : 26)
                                       : 0
-        readonly property real freeR: root.expanded
+        readonly property real freeR: (root.settingsMode || (root.expanded && !root.cfg.pillKeepVisible))
                 ? (root.cfg.islandRadius > 0 && !root.cfg.notchMode ? root.cfg.islandRadius : 26)
                 : (root.cfg.islandRadius > 0 && !root.cfg.notchMode
                    ? root.cfg.islandRadius : root.pillH / 2)
@@ -4370,21 +4374,29 @@ PanelWindow {
         Timer {
             id: collapseTimer; interval: 180
             onTriggered: {
-                if (capsuleHover.hovered || root.holdOpen) return;
+                if (capsuleHover.hovered || (detachedHover.hovered && root.cfg.pillKeepVisible) || root.holdOpen) return;
                 root.collapse();
             }
         }
 
-        // Клик по свёрнутому острову разворачивает его. Единственный способ
-        // открыть панель, когда включено автопрятание, и просто удобный —
-        // когда нет: до этого пилюля на нажатия не отвечала вовсе.
+        // Клик по свёрнутому острову разворачивает его
         MouseArea {
             anchors.fill: parent
-            z: 5
+            z: 0
             enabled: !root.expanded && !root.toastActive && !root.pillDragging
                      && !root.osdActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             cursorShape: Qt.PointingHandCursor
             onClicked: capsule.openPanel()
+        }
+
+        // В режиме pillKeepVisible при открытой отдельной панели клик по фону острова закрывает её
+        MouseArea {
+            anchors.fill: parent
+            z: -1
+            enabled: root.cfg.pillKeepVisible && root.expanded && !root.settingsMode
+                     && !root.toastActive && !root.pillDragging
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.collapse()
         }
 
         // Клик по карточке открывает историю. Отдельным слоем под ней:
@@ -4992,7 +5004,7 @@ PanelWindow {
             spacing: 14
             // На теме Nothing свёрнутый остров устроен иначе — его собирает
             // nothingCapsule, а эта раскладка целиком уступает ему место.
-            visible: !root.themeNothing && !root.expanded && !root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+            visible: !root.themeNothing && (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
             // равен нулю, и остров считал бы свою длину по пустоте.
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
@@ -5301,7 +5313,7 @@ PanelWindow {
             anchors.leftMargin: 18
             anchors.rightMargin: 18
             height: root.pillH
-            visible: root.themeNothing && !root.expanded && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+            visible: root.themeNothing && (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
                      && !root.osdActive && !root.toastActive
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
@@ -5615,7 +5627,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: root.pillH
                 spacing: 7
-                visible: !root.expanded && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+                visible: (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
                 opacity: root.pillSide ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -5849,9 +5861,11 @@ PanelWindow {
         // --------------------------------------------------- раскрытая панель
         Loader {
             id: contentLoader
-            anchors.top: parent.top
+            z: 10
+            parent: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
+            anchors.top: parent ? parent.top : undefined
             anchors.topMargin: 15
-            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
             // Ширина берётся у ЦЕЛЕВОЙ панели, а не у анимируемой капсулы:
             // иначе содержимое переливалось по ширине на каждом кадре
             // сворачивания и выглядело как размазанная краска.
@@ -5860,7 +5874,7 @@ PanelWindow {
             // раскрытой панели не рисуем: при старте записи из quick settings
             // панель сворачивается, а её содержимое иначе видно ещё пару кадров
             // позади карточки — экраны «проблёскивали».
-            active: (root.expanded || capsule.height > root.pillH + 4)
+            active: (root.expanded || capsule.height > root.pillH + 4 || (root.cfg.pillKeepVisible && detachedPanel.opacity > 0.005))
                     && !root.recPickActive && !root.btToastActive
                     && !root.acToastActive && !root.voxActive
             visible: !root.recPickActive && !root.btToastActive && !root.acToastActive && !root.voxActive
@@ -5881,7 +5895,7 @@ PanelWindow {
             }
             opacity: root.expanded ? 1 : 0
             Behavior on opacity {
-                NumberAnimation { duration: root.expanded ? root.animFast : 70 }
+                NumberAnimation { duration: root.expanded ? root.animFast : 90; easing.type: Easing.OutCubic }
             }
 
             sourceComponent: root.page === "launcher" ? launcherComp
@@ -5916,6 +5930,116 @@ PanelWindow {
         Component { id: vaultComp;     VaultView { sys: root } }
         Component { id: vaultSaveComp; VaultSaveView { sys: root } }
         Component { id: agentsComp;    AgentsView { sys: root } }
+    }
+
+    // ------------------------------------------------ отдельная плавающая панель
+    // При включённом «Остров виден при раскрытии» (pillKeepVisible):
+    // верхний остров остаётся в свёрнутом виде, а раскрытая панель страниц
+    // (быстрые настройки, календарь, лаунчер и т.д.) открывается отдельной
+    // плавающей карточкой под ним.
+    Rectangle {
+        id: detachedPanel
+        z: 50
+        readonly property bool showMe: root.cfg.pillKeepVisible && !root.settingsMode && root.expanded
+
+        visible: root.cfg.pillKeepVisible && !root.settingsMode && (root.expanded || opacity > 0.005)
+        opacity: showMe ? 1 : 0
+        scale: showMe ? 1 : 0.96
+
+        transformOrigin: root.pillAtBottom ? Item.Bottom
+                       : root.pillAtLeft   ? Item.Left
+                       : root.pillAtRight  ? Item.Right
+                                           : Item.Top
+
+        transform: Translate {
+            y: root.pillAtBottom
+               ? (detachedPanel.showMe ? 0 : 10)
+               : (detachedPanel.showMe ? 0 : -10)
+            x: root.pillAtRight
+               ? (detachedPanel.showMe ? 0 : 10)
+               : root.pillAtLeft
+               ? (detachedPanel.showMe ? 0 : -10)
+               : 0
+
+            Behavior on y {
+                NumberAnimation {
+                    duration: detachedPanel.showMe ? root.animMs : root.animFast
+                    easing.type: detachedPanel.showMe
+                                 ? (root.animBounce > 0 ? Easing.OutBack : Easing.OutCubic)
+                                 : Easing.OutCubic
+                    easing.overshoot: root.easeOvershoot
+                }
+            }
+            Behavior on x {
+                NumberAnimation {
+                    duration: detachedPanel.showMe ? root.animMs : root.animFast
+                    easing.type: detachedPanel.showMe
+                                 ? (root.animBounce > 0 ? Easing.OutBack : Easing.OutCubic)
+                                 : Easing.OutCubic
+                    easing.overshoot: root.easeOvershoot
+                }
+            }
+        }
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: detachedPanel.showMe ? root.animFade : Math.round(root.animFade * 0.75)
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on scale {
+            NumberAnimation {
+                duration: detachedPanel.showMe ? root.animMs : root.animFast
+                easing.type: detachedPanel.showMe
+                             ? (root.animBounce > 0 ? Easing.OutBack : Easing.OutCubic)
+                             : Easing.OutCubic
+                easing.overshoot: root.easeOvershoot
+            }
+        }
+
+        readonly property real panelGap: root.cfg.islandGap > 0 ? root.cfg.islandGap : 10
+
+        width: root.panelW
+
+        readonly property real detachedTargetH: Math.min(capsule.contentH, root.cfg.expandedH)
+        height: Math.min(detachedTargetH, root.height - (capsule.y + capsule.height + panelGap + 24))
+        Behavior on height { NumberAnimation { duration: root.animQuick; easing.type: Easing.OutCubic } }
+
+        x: root.pillSide
+           ? (root.pillAtLeft  ? capsule.x + capsule.width + panelGap
+              : root.pillAtRight ? capsule.x - width - panelGap
+              : Math.max(12, Math.min(root.width - width - 12, capsule.x + (capsule.width - width) / 2)))
+           : Math.max(12, Math.min(root.width - width - 12, capsule.x + (capsule.width - width) / 2))
+
+        y: root.pillAtBottom
+           ? capsule.y - height - panelGap
+           : root.pillAtTop
+              ? capsule.y + capsule.height + panelGap
+              : Math.max(12, Math.min(root.height - height - 12, capsule.y + (capsule.height - height) / 2))
+
+        radius: root.cfg.islandRadius > 0 ? root.cfg.islandRadius : 24
+        color: root.colBg
+        border.color: root.colLine
+        border.width: 1
+        clip: true
+
+        HoverHandler {
+            id: detachedHover
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onHoveredChanged: {
+                if (hovered) {
+                    collapseTimer.stop();
+                } else if (!capsuleHover.hovered && !root.holdOpen) {
+                    collapseTimer.restart();
+                }
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: {}
+        }
     }
 
     // ------------------------------------------------------- общий тултип
