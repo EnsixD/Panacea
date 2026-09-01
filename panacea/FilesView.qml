@@ -230,6 +230,47 @@ Item {
             }
         }
     }
+
+    Process {
+        id: pMount
+        property string targetDev: ""
+        command: ["sh", "-c", view.scripts + " mountdisk " + JSON.stringify(targetDev)]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var mp = text.trim();
+                view.reloadDisks();
+                if (mp.length > 0) {
+                    view.go(mp);
+                }
+            }
+        }
+    }
+    function mountDisk(dev) {
+        if (!dev || dev.length === 0) return;
+        pMount.targetDev = dev;
+        pMount.running = false;
+        pMount.running = true;
+    }
+
+    Process {
+        id: pEject
+        property string targetItem: ""
+        command: ["sh", "-c", view.scripts + " ejectdisk " + JSON.stringify(targetItem)]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                view.reloadDisks();
+                if (pEject.targetItem.length > 0 && view.dir.startsWith(pEject.targetItem)) {
+                    view.go(view.sys.home);
+                }
+            }
+        }
+    }
+    function ejectDisk(dev, path) {
+        pEject.targetItem = path && path.length > 0 ? path : dev;
+        pEject.running = false;
+        pEject.running = true;
+    }
+
     function syncDisks(model, rows) {
         if (model.count !== rows.length) {
             model.clear();
@@ -238,7 +279,10 @@ Item {
         }
         for (var j = 0; j < rows.length; j++) {
             var cur = model.get(j);
-            if (cur.dPath !== rows[j].dPath) { model.set(j, rows[j]); continue; }
+            if (cur.dDev !== rows[j].dDev || cur.dPath !== rows[j].dPath || cur.dLabel !== rows[j].dLabel) {
+                model.set(j, rows[j]);
+                continue;
+            }
             // меняем только цифры — делегат остаётся тем же
             if (cur.dUsed !== rows[j].dUsed) model.setProperty(j, "dUsed", rows[j].dUsed);
             if (cur.dSize !== rows[j].dSize) model.setProperty(j, "dSize", rows[j].dSize);
@@ -247,7 +291,7 @@ Item {
     function reloadDisks() { pDisks.running = false; pDisks.running = true; }
     // Воткнули флешку или подключили телефон — раздел появится сам.
     Timer {
-        interval: 4000
+        interval: 2000
         running: true
         repeat: true
         triggeredOnStart: true
@@ -889,6 +933,7 @@ Item {
     // Раздел «Диски» / «Съёмные»: подпись, занятое место и полоска заполнения.
     // Пустой раздел не рисуется вовсе — флешки нет, и заголовка быть не должно.
     component DiskSection: ColumnLayout {
+        id: sec
         property string title: ""
         property var items: null
         property bool removable: false
@@ -901,7 +946,7 @@ Item {
         Text {
             Layout.leftMargin: 10
             Layout.bottomMargin: 2
-            text: parent.title
+            text: sec.title
             color: Qt.rgba(1, 1, 1, 0.32)
             font {
                 family: view.sys.fontFam; pixelSize: view.sys.fontSize - 5
@@ -910,13 +955,14 @@ Item {
         }
 
         Repeater {
-            model: parent.items
+            model: sec.items
 
             Rectangle {
                 id: disk
                 required property var model
-                readonly property bool active: view.dir === disk.model.dPath
-                readonly property real frac: disk.model.dSize > 0
+                readonly property bool mounted: disk.model.dPath && disk.model.dPath.length > 0
+                readonly property bool active: mounted && view.dir === disk.model.dPath
+                readonly property real frac: (mounted && disk.model.dSize > 0)
                                              ? disk.model.dUsed / disk.model.dSize : 0
 
                 Layout.fillWidth: true
@@ -936,19 +982,19 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 9
+                        spacing: 8
                         Text {
                             text: String.fromCodePoint(
                                       disk.model.dDev === "mtp" ? 0xF011C
-                                    : disk.parent.parent.removable ? 0xF129B
-                                                                   : 0xF02CA)
-                            color: disk.active ? view.sys.colOn : view.sys.colMuted
+                                    : sec.removable ? 0xF129B
+                                                    : 0xF02CA)
+                            color: disk.active ? view.sys.colOn : (disk.mounted ? view.sys.colMuted : Qt.rgba(1, 1, 1, 0.35))
                             font { family: view.sys.fontFam; pixelSize: 15 }
                         }
                         Text {
                             Layout.fillWidth: true
                             text: disk.model.dLabel
-                            color: disk.active ? view.sys.colFg : view.sys.colMuted
+                            color: disk.active ? view.sys.colFg : (disk.mounted ? view.sys.colFg : Qt.rgba(1, 1, 1, 0.65))
                             elide: Text.ElideRight
                             font {
                                 family: view.sys.fontFam
@@ -956,8 +1002,30 @@ Item {
                                 bold: disk.active
                             }
                         }
+                        // Кнопка безопасного извлечения
+                        Rectangle {
+                            visible: sec.removable && disk.mounted && (diskMa.containsMouse || ejectMa.containsMouse)
+                            Layout.preferredWidth: 20
+                            Layout.preferredHeight: 20
+                            radius: 5
+                            color: ejectMa.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : "transparent"
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Text {
+                                anchors.centerIn: parent
+                                text: "⏏"
+                                color: ejectMa.containsMouse ? view.sys.colCrit : Qt.rgba(1, 1, 1, 0.65)
+                                font { family: view.sys.fontFam; pixelSize: 12; bold: true }
+                            }
+                            MouseArea {
+                                id: ejectMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: view.ejectDisk(disk.model.dDev, disk.model.dPath)
+                            }
+                        }
                         Text {
-                            visible: disk.model.dSize > 0
+                            visible: disk.mounted && disk.model.dSize > 0 && !(sec.removable && diskMa.containsMouse)
                             text: Math.round(disk.frac * 100) + "%"
                             color: disk.frac > 0.9 ? view.sys.colCrit
                                                    : Qt.rgba(1, 1, 1, 0.42)
@@ -972,15 +1040,17 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         visible: disk.model.dSize > 0
-                        text: view.human(disk.model.dUsed) + " / " + view.human(disk.model.dSize)
-                        color: Qt.rgba(1, 1, 1, 0.28)
+                        text: disk.mounted
+                              ? (view.human(disk.model.dUsed) + " / " + view.human(disk.model.dSize))
+                              : (view.human(disk.model.dSize) + " • " + view.sys.tr("Подключить"))
+                        color: disk.mounted ? Qt.rgba(1, 1, 1, 0.28) : view.sys.colOn
                         elide: Text.ElideRight
                         font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 7 }
                     }
 
                     // полоска заполнения; у телефонов размера нет — и полосы тоже
                     Rectangle {
-                        visible: disk.model.dSize > 0
+                        visible: disk.mounted && disk.model.dSize > 0
                         Layout.fillWidth: true
                         Layout.preferredHeight: 3
                         radius: 2
@@ -1000,7 +1070,13 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: view.go(disk.model.dPath)
+                    onClicked: {
+                        if (disk.mounted) {
+                            view.go(disk.model.dPath);
+                        } else {
+                            view.mountDisk(disk.model.dDev);
+                        }
+                    }
                 }
             }
         }
