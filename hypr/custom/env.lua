@@ -1,0 +1,4 @@
+-- Custom Environment Variables (Lua)
+-- Examples:
+-- hypr.set_env("LIBVA_DRIVER_NAME", "nvidia")
+-- hypr.set_env("ELECTRON_OZONE_PLATFORM_HINT", "auto")

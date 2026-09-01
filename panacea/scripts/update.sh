@@ -54,6 +54,7 @@ KEEP=(
 )
 KEEP_DIRS=(
     "$CONF/hypr/wallpaper"
+    "$CONF/hypr/custom"
 )
 
 # То же, но мягко: возвращаем только то, чего нет в свежей установке. В

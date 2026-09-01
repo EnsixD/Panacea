@@ -1,0 +1,4 @@
+-- Custom Keybindings & Shortcuts (Lua)
+-- Examples:
+-- hypr.bind("SUPER", "C", "exec", "code")
+-- hypr.bind("SUPER", "B", "exec", "brave")

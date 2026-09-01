@@ -683,6 +683,7 @@ KEEP_FILES=(
 )
 KEEP_DIRS=(
     "hypr/wallpaper"
+    "hypr/custom"
     "panacea/assets"
 )
 KEEP_STASH=""

@@ -1,0 +1,4 @@
+-- Custom Autostart Programs & Daemons (Lua)
+-- Examples:
+-- hypr.exec_once("discord --start-minimized")
+-- hypr.exec_once("telegram-desktop -autostart")

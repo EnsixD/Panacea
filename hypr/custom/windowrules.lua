@@ -1,0 +1,4 @@
+-- Custom Window Rules & Layer Rules (Lua)
+-- Examples:
+-- hypr.rule("float", "class:^(mpv)$")
+-- hypr.rule("workspace 3", "class:^(discord)$")

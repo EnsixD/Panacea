@@ -1,0 +1,4 @@
+-- Custom General Settings & Overrides (Lua)
+-- Examples:
+-- hypr.set("general:gaps_in", 6)
+-- hypr.set("general:gaps_out", 12)
