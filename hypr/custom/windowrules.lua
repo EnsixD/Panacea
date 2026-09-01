@@ -1,4 +1,7 @@
 -- Custom Window Rules & Layer Rules (Lua)
+--
+-- API: hl.window_rule({ name = ..., match = { ... }, <rule> = ... })
+--
 -- Examples:
--- hypr.rule("float", "class:^(mpv)$")
--- hypr.rule("workspace 3", "class:^(discord)$")
+-- hl.window_rule({ name = "mpv-float", match = { class = "^(mpv)$" }, float = true })
+-- hl.window_rule({ name = "discord-ws3", match = { class = "^(discord)$" }, workspace = "3" })

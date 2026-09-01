@@ -211,6 +211,30 @@ Networking assumes **iwd** (the Wi‑Fi page drives `iwctl` directly — no
 NetworkManager). Power profiles go through `power-profiles-daemon` over D‑Bus.
 Everything resolves `$HOME` at runtime — no hardcoded paths.
 
+### Voice to text
+
+Hold **Right Alt**, speak, let go — the recognised text lands in the focused
+field. It runs offline through [voxtype](https://voxtype.io);
+the installer sets it up, but the speech model is a separate ~1.5 GB download.
+If dictation does nothing, the model is what's missing — the one used here is
+Whisper **medium**:
+
+```bash
+mkdir -p ~/.local/share/voxtype/models
+curl -L --progress-bar \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin \
+  -o ~/.local/share/voxtype/models/ggml-medium.bin
+curl -sL \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-silero-vad.bin \
+  -o ~/.local/share/voxtype/models/ggml-silero-vad.bin
+systemctl --user restart voxtype
+```
+
+The second file is the Silero VAD model — it drops silence and background
+noise, and transcription stalls without it because the config enables VAD.
+A smaller model is fine too (`ggml-small.bin`, `ggml-base.bin`); set the name
+in `model = ` under `[whisper]` in `~/.config/voxtype/config.toml`.
+
 ## Layout
 
 ```

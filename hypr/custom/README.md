@@ -22,5 +22,16 @@ Everything inside `~/.config/hypr/custom/` is **preserved during dotfiles update
 
 ---
 
+### 🌙 The Lua API is `hl`
+
+Every `.lua` file here talks to Hyprland through the global **`hl`** —
+`hl.bind`, `hl.config`, `hl.window_rule`, `hl.env`, `hl.exec_cmd`. There is no
+`hypr` global: calling one makes Hyprland refuse the whole config with
+*attempt to index a nil value (global 'hypr')*. Each file's header comment
+shows the working form, and the full list lives in the
+[Hyprland Lua API wiki](https://wiki.hypr.land/Configuring/Lua-API/).
+
+---
+
 ### ⚡ Execution & Override Order
 Files in this folder are sourced **at the very end** of the main Hyprland configuration. This allows you to easily override any default setting or shortcut without modifying core Panacea files.

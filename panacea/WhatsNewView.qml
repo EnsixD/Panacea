@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "custom: fix the Lua examples calling a nonexistent `hypr` global, and document the voxtype model download":
+            "Свои настройки Hyprland: примеры в ~/.config/hypr/custom/*.lua звали несуществующий глобал `hypr` — стоило раскомментировать строку, и Hyprland отказывался читать конфиг целиком («attempt to index a nil value (global \'hypr\')»). Теперь везде настоящий API — hl.bind, hl.config, hl.window_rule, hl.env. Заодно в README написано, как скачать модель распознавания речи для голосового ввода (правый Alt), без неё voxtype молчит: curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin -o ~/.local/share/voxtype/models/ggml-medium.bin, рядом ggml-silero-vad.bin, затем systemctl --user restart voxtype",
         "voxtype: hold Right Alt to dictate — voice becomes text in the field":
             "Голос в текст: зажми правый Alt и говори — на отпускании распознанное вставляется в активное поле (офлайн, через voxtype). Пока зажато, остров показывает «Слушаю…»/«Расшифровываю…»; сочетание есть в списке Super+/ и меняется в настройках",
         "media: round the cover art's corners and keep it through pause":

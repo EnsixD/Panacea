@@ -1,4 +1,7 @@
 -- Custom General Settings & Overrides (Lua)
+--
+-- API: hl.config({ section = { key = value } })
+--
 -- Examples:
--- hypr.set("general:gaps_in", 6)
--- hypr.set("general:gaps_out", 12)
+-- hl.config({ general = { gaps_in = 6, gaps_out = 12 } })
+-- hl.config({ decoration = { rounding = 12 } })
