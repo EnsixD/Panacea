@@ -34,11 +34,20 @@ case "${1:-}" in
         ;;
     start)
         VOX=$(find_vox) || { ipc voxUnavailable; exit 1; }
-        if "$VOX" record start >/dev/null 2>&1; then
+        if ! systemctl --user is-active --quiet voxtype 2>/dev/null; then
+            systemctl --user start voxtype 2>/dev/null
+            sleep 0.2
+        fi
+        if "$VOX" record start >/dev/null 2>&1 || [ "$("$VOX" status 2>/dev/null)" = "recording" ]; then
             ipc voxListening
         else
-            ipc voxUnavailable
-            exit 1
+            sleep 0.25
+            if "$VOX" record start >/dev/null 2>&1 || [ "$("$VOX" status 2>/dev/null)" = "recording" ]; then
+                ipc voxListening
+            else
+                ipc voxUnavailable
+                exit 1
+            fi
         fi
         ;;
     stop)

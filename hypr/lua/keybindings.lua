@@ -47,13 +47,9 @@ B("pillVault",    mainMod .. " + SHIFT + P",     hl.dsp.exec_cmd(QS .. "password
 pcall(function()
     local VOX = os.getenv("HOME") .. "/.config/panacea/scripts/voxtype.sh"
     local combo = ov["voxDictate"]
-    if combo == nil or combo == "" or combo == "Alt_R" then
-        hl.bind("Alt_R", hl.dsp.exec_cmd(VOX .. " start"), { description = "Voice to text", ignore_mods = true, locked = true })
-        hl.bind("Alt_R", hl.dsp.exec_cmd(VOX .. " stop"), { release = true, ignore_mods = true, locked = true })
+    if combo == nil or combo == "" or combo == "Alt_R" or combo == "code:108" then
         hl.bind("code:108", hl.dsp.exec_cmd(VOX .. " start"), { description = "Voice to text", ignore_mods = true, locked = true })
         hl.bind("code:108", hl.dsp.exec_cmd(VOX .. " stop"), { release = true, ignore_mods = true, locked = true })
-        hl.bind("ISO_Level3_Shift", hl.dsp.exec_cmd(VOX .. " start"), { description = "Voice to text", ignore_mods = true, locked = true })
-        hl.bind("ISO_Level3_Shift", hl.dsp.exec_cmd(VOX .. " stop"), { release = true, ignore_mods = true, locked = true })
     else
         hl.bind(combo, hl.dsp.exec_cmd(VOX .. " start"), { description = "Voice to text", ignore_mods = true, locked = true })
         hl.bind(combo, hl.dsp.exec_cmd(VOX .. " stop"), { release = true, ignore_mods = true, locked = true })
