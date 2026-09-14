@@ -680,6 +680,11 @@ KEEP_FILES=(
     "hypr/wallpaper.conf"
     # Живые обои из того же ряда: их путь тоже помнит отдельный файл.
     "hypr/hyprpaper.conf"
+    # Цвет фона терминала под текущую тему: пишет его оболочка при смене
+    # темы, а в репозитории лежит пустая заготовка (она нужна только чтобы
+    # include в foot.ini не падал до первого запуска). Без сохранения
+    # обновление возвращало бы терминалу общий фон палитры.
+    "foot/panacea-theme"
 )
 KEEP_DIRS=(
     "hypr/wallpaper"
@@ -1017,9 +1022,62 @@ mask_rival_notifiers() {
 }
 
 # ------------------------------------------------------------- SDDM login theme
+# Экран входа обязан подняться до того, как мы отдадим ему свою тему.
+#
+# SDDM по умолчанию (в том числе на Arch) рисует greeter на X11: [General]
+# DisplayServer=x11, и запускает /usr/bin/X. На минимальной установке под
+# Wayland-оболочку иксов нет вовсе — и sddm.service молча уходит в цикл
+# «запустился, не смог поднять дисплей, перезапустился». Со стороны это
+# ровно то, о чём пишут: «система зависает на загрузке, тема не работает».
+# Тема здесь ни при чём — до её чтения дело не доходит.
+#
+# Поэтому: иксы есть — не трогаем ничего, всё и так работает. Иксов нет —
+# переводим greeter на Wayland и ставим ему компоновщик (weston, его же
+# называет заводской CompositorCommand). Ни того, ни другого — не ставим
+# тему и не включаем sddm вслепую, а говорим об этом вслух.
+#
+# Возвращает 0, если экран входа поднимется.
+ensure_sddm_display_server() {
+    if [ -x /usr/bin/X ] || [ -x /usr/bin/Xorg ]; then
+        return 0
+    fi
+
+    warn "no X server here — SDDM would loop on boot with its default X11 greeter"
+
+    if ! command -v weston >/dev/null 2>&1; then
+        case "$PKG_MGR" in
+            pacman) $SUDO pacman -S --needed --noconfirm weston >/dev/null 2>&1 ;;
+            apt)    $SUDO apt-get install -y weston >/dev/null 2>&1 ;;
+            dnf)    $SUDO dnf install -y weston >/dev/null 2>&1 ;;
+            zypper) $SUDO zypper --non-interactive install weston >/dev/null 2>&1 ;;
+            apk)    $SUDO apk add weston >/dev/null 2>&1 ;;
+            xbps)   $SUDO xbps-install -y weston >/dev/null 2>&1 ;;
+        esac
+    fi
+
+    if ! command -v weston >/dev/null 2>&1; then
+        warn "could not install weston either — the login screen has nothing to draw on"
+        printf '    install one of them and rerun:  weston  (Wayland greeter)  or  xorg-server\n'
+        return 1
+    fi
+
+    # Своим файлом, а не правкой /etc/sddm.conf: заводской конфиг пакета
+    # обновляется вместе с ним, и наши строки бы из него пропали.
+    $SUDO mkdir -p /etc/sddm.conf.d
+    printf '[General]\nDisplayServer=wayland\n\n[Wayland]\nCompositorCommand=weston --shell=kiosk --no-config\n' \
+        | $SUDO tee /etc/sddm.conf.d/05-panacea-wayland.conf >/dev/null
+    ok "login screen switched to the Wayland greeter (weston)"
+    return 0
+}
+
 install_sddm() {
     [ -d "$SRC/sddm/panacea" ] || { warn "no SDDM theme here — skipping"; return; }
     command -v sddm >/dev/null 2>&1 || { warn "SDDM not installed — skipping login theme"; return; }
+    detect_distro
+    ensure_sddm_display_server || {
+        warn "leaving the login screen alone until it can start at all"
+        return
+    }
     local themes=/usr/share/sddm/themes
     $SUDO rm -rf "$themes/panacea" && $SUDO cp -r "$SRC/sddm/panacea" "$themes/" || { warn "SDDM theme copy failed"; return; }
     $SUDO mkdir -p /etc/sddm.conf.d

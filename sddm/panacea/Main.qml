@@ -396,7 +396,12 @@ Rectangle {
                 id: sessionList
                 visible: false
                 width: 260
-                height: Math.min(sessionModel.rowCount(), 6) * 34 + 12
+                // Высота по числу строк самого списка, а не по
+                // sessionModel.rowCount(): rowCount у QAbstractItemModel не
+                // помечен Q_INVOKABLE, и в Qt 6 вызов из QML бросает
+                // TypeError — привязка обрывалась, список оставался нулевой
+                // высоты, и выбрать сеанс было нечем.
+                height: Math.min(sessionView.count, 6) * 34 + 12
                 radius: 16
                 color: Qt.rgba(0.04, 0.04, 0.05, 0.97)
                 border.color: root.line
@@ -406,6 +411,7 @@ Rectangle {
                 anchors.topMargin: 8
 
                 ListView {
+                    id: sessionView
                     anchors.fill: parent
                     anchors.margins: 6
                     clip: true
@@ -565,8 +571,16 @@ Rectangle {
         height: kbText.implicitHeight
         clip: true
 
-        readonly property string value: keyboard.layouts.length > 0
-              ? keyboard.layouts[keyboard.currentLayout].shortName.toUpperCase() : ""
+        // Индекс проверяем отдельно от длины: на машине без настроенных
+        // раскладок currentLayout приходит равным -1, и обращение по нему
+        // роняло привязку целиком, унося с собой и надпись, и её анимацию.
+        readonly property string value: {
+            var l = keyboard.layouts;
+            if (!l || l.length === 0) return "";
+            var i = keyboard.currentLayout;
+            if (i < 0 || i >= l.length || !l[i] || !l[i].shortName) return "";
+            return String(l[i].shortName).toUpperCase();
+        }
         property string shown: kbBox.value
 
         onValueChanged: if (kbBox.value !== kbBox.shown) kbFlip.restart()
