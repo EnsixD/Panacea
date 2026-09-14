@@ -29,7 +29,7 @@ FocusScope {
         return 0;
     }
 
-    readonly property var mon: Hyprland.focusedMonitor
+    readonly property var mon: Compositor.isNiri ? Compositor.focusedMonitor : Hyprland.focusedMonitor
     readonly property real monW: mon ? mon.width : 1920
     readonly property real monH: mon ? mon.height : 1080
 
@@ -37,6 +37,7 @@ FocusScope {
     // не реже, чем на занятые.
     readonly property var wsList: {
         var out = [];
+        if (Compositor.isNiri) return Compositor.workspaces;
         var all = Hyprland.workspaces ? Hyprland.workspaces.values : [];
         for (var i = 0; i < all.length; i++) {
             var w = all[i];
@@ -48,8 +49,12 @@ FocusScope {
     }
 
     Component.onCompleted: {
-        Hyprland.refreshWorkspaces();
-        Hyprland.refreshToplevels();
+        if (Compositor.isNiri) {
+            Compositor.refresh();
+        } else {
+            Hyprland.refreshWorkspaces();
+            Hyprland.refreshToplevels();
+        }
         // Стол, с которого открыли: пилюля знает его точно и без опроса —
         // она слушает события Hyprland постоянно.
         view.currentWs = view.sys.wsId;

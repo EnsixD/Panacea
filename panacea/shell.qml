@@ -621,6 +621,10 @@ PanelWindow {
         //
         // Одинарные кавычки внутри команды экранируем: путь их не содержит,
         // но команда приходит извне, и молча испорченная строка хуже явной.
+        if (Compositor.isNiri) {
+            Compositor.exec(cmd);
+            return;
+        }
         if (Hyprland.usingLua) {
             var safe = String(cmd).replace(/'/g, "\\'");
             Hyprland.dispatch("hl.dsp.exec_cmd('" + safe + "')");
@@ -1396,17 +1400,20 @@ PanelWindow {
     // Пока активное окно развёрнуто на весь экран, прячем её целиком:
     // сочетания клавиш при этом работают — по ним панель раскрывается
     // и окно снова показывается.
-    property bool fullscreenActive: false
+    property bool fullscreenActive: Compositor.isNiri ? Compositor.isFullscreen : false
 
     Process {
         id: pFullscreen
+        running: !Compositor.isNiri
         command: ["sh", "-c",
             "hyprctl activewindow -j 2>/dev/null | grep -o '\"fullscreen\": *[0-9]*' | grep -o '[0-9]*$'"]
         stdout: StdioCollector {
-            onStreamFinished: root.fullscreenActive = parseInt(text.trim()) > 0
+            onStreamFinished: {
+                if (!Compositor.isNiri) root.fullscreenActive = parseInt(text.trim()) > 0;
+            }
         }
     }
-    Timer { id: fsProbe; interval: 120; onTriggered: pFullscreen.running = true }
+    Timer { id: fsProbe; interval: 120; onTriggered: if (!Compositor.isNiri) pFullscreen.running = true }
     // События Hyprland приходят не на все переходы (например, при смене
     // окна внутри полноэкранного слоя), поэтому подстраховываемся опросом.
     // Опрос — только страховка: основное приходит событиями Hyprland, и
@@ -1414,12 +1421,13 @@ PanelWindow {
     // запуск hyprctl с двумя grep'ами стоил трёх процессов в секунду
     // круглые сутки, а ловил лишь редкие пропущенные переходы.
     Timer {
-        interval: 5000; running: true; repeat: true; triggeredOnStart: true
+        interval: 5000; running: !Compositor.isNiri; repeat: true; triggeredOnStart: true
         onTriggered: pFullscreen.running = true
     }
 
     Connections {
         target: Hyprland
+        enabled: !Compositor.isNiri
         function onRawEvent(event) {
             var n = String(event.name);
             if (n === "fullscreen" || n === "activewindow" || n === "activewindowv2"
@@ -1493,8 +1501,12 @@ PanelWindow {
     // на HyprlandToplevel, поэтому собираем их в один список.
     property bool overviewOpen: false
     function openOverview() {
-        Hyprland.refreshWorkspaces();
-        Hyprland.refreshToplevels();
+        if (Compositor.isNiri) {
+            Compositor.refresh();
+        } else {
+            Hyprland.refreshWorkspaces();
+            Hyprland.refreshToplevels();
+        }
         root.overviewOpen = true;
     }
     function closeOverview() { root.overviewOpen = false; }
@@ -1503,8 +1515,13 @@ PanelWindow {
     // Lua-код, и привычное "workspace 2" валится синтаксической ошибкой —
     // нужен настоящий диспетчер. На обычном конфиге работает старая форма.
     function gotoWorkspace(id) {
-        if (Hyprland.usingLua) Hyprland.dispatch("hl.dsp.focus({ workspace = " + id + " })");
-        else                   Hyprland.dispatch("workspace " + id);
+        if (Compositor.isNiri) {
+            Compositor.focusWorkspace(id);
+        } else if (Hyprland.usingLua) {
+            Hyprland.dispatch("hl.dsp.focus({ workspace = " + id + " })");
+        } else {
+            Hyprland.dispatch("workspace " + id);
+        }
     }
     function toggleOverview() {
         if (root.overviewOpen) closeOverview(); else openOverview();
@@ -1635,6 +1652,7 @@ PanelWindow {
     readonly property var overviewToplevels: {
         var out = [];
         if (!root.overviewOpen) return out;
+        if (Compositor.isNiri) return Compositor.toplevels;
         var all = Hyprland.toplevels ? Hyprland.toplevels.values : [];
         for (var i = 0; i < all.length; i++) {
             var t = all[i];
@@ -3006,7 +3024,9 @@ PanelWindow {
     Process {
         id: pVaultWhere
         command: ["sh", "-c",
-            "hyprctl activewindow -j 2>/dev/null | jq -r '.initialClass // .class // \"\"'"]
+            "if [ -n \"$NIRI_SOCKET\" ] || [ \"${XDG_CURRENT_DESKTOP,,}\" = \"niri\" ]; then "
+            + "niri msg --json focused-window 2>/dev/null | jq -r '.app_id // \"\"'; "
+            + "else hyprctl activewindow -j 2>/dev/null | jq -r '.initialClass // .class // \"\"'; fi"]
         stdout: StdioCollector {
             onStreamFinished: {
                 var c = text.trim();
@@ -3152,13 +3172,21 @@ PanelWindow {
 
     // ------------------------------------------------------- рабочий стол
     readonly property int wsId:
-        Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1
+        Compositor.isNiri ? Compositor.focusedWorkspace
+                          : (Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1)
 
     // Столы по порядку номеров — для точек в свёрнутом острове. Спецстолы
     // (отрицательные) пропускаем: на них не переходят подряд с остальными,
     // и точка под них сбивала бы счёт.
     readonly property var wsRaw: {
         var out = [];
+        if (Compositor.isNiri) {
+            var nws = Compositor.workspaces;
+            for (var k = 0; k < nws.length; k++)
+                if (nws[k] && nws[k].id > 0) out.push(nws[k].id);
+            out.sort(function (a, b) { return a - b; });
+            return out;
+        }
         var all = Hyprland.workspaces ? Hyprland.workspaces.values : [];
         for (var i = 0; i < all.length; i++)
             if (all[i] && all[i].id > 0) out.push(all[i].id);
@@ -3188,12 +3216,12 @@ PanelWindow {
     }
 
     // -------------------------------------------------- раскладка клавиатуры
-    property string kbLayout: "US"
+    property string kbLayout: Compositor.isNiri ? Compositor.keyboardLayout : "US"
     Process {
         id: pKbLayout
         command: ["sh", "-c",
             "hyprctl devices -j | jq -r '.keyboards[]|select(.main==true)|.active_keymap' | head -1"]
-        running: true
+        running: !Compositor.isNiri
         stdout: SplitParser {
             onRead: line => {
                 var s = line.trim();
@@ -3205,6 +3233,7 @@ PanelWindow {
     // Hyprland шлёт activelayout при каждом переключении Alt+Shift
     Connections {
         target: Hyprland
+        enabled: !Compositor.isNiri
         function onRawEvent(ev) {
             if (ev.name === "activelayout") pKbLayout.running = true;
         }
@@ -3948,6 +3977,10 @@ PanelWindow {
             for (var i = 0; i < all.length; i++)
                 if (all[i].name === want) return all[i];
         }
+        if (Compositor.isNiri) {
+            var nm = Compositor.focusedMonitor;
+            return (nm && nm.screen) ? nm.screen : null;
+        }
         var fm = Hyprland.focusedMonitor;
         return (fm && fm.screen) ? fm.screen : null;
     }
@@ -3977,6 +4010,7 @@ PanelWindow {
     exclusiveZone: (root.cfg.pillOverlay || root.pillHidden || (root.fullscreenActive && !root.expanded))
                    ? 0 : pillH + gap
     WlrLayershell.layer: WlrLayer.Overlay
+
     // Пока поверх экрана развёрнутое окно, пилюли не видно совсем.
     // Показываем её обратно, если панель раскрыли клавишами или если
     // нужно показать уровень громкости/яркости.
@@ -3984,7 +4018,10 @@ PanelWindow {
 
     Process {
         id: pCloseWin
-        command: ["sh", "-c", "out=$(hyprctl dispatch 'hl.dsp.window.close()' 2>&1); case \"$out\" in ok*) ;; *) hyprctl dispatch killactive ;; esac"]
+        command: ["sh", "-c",
+            "if [ -n \"$NIRI_SOCKET\" ] || [ \"${XDG_CURRENT_DESKTOP,,}\" = \"niri\" ]; then "
+            + "niri msg action close-window >/dev/null 2>&1; "
+            + "else out=$(hyprctl dispatch 'hl.dsp.window.close()' 2>&1); case \"$out\" in ok*) ;; *) hyprctl dispatch killactive ;; esac; fi"]
     }
     function closeActiveWindow(): void {
         pCloseWin.running = false;

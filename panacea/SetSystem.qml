@@ -54,8 +54,14 @@ ColumnLayout {
     Process {
         id: pInfo
         command: ["sh", "-c",
+            "wm_ver=\"\"; " +
+            "if [ -n \"$NIRI_SOCKET\" ] || [ \"${XDG_CURRENT_DESKTOP,,}\" = \"niri\" ]; then " +
+            "  wm_ver=\"niri $(niri --version 2>/dev/null | awk '{print $2}')\"; " +
+            "else " +
+            "  wm_ver=\"${XDG_CURRENT_DESKTOP:-Hyprland} $(hyprctl version -j 2>/dev/null | sed -n 's/.*\\\"tag\\\": *\\\"\\([^\\\"]*\\)\\\".*/\\1/p')\"; " +
+            "fi; " +
             "printf '%s\\n' \"$(. /etc/os-release 2>/dev/null; echo $PRETTY_NAME)\" " +
-            "\"$(uname -r)\" \"${XDG_CURRENT_DESKTOP:-Hyprland} $(hyprctl version -j 2>/dev/null | sed -n 's/.*\"tag\": *\"\\([^\"]*\\)\".*/\\1/p')\" " +
+            "\"$(uname -r)\" \"$wm_ver\" " +
             "\"$(sed -n 's/^model name[ \\t]*: //p' /proc/cpuinfo | head -1)\" " +
             "\"$(lspci 2>/dev/null | sed -n 's/.*VGA compatible controller: //p' | head -1)\" " +
             "\"$(cat /etc/hostname 2>/dev/null)\""]

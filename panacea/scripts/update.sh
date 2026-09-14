@@ -51,10 +51,12 @@ KEEP=(
     # он ложился поверх — после обновления стол возвращался к заводским.
     "$CONF/hypr/wallpaper.conf"
     "$CONF/hypr/hyprpaper.conf"
+    "$CONF/niri/config.kdl"
 )
 KEEP_DIRS=(
     "$CONF/hypr/wallpaper"
     "$CONF/hypr/custom"
+    "$CONF/niri/custom"
 )
 
 # То же, но мягко: возвращаем только то, чего нет в свежей установке. В
@@ -526,6 +528,21 @@ EOF
             hyprctl reload >/dev/null 2>&1
             [ -x "'"$CONF"'/hypr/scripts/switch_theme.sh" ] \
                 && "'"$CONF"'/hypr/scripts/switch_theme.sh" --restore >/dev/null 2>&1
+            pkill -x qs >/dev/null 2>&1
+            sleep 1
+            exec qs -c "'"$CONF"'/panacea"
+        ' >/dev/null 2>&1 &
+    elif [ -n "${NIRI_SOCKET:-}" ] || [ "${XDG_CURRENT_DESKTOP,,}" = "niri" ]; then
+        setsid sh -c '
+            sleep 1
+            command -v niri >/dev/null 2>&1 && niri msg action load-config >/dev/null 2>&1
+            pkill -x qs >/dev/null 2>&1
+            sleep 1
+            exec qs -c "'"$CONF"'/panacea"
+        ' >/dev/null 2>&1 &
+    else
+        setsid sh -c '
+            sleep 1
             pkill -x qs >/dev/null 2>&1
             sleep 1
             exec qs -c "'"$CONF"'/panacea"

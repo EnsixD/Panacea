@@ -12,6 +12,7 @@ capsule at the edge of the screen.
 <a href="https://debian.org"><img alt="Debian" src="https://img.shields.io/badge/Debian-A81D33?style=for-the-badge&logo=debian&logoColor=white"></a>
 <a href="https://fedoraproject.org"><img alt="Fedora" src="https://img.shields.io/badge/Fedora-51A2DA?style=for-the-badge&logo=fedora&logoColor=white"></a>
 <a href="https://hyprland.org"><img alt="Hyprland" src="https://img.shields.io/badge/Hyprland-00AAAE?style=for-the-badge&logo=hyprland&logoColor=white"></a>
+<a href="https://github.com/YaLTeR/niri"><img alt="Niri" src="https://img.shields.io/badge/Niri-Beta-8B5CF6?style=for-the-badge"></a>
 <a href="https://quickshell.org"><img alt="Quickshell" src="https://img.shields.io/badge/Quickshell-7F7F7F?style=for-the-badge&logo=qt&logoColor=white"></a>
 <a href="https://fishshell.com"><img alt="Fish" src="https://img.shields.io/badge/Fish-111111?style=for-the-badge&logo=gnubash&logoColor=white"></a>
 <a href="#licence"><img alt="MIT" src="https://img.shields.io/badge/MIT-3b82f6?style=for-the-badge"></a>
@@ -132,7 +133,7 @@ and never touches a file that Hyprland sources, so your windows are left alone.
 
 | | |
 |---|---|
-| **Compositor** | [Hyprland](https://hyprland.org), Lua config |
+| **Compositor** | [Hyprland](https://hyprland.org) (primary, Lua config) · [Niri](https://github.com/YaLTeR/niri) (scrollable-tiling, beta) |
 | **Shell** | [Quickshell](https://quickshell.org) — the pill, in QML |
 | **CLI** | Fish + eza + zoxide |
 | **Terminal** | [foot](https://codeberg.org/dnkl/foot), as a server — `foot --server` starts with the session and `footclient` opens windows instantly |
@@ -152,6 +153,11 @@ reason; `systemctl --user unmask dunst.service` puts one back.
 > **Cross-Distribution Support (Ubuntu, Debian, Linux Mint, Fedora, openSUSE, Arch)**
 > The installer automatically detects your distribution and package manager (`pacman`, `apt`, `dnf`, `zypper`).
 > Running on Ubuntu, Debian or Linux Mint? See [**docs/other-distros.md**](docs/other-distros.md) for build instructions, dependencies, and compatibility notes.
+
+> [!NOTE]
+> **Experimental Niri Support**
+> Panacea features dual-compositor support: while **Hyprland** is the default, fully supported compositor, preliminary integration for the **[Niri](https://github.com/YaLTeR/niri)** scrollable-tiling compositor is now available in `niri/`. The shell automatically detects Niri at launch via `$NIRI_SOCKET` and switches its IPC hooks accordingly.
+> *Notice:* Niri support is experimental and actively being refined. Certain features (such as layer blur, screen shaders, and specific gesture transitions) are Hyprland-specific, and you may encounter minor edge cases or glitches under Niri. If you use Niri, your personal overrides belong in `~/.config/niri/custom/custom.kdl` so they are preserved across updates.
 
 > [!WARNING]
 > **The installer is young.** It has been run on a handful of machines, mostly
@@ -240,6 +246,7 @@ in `model = ` under `[whisper]` in `~/.config/voxtype/config.toml`.
 ```
 panacea/   the pill: QML, scripts, settings.json
 hypr/      Hyprland (Lua config, palette, wallpapers, scripts)
+niri/      Niri (config.kdl, custom overrides, scripts)
 grub/      boot theme + the script that generates its assets
 sddm/      login theme
 bin/       standalone helper scripts

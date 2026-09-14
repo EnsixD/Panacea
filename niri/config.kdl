@@ -1,0 +1,229 @@
+// Panacea Rice configuration for Niri Wayland Compositor.
+// Format: KDL (https://kdl.dev)
+// Documentation: https://niri-wm.github.io/niri/
+
+// -----------------------------------------------------------------------------
+// Ввод (клавиатура, тачпад, мышь)
+// -----------------------------------------------------------------------------
+input {
+    keyboard {
+        xkb {
+            layout "us,ru"
+            options "grp:alt_shift_toggle,compose:ralt"
+        }
+        numlock
+    }
+
+    touchpad {
+        tap
+        natural-scroll
+        accel-speed 0.2
+    }
+
+    mouse {
+        accel-speed 0.0
+    }
+
+    warp-mouse-to-focus
+    focus-follows-mouse max-scroll-amount="0%"
+}
+
+// -----------------------------------------------------------------------------
+// Выходы (мониторы)
+// По умолчанию niri автоматически настраивает подключённые мониторы.
+// Для ручной фиксации параметров раскомментируйте блок ниже:
+// -----------------------------------------------------------------------------
+// output "eDP-1" {
+//     mode "1920x1080@60.0"
+//     scale 1.0
+//     position x=0 y=0
+// }
+
+// -----------------------------------------------------------------------------
+// Макет (скроллируемые колонки niri)
+// -----------------------------------------------------------------------------
+layout {
+    gaps 16
+    center-focused-column "never"
+
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+    }
+
+    default-column-width { proportion 0.5; }
+
+    focus-ring {
+        width 2
+        active-color "#7FB3FF"
+        inactive-color "rgba(255, 255, 255, 0.08)"
+    }
+
+    border {
+        off
+    }
+
+    struts {
+        // Оболочка Panacea использует слой Overlay / Top со своими отступами
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Правила для окон (скругление углов и плавающие окна)
+// -----------------------------------------------------------------------------
+window-rule {
+    geometry-corner-radius 14
+    clip-to-geometry true
+}
+
+window-rule {
+    match app-id=r#"firefox$"# title="^Picture-in-Picture$"
+    open-floating true
+}
+
+window-rule {
+    match app-id=r#"org\.telegram\.desktop$"# title="^Media viewer$"
+    open-floating true
+}
+
+window-rule {
+    match app-id=r#"polkit"#
+    open-floating true
+}
+
+window-rule {
+    match app-id=r#"^xdg-desktop-portal"#
+    open-floating true
+}
+
+window-rule {
+    match app-id=r#"pavucontrol"#
+    open-floating true
+}
+
+window-rule {
+    match app-id=r#"nm-connection-editor"#
+    open-floating true
+}
+
+window-rule {
+    match app-id=r#"blueman-manager"#
+    open-floating true
+}
+
+// -----------------------------------------------------------------------------
+// Автозапуск компонентов Panacea и служб
+// -----------------------------------------------------------------------------
+spawn-sh-at-startup "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP; dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=niri"
+spawn-at-startup "foot" "--server"
+spawn-sh-at-startup "sleep 0.4; qs -c ~/.config/panacea"
+spawn-sh-at-startup "wl-paste --type text --watch cliphist store"
+spawn-sh-at-startup "wl-paste --type image --watch cliphist store"
+spawn-at-startup "udiskie" "--no-notify"
+spawn-sh-at-startup "~/.config/niri/scripts/wallpaper.sh"
+spawn-sh-at-startup "command -v hyprsunset >/dev/null 2>&1 && hyprsunset"
+spawn-sh-at-startup "command -v voxtype >/dev/null 2>&1 && voxtype daemon"
+
+// -----------------------------------------------------------------------------
+// Горячие клавиши (Binds)
+// -----------------------------------------------------------------------------
+binds {
+    // --- Оболочка Panacea (совпадают с Hyprland-сочетаниями) ---
+    Mod+A { spawn-sh "qs -c ~/.config/panacea ipc call pill launcher"; }
+    Mod+Z { spawn-sh "qs -c ~/.config/panacea ipc call pill controls"; }
+    Mod+V { spawn-sh "qs -c ~/.config/panacea ipc call pill clipboard"; }
+    Mod+E { spawn-sh "qs -c ~/.config/panacea ipc call pill files"; }
+    Mod+P { spawn-sh "qs -c ~/.config/panacea ipc call pill power"; }
+    Mod+I { spawn-sh "qs -c ~/.config/panacea ipc call pill settings"; }
+    Mod+Slash { spawn-sh "qs -c ~/.config/panacea ipc call pill keys"; }
+    Mod+Tab { spawn-sh "qs -c ~/.config/panacea ipc call pill overview"; }
+    Mod+Space { spawn-sh "qs -c ~/.config/panacea ipc call pill launcher"; }
+
+    // --- Терминал и управление окнами ---
+    Mod+Return { spawn "footclient"; }
+    Mod+Shift+Return { spawn "foot"; }
+    Mod+Q { spawn-sh "~/.config/panacea/scripts/smart_close.sh"; }
+    Mod+C { close-window; }
+    Mod+F { maximize-column; }
+    Mod+Shift+F { fullscreen-window; }
+    Mod+Shift+Space { toggle-window-floating; }
+    Mod+W { toggle-column-tabbed-display; }
+
+    // --- Изменение размеров колонок ---
+    Mod+R { switch-preset-column-width; }
+    Mod+Shift+R { switch-preset-column-width-back; }
+    Mod+Minus { set-column-width "-10%"; }
+    Mod+Equal { set-column-width "+10%"; }
+
+    // --- Мультимедиа и громкость (PipeWire / playerctl) ---
+    XF86AudioRaiseVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.05+ -l 1.0"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.05-"; }
+    XF86AudioMute        allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"; }
+    XF86AudioMicMute     allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"; }
+    XF86AudioPlay        allow-when-locked=true { spawn-sh "playerctl play-pause"; }
+    XF86AudioPause       allow-when-locked=true { spawn-sh "playerctl play-pause"; }
+    XF86AudioNext        allow-when-locked=true { spawn-sh "playerctl next"; }
+    XF86AudioPrev        allow-when-locked=true { spawn-sh "playerctl previous"; }
+
+    // --- Яркость матрицы ---
+    XF86MonBrightnessUp   allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "+5%"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "5%-"; }
+
+    // --- Скриншоты Panacea ---
+    Print { spawn-sh "~/.config/panacea/scripts/capture.sh shot 2>/dev/null || grim - | wl-copy"; }
+    Shift+Print { spawn-sh "~/.config/panacea/scripts/capture.sh area 2>/dev/null || slurp | grim -g - - | wl-copy"; }
+    Ctrl+Print { spawn-sh "~/.config/panacea/scripts/capture.sh win 2>/dev/null || grim - | wl-copy"; }
+
+    // --- Навигация по колонкам и окнам ---
+    Mod+Left  { focus-column-left; }
+    Mod+Right { focus-column-right; }
+    Mod+Up    { focus-window-or-workspace-up; }
+    Mod+Down  { focus-window-or-workspace-down; }
+    Mod+H     { focus-column-left; }
+    Mod+L     { focus-column-right; }
+    Mod+K     { focus-window-or-workspace-up; }
+    Mod+J     { focus-window-or-workspace-down; }
+
+    Mod+Shift+Left  { move-column-left; }
+    Mod+Shift+Right { move-column-right; }
+    Mod+Shift+H     { move-column-left; }
+    Mod+Shift+L     { move-column-right; }
+
+    Mod+Ctrl+Left   { move-column-to-monitor-left; }
+    Mod+Ctrl+Right  { move-column-to-monitor-right; }
+    Mod+Home        { focus-column-first; }
+    Mod+End         { focus-column-last; }
+
+    // --- Рабочие столы (Workspaces) ---
+    Mod+1 { focus-workspace 1; }
+    Mod+2 { focus-workspace 2; }
+    Mod+3 { focus-workspace 3; }
+    Mod+4 { focus-workspace 4; }
+    Mod+5 { focus-workspace 5; }
+    Mod+6 { focus-workspace 6; }
+    Mod+7 { focus-workspace 7; }
+    Mod+8 { focus-workspace 8; }
+    Mod+9 { focus-workspace 9; }
+
+    Mod+Shift+1 { move-column-to-workspace 1; }
+    Mod+Shift+2 { move-column-to-workspace 2; }
+    Mod+Shift+3 { move-column-to-workspace 3; }
+    Mod+Shift+4 { move-column-to-workspace 4; }
+    Mod+Shift+5 { move-column-to-workspace 5; }
+    Mod+Shift+6 { move-column-to-workspace 6; }
+    Mod+Shift+7 { move-column-to-workspace 7; }
+    Mod+Shift+8 { move-column-to-workspace 8; }
+    Mod+Shift+9 { move-column-to-workspace 9; }
+
+    Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
+    Mod+WheelScrollUp   cooldown-ms=150 { focus-workspace-up; }
+
+    // --- Системные действия ---
+    Mod+Shift+P { spawn-sh "qs -c ~/.config/panacea ipc call pill power"; }
+    Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
+    Ctrl+Alt+Delete { quit; }
+}
+
+// Подключение пользовательских переопределений из custom/custom.kdl
+include "custom/custom.kdl"

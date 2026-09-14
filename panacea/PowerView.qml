@@ -35,9 +35,11 @@ Item {
         // Блокировка не стоит ничего: она отменяется тем же паролем, которым
         // и снимается. Требовать на неё второе нажатие значило делать вид,
         // что кнопка не работает: первое-то не делает ничего.
-        { id: "lock", instant: true, icon: String.fromCodePoint(0xF033E), label: view.sys.tr("Блокировка"), cmd: view.sys.scriptDir + "/lock.sh", accent: view.sys.tint("#a78bfa") },  // md-lock_outline
-        { icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),        cmd: "out=$(hyprctl dispatch 'hl.dsp.exit()' 2>&1); "
-              + "case \"$out\" in ok*) ;; *) hyprctl dispatch exit ;; esac", accent: view.sys.colWarn },  // md-logout
+        { icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),
+          cmd: "if [ -n \"$NIRI_SOCKET\" ] || [ \"${XDG_CURRENT_DESKTOP,,}\" = \"niri\" ]; then "
+             + "niri msg action quit --skip-confirmation; "
+             + "else out=$(hyprctl dispatch 'hl.dsp.exit()' 2>&1); case \"$out\" in ok*) ;; *) hyprctl dispatch exit ;; esac; fi",
+          accent: view.sys.colWarn },  // md-logout
         { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",      accent: view.sys.tint("#fb923c") },  // md-restart
         { icon: String.fromCodePoint(0xF0425), label: view.sys.tr("Выключить"),    cmd: "systemctl poweroff",    accent: view.sys.colCrit }   // md-power
     ]

@@ -14,7 +14,23 @@ base="${hint%.desktop}"
 
 # Ищем окно по class/initialClass/заголовку, не глядя на регистр. Заодно
 # пробуем последнюю часть entry: у Telegram class = org.telegram.desktop,
-# а приложение может назваться и просто «telegram».
+# Если мы под Niri — ищем окно через niri msg
+if [ -n "$NIRI_SOCKET" ] || [ "${XDG_CURRENT_DESKTOP,,}" = "niri" ]; then
+    win_id=$(niri msg --json windows 2>/dev/null | jq -r --arg h "$base" '
+        ($h | ascii_downcase) as $l
+        | ($l | split(".") | last) as $short
+        | map(select(
+              ((.app_id // "") | ascii_downcase | contains($l))
+              or ((.app_id // "") | ascii_downcase | contains($short))
+              or ((.title // "") | ascii_downcase | contains($short))
+          ))
+        | .[0].id // empty')
+    if [ -n "$win_id" ]; then
+        niri msg action focus-window --id "$win_id" >/dev/null 2>&1
+        exit 0
+    fi
+fi
+
 addr=$(hyprctl -j clients 2>/dev/null | jq -r --arg h "$base" '
     ($h | ascii_downcase) as $l
     | ($l | split(".") | last) as $short

@@ -685,10 +685,13 @@ KEEP_FILES=(
     # include в foot.ini не падал до первого запуска). Без сохранения
     # обновление возвращало бы терминалу общий фон палитры.
     "foot/panacea-theme"
+    # Пользовательский конфиг Niri
+    "niri/config.kdl"
 )
 KEEP_DIRS=(
     "hypr/wallpaper"
     "hypr/custom"
+    "niri/custom"
     "panacea/assets"
 )
 KEEP_STASH=""
@@ -799,7 +802,7 @@ copy_into_config() {   # copy_into_config <dir-in-repo>
 install_configs() {
     mkdir -p "$CONF" "$HOME/.local/bin"
     keep_stash
-    for d in panacea hypr foot fish fastfetch nano; do
+    for d in panacea hypr niri foot fish fastfetch nano; do
         [ -d "$SRC/$d" ] && copy_into_config "$d"
     done
     keep_restore
@@ -815,6 +818,7 @@ install_configs() {
     chmod +x "$CONF"/panacea/scripts/*.sh 2>/dev/null
     chmod +x "$CONF"/panacea/scripts/*.py 2>/dev/null
     chmod +x "$CONF"/hypr/scripts/*.sh 2>/dev/null
+    chmod +x "$CONF"/niri/scripts/*.sh 2>/dev/null
     # Quickshell ищет конфигурации в ~/.config/quickshell/<имя>/shell.qml, и
     # без этой ссылки простое `qs` отвечает «не найдена конфигурация default»
     # — так и было у всех, кто пробовал запустить оболочку руками. Ссылка
