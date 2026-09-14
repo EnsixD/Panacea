@@ -73,6 +73,7 @@ QtObject {
         "Хорошо": "OK",
         "сборка": "build",
         "Доступно обновление Panacea": "A Panacea update is available",
+        "Низкий заряд батареи": "Low battery",
         "Обновление не удалось": "The update failed",
         "Автор оболочки — профиль на GitHub": "The author of the shell — GitHub profile",
         "Версия": "Version",

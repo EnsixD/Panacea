@@ -1990,6 +1990,27 @@ PanelWindow {
         return false;
     }
 
+    readonly property int battLowThreshold: 15
+    property bool battLowNotified: false
+
+    function battLowCheck() {
+        if (!root.batteryPresent) return;
+        if (root.acOnline || root.batteryCharging || root.batteryPct > root.battLowThreshold + 5) {
+            root.battLowNotified = false;
+            return;
+        }
+        if (root.batteryPct <= root.battLowThreshold && !root.battLowNotified) {
+            root.battLowNotified = true;
+            root.showBattLowToast();
+        }
+    }
+    Connections {
+        target: root
+        function onBatteryPctChanged()      { root.battLowCheck(); }
+        function onAcOnlineChanged()        { root.battLowCheck(); }
+        function onBatteryChargingChanged() { root.battLowCheck(); }
+    }
+
     // ------------------------------------------------------------- машина
     // Ноутбук или ПК — вопрос железа, а не настройки, поэтому спрашивать не о
     // чем: батарея, тачпад и способ управления яркостью просто есть или их
@@ -3644,6 +3665,7 @@ PanelWindow {
         if (icon === "input-gaming" || name.indexOf("controller") >= 0 || name.indexOf("gamepad") >= 0 || name.indexOf("dualsense") >= 0 || name.indexOf("xbox") >= 0) return "gamepad";
         if (icon === "phone" || name.indexOf("phone") >= 0 || name.indexOf("iphone") >= 0 || name.indexOf("android") >= 0) return "phone";
         if (icon === "audio-speakers" || icon === "audio-speaker" || name.indexOf("speaker") >= 0 || name.indexOf("колонк") >= 0) return "speaker";
+        if (icon === "watch" || name.indexOf("watch") >= 0 || name.indexOf("часы") >= 0) return "watch";
         return "earbuds";
     }
     // Заряд подключённого устройства (наушников). -1, если батарею не сообщают.
@@ -3653,23 +3675,45 @@ PanelWindow {
         return -1;
     }
 
-    // ---- Тост «Bluetooth-устройство подключено / отключено» ----------------
+    // ---- Тост «Bluetooth-устройство подключено / отключено / низкий заряд» --
     property string btToastName: ""
     property string btToastType: "earbuds"
     property bool   btToastDisconnected: false
+    property bool   btToastLowBatt: false
     property bool   btToastShown: false
     readonly property bool btToastActive: btToastShown && !expanded
     property string btPrevConnected: ""
+    property bool   btLowBattNotified: false
+
+    function btLowBattCheck() {
+        if (!btConnectedDevice || root.btConnectedBattery < 0) {
+            root.btLowBattNotified = false;
+            return;
+        }
+        if (root.btConnectedBattery > 25) {
+            root.btLowBattNotified = false;
+            return;
+        }
+        if (root.btConnectedBattery <= 20 && !root.btLowBattNotified && root.btConnectedName.length > 0) {
+            root.btLowBattNotified = true;
+            root.showBtLowBattToast(root.btConnectedName, root.btConnectedType);
+        }
+    }
+
+    onBtConnectedBatteryChanged: root.btLowBattCheck()
 
     onBtConnectedNameChanged: {
         var name = root.btConnectedName;
         if (name.length > 0 && name !== root.btPrevConnected) {
             root.btPrevConnected = name;
+            root.btLowBattNotified = false;
             root.showBtToast(name, root.btConnectedType, false);
+            root.btLowBattCheck();
         } else if (name.length === 0 && root.btPrevConnected.length > 0) {
             var prev = root.btPrevConnected;
             var prevType = root.btToastType;
             root.btPrevConnected = "";
+            root.btLowBattNotified = false;
             root.showBtToast(prev, prevType, true);
         }
     }
@@ -3678,11 +3722,26 @@ PanelWindow {
         root.btToastName = name;
         root.btToastType = type || "earbuds";
         root.btToastDisconnected = isDisconnect || false;
+        root.btToastLowBatt = false;
         root.btToastShown = true;
         if (root.expanded) root.collapse();
+        btToastTimer.interval = 2500;
         btToastTimer.restart();
         root.playSound(isDisconnect ? "disconnect" : "connect");
     }
+
+    function showBtLowBattToast(name, type) {
+        root.btToastName = name;
+        root.btToastType = type || "earbuds";
+        root.btToastDisconnected = false;
+        root.btToastLowBatt = true;
+        root.btToastShown = true;
+        if (root.expanded) root.collapse();
+        btToastTimer.interval = 3500;
+        btToastTimer.restart();
+        root.playSound("disconnect");
+    }
+
     function dismissBtToast() {
         root.btToastShown = false;
         btToastTimer.stop();
@@ -3703,24 +3762,27 @@ PanelWindow {
     readonly property bool acToastActive:
         acToastShown && !expanded && root.isLaptop && !root.btToastActive
     property bool acPrev: root.acOnline
+    property string acToastKind: "charge"
 
     onAcOnlineChanged: {
         if (root.acOnline && !root.acPrev && root.isLaptop) root.showAcToast();
         root.acPrev = root.acOnline;
     }
-    function showAcToast() {
+    function showAcToast(kind) {
+        root.acToastKind = kind || "charge";
         root.acToastShown = true;
         if (root.expanded) root.collapse();
         acToastTimer.restart();
-        root.playSound("charge");
+        root.playSound(root.acToastKind === "lowbatt" ? "disconnect" : "charge");
     }
+    function showBattLowToast() { root.showAcToast("lowbatt"); }
     function dismissAcToast() {
         root.acToastShown = false;
         acToastTimer.stop();
     }
     Timer {
         id: acToastTimer
-        interval: 2300
+        interval: root.acToastKind === "lowbatt" ? 3500 : 2300
         onTriggered: root.dismissAcToast()
     }
 
@@ -3783,6 +3845,12 @@ PanelWindow {
             if (root.expanded && root.page === "bt") { root.collapse(); return; }
             root.togglePage("bt");
             root.scanBt();
+        }
+        function testBtToast(name: string, type: string): void {
+            root.showBtToast(name || "AirPods Pro", type || "earbuds", false);
+        }
+        function testBtLowBatt(name: string, type: string): void {
+            root.showBtLowBattToast(name || "AirPods Pro", type || "earbuds");
         }
         function settings(): void { root.settingsTab = 0; root.togglePage("settings"); }
         // открыть окно настроек сразу на нужном разделе: удобно вешать на
@@ -4541,23 +4609,24 @@ PanelWindow {
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
             Item {
-                Layout.preferredWidth: 22
-                Layout.preferredHeight: 22
+                Layout.preferredWidth: 26
+                Layout.preferredHeight: 26
                 Layout.alignment: Qt.AlignVCenter
-                Layout.rightMargin: 6
+                Layout.rightMargin: 4
 
                 Text {
                     anchors.centerIn: parent
                     text: root.btToastDisconnected ? String.fromCodePoint(0xF00B2)
-                        : root.btToastType === "earbuds" ? String.fromCodePoint(0xF15C6)
+                        : root.btToastType === "earbuds" ? String.fromCodePoint(0xF184F)
                         : root.btToastType === "mouse" ? String.fromCodePoint(0xF098B)
                         : root.btToastType === "keyboard" ? String.fromCodePoint(0xF030C)
                         : root.btToastType === "gamepad" ? String.fromCodePoint(0xF02B4)
                         : root.btToastType === "phone" ? String.fromCodePoint(0xF011E)
                         : root.btToastType === "speaker" ? String.fromCodePoint(0xF04C3)
+                        : root.btToastType === "watch" ? String.fromCodePoint(0xF0584)
                         : String.fromCodePoint(0xF00AF)
-                    color: root.btToastDisconnected ? root.colCrit : root.colFg
-                    font { family: root.fontFam; pixelSize: 20 }
+                    color: (root.btToastDisconnected || root.btToastLowBatt) ? root.colCrit : root.colFg
+                    font { family: root.fontFam; pixelSize: root.btToastType === "earbuds" ? 24 : 21 }
                 }
             }
 
@@ -4567,8 +4636,10 @@ PanelWindow {
                 transform: Translate { y: -2 }
 
                 Text {
-                    text: root.btToastDisconnected ? root.tr("Отключено") : root.tr("Подключено")
-                    color: root.btToastDisconnected ? root.colCrit : root.colMuted
+                    text: root.btToastLowBatt ? root.tr("Низкий заряд батареи")
+                        : root.btToastDisconnected ? root.tr("Отключено")
+                        : root.tr("Подключено")
+                    color: (root.btToastDisconnected || root.btToastLowBatt) ? root.colCrit : root.colMuted
                     transform: Translate { y: 2 }
                     font { family: root.fontFam; pixelSize: root.fontSize - 4 }
                 }
@@ -4710,7 +4781,7 @@ PanelWindow {
             anchors.fill: parent
             z: 1
             visible: root.acToastActive
-            property color tint: root.colOk
+            property color tint: root.acToastKind === "lowbatt" ? root.colCrit : root.colOk
             property real level: root.batteryPct / 100
             property real phase: 0
             onPhaseChanged: requestPaint()
@@ -4782,20 +4853,22 @@ PanelWindow {
 
             Text {
                 Layout.alignment: Qt.AlignVCenter
-                text: String.fromCodePoint(0xF0241)
-                color: root.colOk
+                text: root.acToastKind === "lowbatt" ? String.fromCodePoint(0xF008E)
+                                                      : String.fromCodePoint(0xF0241)
+                color: root.acToastKind === "lowbatt" ? root.colCrit : root.colOk
                 font { family: root.fontFam; pixelSize: root.iconSize + 3 }
             }
             Text {
                 Layout.alignment: Qt.AlignVCenter
-                text: root.tr("Заряжается")
-                color: root.colFg
+                text: root.acToastKind === "lowbatt" ? root.tr("Низкий заряд батареи")
+                                                      : root.tr("Заряжается")
+                color: root.acToastKind === "lowbatt" ? root.colCrit : root.colFg
                 font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
             }
             Text {
                 Layout.alignment: Qt.AlignVCenter
                 text: root.batteryPct + "%"
-                color: root.colOk
+                color: root.acToastKind === "lowbatt" ? root.colCrit : root.colOk
                 font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
             }
         }

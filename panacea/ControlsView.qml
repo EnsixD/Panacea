@@ -2668,10 +2668,13 @@ Item {
                     Row1 {
                         id: row1
                         required property var modelData
-                        icon: modelData.icon === "audio-headset" ? "󰋋"
+                        icon: (modelData.icon === "audio-headset" || modelData.icon === "audio-headphones") ? "󱡏"
                             : modelData.icon === "input-mouse" ? "󰦋"
                             : modelData.icon === "input-keyboard" ? "󰌌"
-                            : modelData.icon === "phone" ? "󰄞" : "󰂯"
+                            : (modelData.icon === "audio-speakers" || modelData.icon === "audio-speaker") ? "󰓃"
+                            : modelData.icon === "input-gaming" ? "󰊴"
+                            : (modelData.icon === "phone" || modelData.icon === "smartphone") ? "󰄞"
+                            : modelData.icon === "watch" ? "󰖄" : "󰂯"
                         title: modelData.name || modelData.address
                         // Статус проходит через «Сопряжение…» и «Подключение…»,
                         // чтобы было видно, что происходит, а не «моргало».
