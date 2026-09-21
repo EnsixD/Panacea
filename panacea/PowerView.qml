@@ -16,7 +16,7 @@ Item {
 
     Timer {
         id: disarm
-        interval: 2600
+        interval: 4000
         onTriggered: view.armed = -1
     }
 
@@ -29,19 +29,29 @@ Item {
     readonly property var actions: view.sys.cfg.featLock ? view.allActions
                                  : view.allActions.filter(a => a.id !== "lock")
     readonly property var allActions: [
-        { id: "sleep", icon: "", label: view.sys.tr("Сон"),          cmd: "systemctl suspend",     accent: view.sys.tint("#38bdf8") },  // рисуется буквами, см. ниже
+        { id: "sleep", icon: "", label: view.sys.tr("Сон"),
+          cmd: "systemctl suspend -i || systemctl suspend || loginctl suspend",
+          accent: view.sys.tint("#38bdf8") },  // рисуется буквами, см. ниже
+        { id: "lock", instant: true, icon: String.fromCodePoint(0xF033E),
+          label: view.sys.tr("Заблокировать"),
+          cmd: "$HOME/.config/panacea/scripts/lock.sh",
+          accent: view.sys.tint("#a78bfa") },  // md-lock
         // instant: срабатывает с первого нажатия. Подтверждение нужно там, где
         // ошибка стоит несохранённой работы, — выключение, перезагрузка, сон.
         // Блокировка не стоит ничего: она отменяется тем же паролем, которым
         // и снимается. Требовать на неё второе нажатие значило делать вид,
         // что кнопка не работает: первое-то не делает ничего.
-        { icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),
+        { id: "logout", instant: true, icon: String.fromCodePoint(0xF0343), label: view.sys.tr("Выйти"),
           cmd: "if [ -n \"$NIRI_SOCKET\" ] || [ \"${XDG_CURRENT_DESKTOP,,}\" = \"niri\" ]; then "
              + "niri msg action quit --skip-confirmation; "
              + "else out=$(hyprctl dispatch 'hl.dsp.exit()' 2>&1); case \"$out\" in ok*) ;; *) hyprctl dispatch exit ;; esac; fi",
           accent: view.sys.colWarn },  // md-logout
-        { icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"), cmd: "systemctl reboot",      accent: view.sys.tint("#fb923c") },  // md-restart
-        { icon: String.fromCodePoint(0xF0425), label: view.sys.tr("Выключить"),    cmd: "systemctl poweroff",    accent: view.sys.colCrit }   // md-power
+        { id: "reboot", icon: String.fromCodePoint(0xF0709), label: view.sys.tr("Перезагрузка"),
+          cmd: "systemctl reboot -i || systemctl reboot || loginctl reboot",
+          accent: view.sys.tint("#fb923c") },  // md-restart
+        { id: "poweroff", icon: String.fromCodePoint(0xF0425), label: view.sys.tr("Выключить"),
+          cmd: "systemctl poweroff -i || systemctl poweroff || loginctl poweroff",
+          accent: view.sys.colCrit }   // md-power
     ]
 
     function trigger(i) {
@@ -183,7 +193,7 @@ Item {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: modelData.label
+                            text: body.parent.isArmed ? view.sys.tr("Подтвердите") : modelData.label
                             color: body.parent.isArmed ? view.sys.colFg : view.sys.colMuted
                             font {
                                 family: view.sys.fontFam

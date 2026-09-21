@@ -65,6 +65,7 @@ B("closeWindow",  mainMod .. " + Q",         hl.dsp.exec_cmd(CLOSE))
 B("browser",      mainMod .. " + F",         hl.dsp.exec_cmd(p.browser))
 B("fullscreen",   mainMod .. " + SHIFT + F", hl.dsp.window.fullscreen())
 B("exitHypr",     mainMod .. " + SHIFT + M", hl.dsp.exit())
+B("lockScreen",   mainMod .. " + L",         hl.dsp.exec_cmd(p.lock))
 B("themeSwitch",  mainMod .. " + SHIFT + T", hl.dsp.exec_cmd(QS .. "theme"))
 -- окно в «плавающее» и обратно
 B("floatToggle",  mainMod .. " + W",         hl.dsp.window.float({ action = "toggle" }))

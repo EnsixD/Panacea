@@ -407,8 +407,9 @@ ColumnLayout {
             BindRow { bindId: "pillVault";     label: page.sys.tr("Менеджер паролей") }
 
             Head { text: page.sys.tr("Система") }
-            BindRow { bindId: "screenOff"; label: page.sys.tr("Погасить экран") }
-            BindRow { bindId: "exitHypr";  label: page.sys.tr("Выйти из Hyprland") }
+            BindRow { bindId: "lockScreen"; label: page.sys.tr("Заблокировать экран") }
+            BindRow { bindId: "screenOff";  label: page.sys.tr("Погасить экран") }
+            BindRow { bindId: "exitHypr";   label: page.sys.tr("Выйти из Hyprland") }
         }
 
         ColumnLayout {
