@@ -179,7 +179,7 @@ AUR. Declining is fine: everything from the repos still installs. It then backs
 up anything it would overwrite, copies the configs, enables Bluetooth /
 power‑profiles / iwd, spreads the palette across the applications, restores the
 wallpaper and warms up its thumbnails. It then offers, one prompt at a time: the
-wallpaper pack (about 400 MB, downloaded as plain files), the GRUB boot theme and
+wallpaper pack (300+ wallpapers bundled in `wallpapers/`), the GRUB boot theme and
 the SDDM login theme.
 
 Flags: `--no-deps`, `--no-sddm`, `--no-grub`, `--no-services`, `--no-wallpapers`,
@@ -264,6 +264,7 @@ in `model = ` under `[whisper]` in `~/.config/voxtype/config.toml`.
 ```
 panacea/   the pill: QML, scripts, settings.json
 hypr/      Hyprland (Lua config, palette, wallpapers, scripts)
+wallpapers/ bundled collection of 300+ wallpapers
 niri/      Niri (config.kdl, custom overrides, scripts)
 grub/      boot theme + the script that generates its assets
 sddm/      login theme
@@ -297,7 +298,7 @@ issue.
 - [HyDE](https://github.com/HyDE-Project/HyDE) — `spring_bloom.jpg`, from its
   Graphite Mono theme; `hypr/palette.conf` is derived from it.
 - [ilyamiro/shell-wallpapers](https://github.com/ilyamiro/shell-wallpapers) — the
-  optional pack the installer offers to download.
+  wallpaper collection bundled in `wallpapers/`.
 
 Video wallpapers play through [mpvpaper](https://github.com/GhostNaN/mpvpaper);
 none are bundled. Drop `.mp4`, `.webm`, `.mkv` or `.mov` into

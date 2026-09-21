@@ -1237,12 +1237,24 @@ set_grub_key() {
 }
 
 # ------------------------------------------------------------------ wallpapers
-# Репозиторий несёт только пару обоев: набор целиком — это 400 МБ, в dotfiles
-# такому места нет. Поэтому предлагаем скачать его отдельно, файлами, без
-# истории (git clone тянул бы полгигабайта).
+# Обои поставляются в репозитории в каталоге wallpapers/ (300+ обоев).
+# Если каталог есть локально — копируем из него напрямую. Если нет (например,
+# скрипт запущен отдельно) — загружаем как раньше через GitHub API.
 WALLS_REPO="ilyamiro/shell-wallpapers"
 install_wallpapers() {
     local dst="$CONF/hypr/wallpaper/shell"
+    mkdir -p "$dst" || return
+
+    if [ -d "$SRC/wallpapers" ]; then
+        local n; n=$(find "$SRC/wallpapers" -type f 2>/dev/null | wc -l)
+        if [ "$n" -gt 0 ]; then
+            printf '  copying %s wallpapers from repository...\n' "$n"
+            cp -n "$SRC/wallpapers"/* "$dst/" 2>/dev/null || cp -f "$SRC/wallpapers"/* "$dst/"
+            ok "wallpapers → $dst ($n files installed)"
+            return
+        fi
+    fi
+
     command -v curl >/dev/null 2>&1 || { warn "curl not found — skipping the wallpaper pack"; return; }
     command -v python3 >/dev/null 2>&1 || { warn "python3 not found — skipping the wallpaper pack"; return; }
 
@@ -1394,9 +1406,13 @@ if [ "$DO_SERVICES" = "1" ]; then
     enable_services
 fi
 
-if [ "$DO_WALLS" = "1" ] && ask "Download the wallpaper pack (~400 MB, $WALLS_REPO)?"; then
-    step "Downloading wallpapers"
-    install_wallpapers
+if [ "$DO_WALLS" = "1" ]; then
+    walls_msg="Install the wallpaper pack (300+ wallpapers)?"
+    [ ! -d "$SRC/wallpapers" ] && walls_msg="Download the wallpaper pack (~400 MB, $WALLS_REPO)?"
+    if ask "$walls_msg"; then
+        step "Installing wallpapers"
+        install_wallpapers
+    fi
 fi
 
 if [ "$DO_GRUB" = "1" ] && [ -d /boot/grub ]; then

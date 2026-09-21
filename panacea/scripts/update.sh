@@ -447,6 +447,12 @@ cmd_apply() {
     echo "step=restore"
     restore_user_state
 
+    # Синхронизируем новые обои из репозитория, не затирая пользовательские
+    if [ -d "$tmp/src/wallpapers" ]; then
+        mkdir -p "$CONF/hypr/wallpaper/shell"
+        cp -n "$tmp/src/wallpapers"/* "$CONF/hypr/wallpaper/shell/" 2>/dev/null || true
+    fi
+
     # Новая версия могла добавить зависимости, а ставим мы с --no-deps:
     # хватать пакеты без спроса, да ещё и через sudo из-под кнопки в
     # настройках, — не то, чего ждут от обновления. Поэтому только называем
