@@ -57,7 +57,7 @@ one geometry, one palette and one animation timeline.
 | Wallpapers | `Super + Shift + T` | Full‑screen carousel with parallax previews, stills and live video |
 | Workspaces | `Super + Tab` | Live previews of every workspace, switch from the grid |
 | Launcher | `Super + A` | App search + calculator, recents first; also the agent panel and the other systems on the disk |
-| Clipboard | `Super + V` | `cliphist` history with search |
+| Clipboard | `Super + V` | Smart clipboard: automatic detection of HEX colors (swatch preview & RGB/HSL copy), URLs (open in browser), files/images (thumbnails), and pinned snippets |
 | Files | `Super + E` | Bookmarks, disks, sorting, trash, context menu, drag between windows |
 | Media | opens a file | Images, GIFs, video — trim and crop |
 | Recorder | `Super + P` | FPS, folder, system audio, microphone |
@@ -71,6 +71,13 @@ one geometry, one palette and one animation timeline.
 Hovering the pill opens it too — the player if something is playing, quick
 settings otherwise. Every page closes with the same key, `Escape`, or a click
 outside. Collapsed, it shows day, clock, workspace, layout and battery.
+
+### Nothing OS Desktop Widgets
+
+Minimalist desktop cards that live directly on your wallpaper (`Super + I` → *Appearance* → *Desktop widgets*):
+- **Nothing Analog Clock**: Signature 12-dot dial with cardinal points, double dot at 12 o'clock, clean white hands, and an orbiting red accent second hand (`colCrit`). Click to toggle between Analog and Digital Dot Clock.
+- **Concentric System Monitor**: Dual concentric minimalist arcs (outer ring for RAM %, inner ring for root SSD %) with dot-matrix percentage in the center. Click the card or icon to toggle between Weather details and the System monitor.
+- **Life Bar / Day & Year Progress**: A 24-segment dot bar representing the hours of the day (elapsed hours in solid white, current hour pulsing red, future hours dimmed) and time remaining. Click to switch between 24-hour Day Progress and 365-day Year Progress.
 
 **Settings** has twelve sections, searchable from the top of the panel: *Bar &
 Island* (a mock‑up of your desktop with the real island on it, its screen edge

@@ -202,6 +202,9 @@ PanelWindow {
             // поверх обоев и меняют вид рабочего стола, а такое включают
             // сами, а не обнаруживают после обновления.
             property bool   featWidgets: false
+            property string widgetClockMode: "analog"
+            property string widgetRightMode: "weather"
+            property string widgetProgressMode: "day"
 
             // Прозрачность терминала. Живёт здесь, а правится в foot.ini:
             // сам foot настройки оболочки не читает.
@@ -306,7 +309,9 @@ PanelWindow {
         vibrance: 50, mouseSens: 0, mouseRaw: false,
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
         weatherKey: "", weatherCity: "", weatherUnits: "metric",
-        weatherOnIsland: true, featWidgets: false, termAlpha: 0.90,
+        weatherOnIsland: true, featWidgets: false,
+        widgetClockMode: "analog", widgetRightMode: "weather", widgetProgressMode: "day",
+        termAlpha: 0.90,
         uiSounds: true
     })
 
@@ -2207,16 +2212,26 @@ PanelWindow {
     property int loadGpu:  -1
     property int loadTempCpu: -1
     property int loadTempGpu: -1
+    property int loadDisk: -1
 
-    // Опрашиваем только пока панель раскрыта и только на той теме, где эта
-    // сводка есть. Постоянный процесс раз в две секунды ради чисел, которых
-    // никто не видит, — плата ни за что: скрипт будит nvidia-smi, а тот
-    // просыпается заметно дольше, чем читается файл.
-    readonly property bool loadWanted: root.expanded
+    // Опрашиваем пока панель раскрыта или включены настольные виджеты.
+    // На рабочем столе скрипт вызывается с флагом --fast без задержки сна
+    // и nvidia-smi, снимая только RAM и Disk за несколько миллисекунд.
+    readonly property bool loadWanted: root.expanded || root.cfg.featWidgets
+
+    Connections {
+        target: root
+        function onExpandedChanged() {
+            if (root.expanded && root.loadWanted) {
+                pLoad.running = false;
+                pLoad.running = true;
+            }
+        }
+    }
 
     Process {
         id: pLoad
-        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/sysload.sh"]
+        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/sysload.sh" + (root.expanded ? "" : " --fast")]
         stdout: StdioCollector {
             onStreamFinished: {
                 // Сборщик копит вывод всех запусков подряд, поэтому берём
@@ -2228,17 +2243,23 @@ PanelWindow {
                     s = String(s || "").trim();
                     return s.length ? (+s) : -1;
                 }
-                root.loadCpu = num(a[0]);
-                root.loadMem = num(a[1]);
-                root.loadGpu = num(a[2]);
-                root.loadTempCpu = num(a[3]);
-                root.loadTempGpu = num(a[4]);
+                if (root.expanded) {
+                    root.loadCpu = num(a[0]);
+                    root.loadMem = num(a[1]);
+                    root.loadGpu = num(a[2]);
+                    root.loadTempCpu = num(a[3]);
+                    root.loadTempGpu = num(a[4]);
+                    root.loadDisk = num(a[5]);
+                } else {
+                    root.loadMem = num(a[1]);
+                    root.loadDisk = num(a[5]);
+                }
             }
         }
     }
 
     Timer {
-        interval: 2000
+        interval: root.expanded ? 2000 : 5000
         running: root.loadWanted
         repeat: true
         triggeredOnStart: true
@@ -3980,6 +4001,7 @@ PanelWindow {
         function audio(): void { root.togglePage("audio"); }
         function calendar(): void { root.togglePage("cal"); }
         function theme(): void { root.toggleWalls(); }
+        function widgets(): void { root.cfg.featWidgets = !root.cfg.featWidgets; root.saveCfg(); }
         function record(): void { root.togglePage("record"); }
         function files(): void { root.togglePage("files"); }
         // Открыть проводник сразу в нужном каталоге. Нужно, чтобы система

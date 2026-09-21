@@ -122,9 +122,45 @@ ColumnLayout {
         SetToggle {
             sys: page.sys
             label: page.sys.tr("Настольные виджеты")
-            sub: page.sys.tr("Карточки на обоях: дата, погода и часы. Начертание берут у выбранной темы.")
+            sub: page.sys.tr("Карточки Nothing OS на обоях: дата, часы, погода, системный монитор и шкала прогресса. Клик по карточкам переключает режимы.")
             on: page.sys.cfg.featWidgets
             onToggled: v => { page.sys.cfg.featWidgets = v; page.sys.saveCfg(); }
+        }
+
+        SetSelect {
+            visible: page.sys.cfg.featWidgets
+            sys: page.sys
+            label: page.sys.tr("Стиль часов")
+            options: [
+                { id: "analog", text: page.sys.tr("Аналоговые Nothing") },
+                { id: "digital", text: page.sys.tr("Цифровые точечные") }
+            ]
+            value: page.sys.cfg.widgetClockMode || "analog"
+            onPicked: id => { page.sys.cfg.widgetClockMode = id; page.sys.saveCfg(); }
+        }
+
+        SetSelect {
+            visible: page.sys.cfg.featWidgets
+            sys: page.sys
+            label: page.sys.tr("Информационный блок")
+            options: [
+                { id: "weather", text: page.sys.tr("Погода (ветер и влажность)") },
+                { id: "system", text: page.sys.tr("Система (RAM и SSD)") }
+            ]
+            value: page.sys.cfg.widgetRightMode || "weather"
+            onPicked: id => { page.sys.cfg.widgetRightMode = id; page.sys.saveCfg(); }
+        }
+
+        SetSelect {
+            visible: page.sys.cfg.featWidgets
+            sys: page.sys
+            label: page.sys.tr("Шкала прогресса")
+            options: [
+                { id: "day", text: page.sys.tr("Прогресс дня (24 часа)") },
+                { id: "year", text: page.sys.tr("Прогресс года (365 дней)") }
+            ]
+            value: page.sys.cfg.widgetProgressMode || "day"
+            onPicked: id => { page.sys.cfg.widgetProgressMode = id; page.sys.saveCfg(); }
         }
 
         Text {
