@@ -856,10 +856,11 @@ PanelWindow {
         root.updBusy = true;
         root.updError = "";
         root.updStep = "download";
-        root.updCreepAt = 0;
+        root.updCreepAt = 4;
+        root.busyProgress = 4;
         // Обновление идёт минуты и переживает закрытие настроек: показываем
         // его в острове, иначе о нём знало бы только открытое окно.
-        root.beginBusy(root.tr("Обновление…"), "󰚰", root.updStepPercent);
+        root.beginBusy(root.tr("Обновление…"), "󰚰", 4);
         pUpdApply.running = true;
     }
 
@@ -873,14 +874,15 @@ PanelWindow {
     // заполняться. Числа взяты из замеров: клон около трёх секунд,
     // установщик около одной, остальное — мгновения.
     readonly property var updSteps: [
-        { id: "download",   w: 30 },
-        { id: "selfupdate", w: 2  },
-        { id: "backup",     w: 3  },
-        { id: "install",    w: 12 },
-        { id: "greeter",    w: 2  },
-        { id: "restore",    w: 3  },
-        { id: "restart",    w: 2  },
-        { id: "done",       w: 0  }
+        { id: "download",      w: 30 },
+        { id: "selfupdate",    w: 2  },
+        { id: "backup",        w: 4  },
+        { id: "install",       w: 16 },
+        { id: "greeter",       w: 2  },
+        { id: "restore",       w: 4  },
+        { id: "voxtype_model", w: 15 },
+        { id: "restart",       w: 4  },
+        { id: "done",          w: 0  }
     ]
     readonly property real updWeightTotal: {
         var t = 0;
@@ -921,18 +923,19 @@ PanelWindow {
     // единицы в нём терялось бы — полоса застревала бы у самой границы, куда
     // подползает всё медленнее.
     property real updCreepAt: 0
+    readonly property int updProgress: Math.max(0, Math.min(100, Math.round(root.updCreepAt)))
 
     Timer {
         id: updCreep
-        interval: 220
+        interval: 180
         repeat: true
         running: root.updBusy && root.updStep !== "done"
         onTriggered: {
-            var to = root.updStepCeil;
+            var to = Math.max(root.updStepCeil, root.updStepPercent + 5);
             if (root.updCreepAt >= to) return;
             // шаг тем меньше, чем ближе граница
             var left = to - root.updCreepAt;
-            root.updCreepAt = Math.min(to, root.updCreepAt + Math.max(0.25, left * 0.06));
+            root.updCreepAt = Math.min(to, root.updCreepAt + Math.max(0.3, left * 0.05));
             root.busyProgress = Math.round(root.updCreepAt);
         }
     }

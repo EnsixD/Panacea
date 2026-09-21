@@ -342,6 +342,9 @@ write_changelog() {
 cmd_apply() {
     have git || { echo "status=error"; echo "error=nogit"; exit 1; }
 
+    # Сразу сообщаем оболочке о начале скачивания, чтобы шкала не замирала на 0%
+    echo "step=download"
+
     local sha subject
     IFS=$'\t' read -r sha subject <<<"$(remote_info)"
     [ -n "$sha" ] || { echo "status=error"; echo "error=offline"; exit 1; }
@@ -355,12 +358,10 @@ cmd_apply() {
     # уже всё скачала. Проверяем, что это действительно наш каталог, а не
     # оставшийся от чужого запуска: без install.sh дальше делать нечего.
     if [ -n "${PANACEA_SRC:-}" ] && [ -f "$PANACEA_SRC/install.sh" ]; then
-        echo "step=download"
         rm -rf "$tmp"
         tmp="$(dirname "$PANACEA_SRC")"
         trap 'rm -rf "${tmp:-}"' EXIT
     else
-        echo "step=download"
         # --no-tags: метки в оболочке не используются, а тянутся вместе с
         # ветками. Один коммит без истории — всё, что нужно для установки.
         git clone --depth 1 --single-branch --no-tags --branch "$BRANCH" \

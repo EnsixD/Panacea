@@ -33,13 +33,15 @@ ColumnLayout {
     property real selfMb: 0       // сколько занимает сама оболочка, МиБ
 
     function stepName(st) {
-        return st === "download"   ? page.sys.tr("скачивание")
-             : st === "selfupdate" ? page.sys.tr("обновление обновлятора")
-             : st === "backup"   ? page.sys.tr("сохранение настроек")
-             : st === "install"  ? page.sys.tr("установка")
-             : st === "restore"  ? page.sys.tr("возврат настроек")
-             : st === "restart"  ? page.sys.tr("перезапуск")
-             : "";
+        return st === "download"      ? page.sys.tr("скачивание")
+             : st === "selfupdate"    ? page.sys.tr("обновление обновлятора")
+             : st === "backup"        ? page.sys.tr("сохранение настроек")
+             : st === "install"       ? page.sys.tr("установка")
+             : st === "greeter"       ? page.sys.tr("экран входа")
+             : st === "restore"       ? page.sys.tr("возврат настроек")
+             : st === "voxtype_model" ? page.sys.tr("скачивание голосовой модели")
+             : st === "restart"       ? page.sys.tr("перезапуск")
+             : page.sys.tr("подготовка");
     }
 
     // кнопка сброса взведена и ждёт подтверждения
@@ -356,7 +358,7 @@ ColumnLayout {
                 Rectangle {
                     height: parent.height
                     radius: parent.radius
-                    width: parent.width * page.sys.updStepPercent / 100
+                    width: parent.width * Math.max(0.04, page.sys.updProgress / 100)
                     color: page.sys.colOn
                     Behavior on width {
                         NumberAnimation { duration: page.sys.animMs; easing.type: Easing.OutQuint }
@@ -378,7 +380,7 @@ ColumnLayout {
                     font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
                 }
                 Text {
-                    text: page.sys.updStepPercent + "%"
+                    text: Math.max(1, page.sys.updProgress) + "%"
                     color: page.sys.colMuted
                     font { family: page.sys.fontFam; pixelSize: page.sys.fontSize - 4 }
                 }
