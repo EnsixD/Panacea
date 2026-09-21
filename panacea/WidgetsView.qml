@@ -4,22 +4,23 @@ import QtQuick.Layouts
 // Настольные виджеты темы Nothing — карточки поверх обоев.
 //
 // Дизайн в стиле Nothing OS:
-// - Дата с точечным числом и днем недели (красный в выходные)
-// - Аналоговые минималистичные часы Nothing с точечным циферблатом и красной
-//   секундной точкой colCrit (по клику переключаются в цифровой точечный режим)
-// - Погода с точечными иконками и круглыми индикаторами влажности/ветра
-// - Концентрический системный монитор RAM и SSD (по клику на правый блок)
-// - Шкала прогресса (Life Bar): 24-сегментный прогресс дня с пульсирующим
-//   текущим часом или 12-сегментный прогресс года.
-//
-// Клик по карточкам переключает их режимы с сохранением настроек.
+// - Дата: день недели (красный в выходные), точечное число и месяц
+// - Часы Nothing OS: 12-точечный циферблат с двойной точкой на 12, чётко различимые
+//   стрелки (короткая часовая капсула 0.38*r и длинная минутная стрелка 0.78*r),
+//   фирменная втулка-пончик Nothing, орбитальная красная точка colCrit и цифровая подсказка.
+//   Клик переключает между аналоговыми и точечными цифровыми часами.
+// - Главная карточка погоды (слева): температура, точечная иконка, город.
+//   Клик открывает детальное окно прогноза погоды.
+// - Вспомогательная карточка (справа): по клику переключается между подробностями
+//   погоды (описание + влажность/ветер) и монитором системы (концентрические дуги RAM и SSD).
+// - Шкала прогресса (Life Bar, снизу): 24-сегментный прогресс дня с пульсирующим
+//   текущим часом. Клик переключает между прогрессом дня (24H) и года (365D).
 Item {
     id: view
 
     property var sys
 
-    // Ширина колонки и просвет между карточками. Из них считается всё
-    // остальное, поэтому размер набора правится этими двумя числами.
+    // Ширина колонки и просвет между карточками
     readonly property real col: 144
     readonly property real gap: 12
     readonly property real fullW: view.col * 2 + view.gap
@@ -32,9 +33,9 @@ Item {
     readonly property string rightMode: (view.sys && view.sys.cfg && view.sys.cfg.widgetRightMode) || "weather"
     readonly property string progressMode: (view.sys && view.sys.cfg && view.sys.cfg.widgetProgressMode) || "day"
 
-    // Реактивный пересчёт прогресса дня и года по view.sys.timeText
-    readonly property int curHour: { var _ = (view.sys && view.sys.timeText); return (new Date()).getHours(); }
-    readonly property int curMin: { var _ = (view.sys && view.sys.timeText); return (new Date()).getMinutes(); }
+    // Синхронизация с системным временем через view.sys
+    readonly property int curHour: (view.sys && view.sys.timeHour !== undefined) ? view.sys.timeHour : (new Date()).getHours()
+    readonly property int curMin: (view.sys && view.sys.timeMinute !== undefined) ? view.sys.timeMinute : (new Date()).getMinutes()
     readonly property int curMonth: { var _ = (view.sys && view.sys.dayNum); return (new Date()).getMonth(); }
 
     readonly property int curDayOfYear: {
@@ -203,6 +204,13 @@ Item {
                         id: clockCanvas
                         anchors.fill: parent
 
+                        Connections {
+                            target: view.sys
+                            function onTimeSecondChanged() { clockCanvas.requestPaint(); }
+                            function onTimeTextChanged() { clockCanvas.requestPaint(); }
+                            function onTimeHourChanged() { clockCanvas.requestPaint(); }
+                        }
+
                         Timer {
                             interval: 1000
                             running: view.visible && view.clockMode === "analog"
@@ -246,44 +254,58 @@ Item {
                                 ctx.fill();
                             }
 
-                            var now = new Date();
-                            var s = now.getSeconds();
-                            var m = now.getMinutes();
-                            var h = now.getHours();
+                            // Синхронизация с системным временем через view.sys
+                            var h = (view.sys && view.sys.timeHour !== undefined) ? view.sys.timeHour : (new Date()).getHours();
+                            var m = (view.sys && view.sys.timeMinute !== undefined) ? view.sys.timeMinute : (new Date()).getMinutes();
+                            var s = (view.sys && view.sys.timeSecond !== undefined) ? view.sys.timeSecond : (new Date()).getSeconds();
 
-                            // Часовая стрелка
-                            var hAng = ((h % 12) + m / 60) * (Math.PI / 6) - Math.PI / 2;
+                            // Часовая стрелка: короткая капсула 0.38*r, толщина 4.5px (вдвое короче минутной!)
+                            var hAng = ((h % 12) + m / 60 + s / 3600) * (Math.PI / 6) - Math.PI / 2;
                             ctx.beginPath();
-                            ctx.lineWidth = 3.2;
+                            ctx.lineWidth = 4.5;
                             ctx.lineCap = "round";
-                            ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
-                            ctx.moveTo(cx - Math.cos(hAng) * 4, cy - Math.sin(hAng) * 4);
-                            ctx.lineTo(cx + Math.cos(hAng) * (r * 0.50), cy + Math.sin(hAng) * (r * 0.50));
+                            ctx.strokeStyle = "rgba(255, 255, 255, 0.98)";
+                            ctx.moveTo(cx, cy);
+                            ctx.lineTo(cx + Math.cos(hAng) * (r * 0.38), cy + Math.sin(hAng) * (r * 0.38));
                             ctx.stroke();
 
-                            // Минутная стрелка
+                            // Минутная стрелка: длинная стрелка 0.78*r, толщина 2.2px (тянется к точкам циферблата)
                             var mAng = (m + s / 60) * (Math.PI / 30) - Math.PI / 2;
                             ctx.beginPath();
-                            ctx.lineWidth = 2.0;
+                            ctx.lineWidth = 2.2;
                             ctx.lineCap = "round";
-                            ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
-                            ctx.moveTo(cx - Math.cos(mAng) * 5, cy - Math.sin(mAng) * 5);
-                            ctx.lineTo(cx + Math.cos(mAng) * (r * 0.74), cy + Math.sin(mAng) * (r * 0.74));
+                            ctx.strokeStyle = "rgba(255, 255, 255, 0.98)";
+                            ctx.moveTo(cx, cy);
+                            ctx.lineTo(cx + Math.cos(mAng) * (r * 0.78), cy + Math.sin(mAng) * (r * 0.78));
                             ctx.stroke();
 
-                            // Центральная втулка
+                            // Фирменная втулка-пончик Nothing OS (накладывается поверх стрелок)
                             ctx.beginPath();
-                            ctx.arc(cx, cy, 3.2, 0, Math.PI * 2);
+                            ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
                             ctx.fillStyle = "#ffffff";
                             ctx.fill();
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, 2.0, 0, Math.PI * 2);
+                            ctx.fillStyle = "#111111";
+                            ctx.fill();
 
-                            // Секундная стрелка: культовая красная точка Nothing OS
+                            // Секундная стрелка: орбитальная красная точка colCrit
                             var sAng = s * (Math.PI / 30) - Math.PI / 2;
                             ctx.beginPath();
-                            ctx.arc(cx + Math.cos(sAng) * (r * 0.88), cy + Math.sin(sAng) * (r * 0.88), 3.0, 0, Math.PI * 2);
+                            ctx.arc(cx + Math.cos(sAng) * (r * 0.88), cy + Math.sin(sAng) * (r * 0.88), 3.2, 0, Math.PI * 2);
                             ctx.fillStyle = view.sys ? String(view.sys.colCrit) : "#d71921";
                             ctx.fill();
                         }
+                    }
+
+                    // Аккуратная цифровая подсказка времени снизу
+                    Caption {
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 8
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: view.sys ? view.sys.timeText : ""
+                        font.pixelSize: 8
+                        color: view.sys ? Qt.rgba(view.sys.colFg.r, view.sys.colFg.g, view.sys.colFg.b, 0.4) : "#666666"
                     }
                 }
 
@@ -334,7 +356,7 @@ Item {
             Layout.preferredWidth: view.fullW
             spacing: view.gap
 
-            // Главная карточка погоды (144x140)
+            // Главная карточка погоды (144x140) — клик открывает полное окно прогноза
             Card {
                 id: mainWeatherCard
                 Layout.preferredWidth: view.col
@@ -383,146 +405,138 @@ Item {
                 }
             }
 
-            // Правая колонка: Детали погоды ИЛИ Системный монитор RAM/SSD
-            Item {
+            // Правая карточка (144x140) — КЛИК ПЕРЕКЛЮЧАЕТ МЕЖДУ ПОГОДОЙ И СИСТЕМОЙ
+            Card {
+                id: rightToggleCard
                 Layout.preferredWidth: view.col
                 Layout.preferredHeight: 140
                 Layout.alignment: Qt.AlignTop
+                color: rightCardMa.containsMouse ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
+                border.color: rightCardMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06)
+                Behavior on color { ColorAnimation { duration: 120 } }
+                Behavior on border.color { ColorAnimation { duration: 120 } }
 
-                // Блок погоды (описание + влажность/ветер)
-                ColumnLayout {
+                // Режим: ПОДРОБНОСТИ ПОГОДЫ
+                Item {
                     anchors.fill: parent
-                    spacing: view.gap
                     visible: view.rightMode === "weather"
 
-                    Card {
-                        Layout.preferredWidth: view.col
-                        Layout.preferredHeight: 62
-                        color: descCardMa.containsMouse ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
-                        border.color: descCardMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06)
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                        Behavior on border.color { ColorAnimation { duration: 120 } }
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 8
 
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 8
+                        // Верхняя плашка с описанием погоды
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 52
+                            radius: 14
+                            color: Qt.rgba(1, 1, 1, 0.035)
+                            border.color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
 
-                            WIcon {
-                                Layout.alignment: Qt.AlignVCenter
-                                size: 18
-                                color: view.sys ? view.sys.colFg : "#ffffff"
-                            }
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 8
 
-                            Text {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                text: (view.sys && view.sys.weatherReady) ? view.sys.weatherDesc : "—"
-                                color: view.sys ? view.sys.colFg : "#ffffff"
-                                wrapMode: Text.WordWrap
-                                maximumLineCount: 2
-                                elide: Text.ElideRight
-                                lineHeight: 0.95
-                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11 }
-                            }
+                                WIcon {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    size: 18
+                                    color: view.sys ? view.sys.colFg : "#ffffff"
+                                }
 
-                            // Значок переключения на монитор системы
-                            Text {
-                                text: "󰍛"
-                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
-                                color: toggleSysMa.containsMouse ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888888")
-                                MouseArea {
-                                    id: toggleSysMa
-                                    anchors.fill: parent
-                                    anchors.margins: -4
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (view.sys && view.sys.cfg) {
-                                            view.sys.cfg.widgetRightMode = "system";
-                                            view.sys.saveCfg();
-                                        }
-                                    }
+                                Text {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    text: (view.sys && view.sys.weatherReady) ? view.sys.weatherDesc : "—"
+                                    color: view.sys ? view.sys.colFg : "#ffffff"
+                                    wrapMode: Text.WordWrap
+                                    maximumLineCount: 2
+                                    elide: Text.ElideRight
+                                    lineHeight: 0.95
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11 }
+                                }
+
+                                // Иконка-подсказка: клик переключит на монитор системы
+                                Text {
+                                    text: "󰍛"
+                                    color: view.sys ? view.sys.colMuted : "#888888"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
                                 }
                             }
                         }
 
-                        MouseArea {
-                            id: descCardMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (view.sys) view.sys.openWeatherDetails(); }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.preferredWidth: view.col
-                        spacing: view.gap
-
-                        Repeater {
-                            model: [
-                                { v: (view.sys ? view.sys.weatherHumidity : "--"), suffix: "%",
-                                  cap: (view.sys ? view.sys.tr("Влажность") : "HUMIDITY") },
-                                { v: (view.sys ? view.sys.weatherWind : "--"), suffix: "",
-                                  cap: (view.sys ? view.sys.tr("Ветер") + " " + view.sys.weatherWindUnit : "WIND") }
-                            ]
+                        // Нижние кружки (Влажность и Ветер)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
 
                             Rectangle {
-                                id: circleCard
-                                required property var modelData
-                                Layout.preferredWidth: 66
-                                Layout.preferredHeight: 66
-                                radius: 33
-                                color: circleMa.containsMouse ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
-                                border.color: circleMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06)
-                                Behavior on color { ColorAnimation { duration: 120 } }
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 60
+                                radius: 16
+                                color: Qt.rgba(1, 1, 1, 0.035)
+                                border.color: Qt.rgba(1, 1, 1, 0.06)
                                 border.width: 1
 
                                 ColumnLayout {
                                     anchors.centerIn: parent
-                                    spacing: 3
+                                    spacing: 2
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        text: (view.sys && view.sys.weatherReady)
-                                              ? circleCard.modelData.v + circleCard.modelData.suffix : "--"
+                                        text: (view.sys && view.sys.weatherReady) ? (view.sys.weatherHumidity + "%") : "--"
                                         color: view.sys ? view.sys.colFg : "#ffffff"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15 }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15; bold: true }
                                     }
 
                                     Caption {
                                         Layout.alignment: Qt.AlignHCenter
-                                        Layout.maximumWidth: 58
-                                        horizontalAlignment: Text.AlignHCenter
-                                        font.pixelSize: 8
-                                        font.letterSpacing: 0.3
-                                        text: circleCard.modelData.cap
+                                        text: view.sys ? view.sys.tr("Влажность") : "HUMIDITY"
+                                        font.pixelSize: 7
+                                        font.letterSpacing: 0.2
                                     }
                                 }
+                            }
 
-                                MouseArea {
-                                    id: circleMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: { if (view.sys) view.sys.openWeatherDetails(); }
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 60
+                                radius: 16
+                                color: Qt.rgba(1, 1, 1, 0.035)
+                                border.color: Qt.rgba(1, 1, 1, 0.06)
+                                border.width: 1
+
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 2
+
+                                    Text {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: (view.sys && view.sys.weatherReady) ? String(view.sys.weatherWind) : "--"
+                                        color: view.sys ? view.sys.colFg : "#ffffff"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15; bold: true }
+                                    }
+
+                                    Caption {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: (view.sys ? view.sys.tr("Ветер") : "WIND") + " " + (view.sys ? view.sys.weatherWindUnit : "")
+                                        font.pixelSize: 7
+                                        font.letterSpacing: 0.2
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // Блок системного монитора RAM и SSD (концентрические дуги)
-                Card {
+                // Режим: СИСТЕМНЫЙ МОНИТОР (Концентрические дуги RAM и SSD)
+                Item {
                     anchors.fill: parent
                     visible: view.rightMode === "system"
-                    color: sysCardMa.containsMouse ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
-                    border.color: sysCardMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06)
-                    Behavior on color { ColorAnimation { duration: 120 } }
-                    Behavior on border.color { ColorAnimation { duration: 120 } }
 
+                    // Верхняя строка заголовка
                     RowLayout {
                         anchors.top: parent.top
                         anchors.left: parent.left
@@ -536,31 +550,20 @@ Item {
                             color: view.sys ? view.sys.colMuted : "#888888"
                         }
 
+                        // Иконка-подсказка: клик переключит на погоду
                         Text {
                             text: "󰖐"
                             font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12 }
-                            color: toggleWthMa.containsMouse ? (view.sys ? view.sys.colFg : "#ffffff") : (view.sys ? view.sys.colMuted : "#888888")
-                            MouseArea {
-                                id: toggleWthMa
-                                anchors.fill: parent
-                                anchors.margins: -4
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (view.sys && view.sys.cfg) {
-                                        view.sys.cfg.widgetRightMode = "weather";
-                                        view.sys.saveCfg();
-                                    }
-                                }
-                            }
+                            color: view.sys ? view.sys.colMuted : "#888888"
                         }
                     }
 
+                    // Концентрические кольца: внешнее RAM, внутреннее SSD
                     Item {
                         anchors.centerIn: parent
                         anchors.verticalCenterOffset: -2
-                        width: 78
-                        height: 78
+                        width: 76
+                        height: 76
 
                         Canvas {
                             id: ringsCanvas
@@ -581,8 +584,8 @@ Item {
                                 var ram = (view.sys && view.sys.loadMem >= 0) ? view.sys.loadMem : 0;
                                 var disk = (view.sys && view.sys.loadDisk >= 0) ? view.sys.loadDisk : 0;
 
-                                // Внешнее кольцо: RAM (radius 32, lineWidth 4)
-                                var r1 = 32;
+                                // Внешнее кольцо: RAM (radius 31, lineWidth 4)
+                                var r1 = 31;
                                 ctx.lineWidth = 4;
                                 ctx.lineCap = "round";
 
@@ -600,8 +603,8 @@ Item {
                                     ctx.stroke();
                                 }
 
-                                // Внутреннее кольцо: SSD (radius 22, lineWidth 4)
-                                var r2 = 22;
+                                // Внутреннее кольцо: SSD (radius 21, lineWidth 4)
+                                var r2 = 21;
                                 ctx.beginPath();
                                 ctx.arc(cx, cy, r2, 0, Math.PI * 2);
                                 ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
@@ -627,6 +630,7 @@ Item {
                         }
                     }
 
+                    // Нижняя строка: показатели RAM и SSD
                     RowLayout {
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
@@ -637,7 +641,7 @@ Item {
                         ColumnLayout {
                             spacing: 1
                             Text {
-                                text: (view.sys && view.sys.loadMem >= 0) ? view.sys.loadMem + "%" : "--%"
+                                text: (view.sys && view.sys.loadMem >= 0) ? (view.sys.loadMem + "%") : "--%"
                                 color: view.sys ? view.sys.colFg : "#ffffff"
                                 font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; bold: true }
                             }
@@ -651,24 +655,25 @@ Item {
                             Layout.alignment: Qt.AlignRight
                             Text {
                                 Layout.alignment: Qt.AlignRight
-                                text: (view.sys && view.sys.loadDisk >= 0) ? view.sys.loadDisk + "%" : "--%"
+                                text: (view.sys && view.sys.loadDisk >= 0) ? (view.sys.loadDisk + "%") : "--%"
                                 color: view.sys ? view.sys.colCrit : "#d71921"
                                 font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; bold: true }
                             }
                             Caption { Layout.alignment: Qt.AlignRight; text: "SSD"; font.pixelSize: 8 }
                         }
                     }
+                }
 
-                    MouseArea {
-                        id: sysCardMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (view.sys && view.sys.cfg) {
-                                view.sys.cfg.widgetRightMode = "weather";
-                                view.sys.saveCfg();
-                            }
+                // ЕДИНЫЙ клик по всей правой карточке: переключает Погода <-> Система
+                MouseArea {
+                    id: rightCardMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (view.sys && view.sys.cfg) {
+                            view.sys.cfg.widgetRightMode = (view.rightMode === "weather" ? "system" : "weather");
+                            view.sys.saveCfg();
                         }
                     }
                 }

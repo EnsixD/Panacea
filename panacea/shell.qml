@@ -194,10 +194,8 @@ PanelWindow {
             property string weatherKey: ""
             property string weatherCity: ""
             property string weatherUnits: "metric"   // metric | imperial
-            // Погода в свёрнутом острове. Включена: место она занимает
-            // небольшое, а смотрят на остров чаще, чем на рабочий стол,
-            // который закрыт окнами.
-            property bool   weatherOnIsland: true
+            // Погода в свёрнутом острове. Выключена по умолчанию.
+            property bool   weatherOnIsland: false
             // Настольные виджеты. Выключены по умолчанию: они рисуются
             // поверх обоев и меняют вид рабочего стола, а такое включают
             // сами, а не обнаруживают после обновления.
@@ -309,7 +307,7 @@ PanelWindow {
         vibrance: 50, mouseSens: 0, mouseRaw: false,
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
         weatherKey: "", weatherCity: "", weatherUnits: "metric",
-        weatherOnIsland: true, featWidgets: false,
+        weatherOnIsland: false, featWidgets: false,
         widgetClockMode: "analog", widgetRightMode: "weather", widgetProgressMode: "day",
         termAlpha: 0.90,
         uiSounds: true
@@ -2155,6 +2153,7 @@ PanelWindow {
             String(root.cfg.weatherUnits), root.isEn ? "en" : "ru"];
         pWeather.running = false;
         pWeather.running = true;
+        root.refreshWeatherForecast();
     }
 
     // Раз в четверть часа. Чаще незачем: погода столько и не меняется, а у
@@ -3252,32 +3251,25 @@ PanelWindow {
     property string timeText: ""
     property string dayText: ""
     property string dateLong: ""
-    // Секунды отдельной строкой. В timeText они появляются только если их
-    // попросили во вкладке Clock & Date, а раскрытому острову на теме Nothing
-    // они нужны всегда: там это мелкое число сбоку от крупных часов, а не
-    // часть их. Смешивать эти два случая в одной строке нельзя.
     property string secText: ""
-    // Число месяца и выходной ли он — для карточки даты на рабочем столе.
-    // Держим отдельно от dateLong: тот собирается по выбранному формату и
-    // числа из него уже не выковырять.
+    property int timeHour: 0
+    property int timeMinute: 0
+    property int timeSecond: 0
     property string dayNum: ""
     property bool   weekend: false
-    // Месяц своим списком, а не через Qt.formatDateTime: тот берёт язык из
-    // системной локали, а подписи оболочки идут за её собственной настройкой
-    // языка — иначе на английском интерфейсе месяц оставался бы русским.
     property string monthText: ""
     Timer {
         interval: 1000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: {
             var d = new Date();
-            // 12-часовой формат — с AM/PM, 24-часовой — без; секунды
-            // добавляются в оба, если их попросили во вкладке Clock & Date
+            root.timeHour = d.getHours();
+            root.timeMinute = d.getMinutes();
+            root.timeSecond = d.getSeconds();
             var sec = root.cfg.clockSeconds ? ":ss" : "";
             root.timeText = root.cfg.clock12
                 ? Qt.formatDateTime(d, "h:mm" + sec + " AP")
                 : Qt.formatDateTime(d, "HH:mm" + sec);
             root.secText = Qt.formatDateTime(d, "ss");
-            // формат даты и день недели перед ней — тоже из настроек
             root.dateLong = (root.cfg.clockWeekday ? Qt.formatDateTime(d, "dddd") + ", " : "")
                 + Qt.formatDateTime(d, root.cfg.clockDateFmt || "d MMMM");
             root.dayText = root.isEn
@@ -3977,7 +3969,11 @@ PanelWindow {
         function shortcuts(): void { root.toggleKeysWindow(); }
         function clipboard(): void { root.togglePage("clip"); }
         function powermenu(): void { root.togglePage("power"); }
-        function weather(): void { root.openWeatherDetails(); }
+        function weather(): void {
+            if (root.weatherDetailsOpen) root.weatherDetailsOpen = false;
+            else root.openWeatherDetails();
+        }
+        function weatherClose(): void { root.weatherDetailsOpen = false; }
         function smartClose(): string {
             if (!root.cfg.closePanaceaFirst) return "disabled";
             var anyOpen = root.expanded || root.overviewOpen || root.wallsOpen || root.keysWindowOpen || root.whatsNewOpen || root.weatherDetailsOpen;
@@ -6374,7 +6370,7 @@ Instantiator {
 // Окно детального прогноза погоды на несколько дней
 PanelWindow {
     id: weatherDetailsWin
-    visible: root.weatherDetailsOpen
+    visible: root.weatherDetailsOpen || weatherScrim.opacity > 0.01
     anchors { top: true; bottom: true; left: true; right: true }
     screen: root.screen
     color: "transparent"
@@ -6384,10 +6380,11 @@ PanelWindow {
 
     // Затемнение фона при клике на которое окно закрывается
     Rectangle {
+        id: weatherScrim
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.45)
+        color: Qt.rgba(0, 0, 0, 0.65)
         opacity: root.weatherDetailsOpen ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        Behavior on opacity { NumberAnimation { duration: 200 } }
 
         MouseArea {
             anchors.fill: parent
@@ -6398,13 +6395,18 @@ PanelWindow {
     Keys.onEscapePressed: root.weatherDetailsOpen = false
 
     WeatherDetailsView {
-        anchors.centerIn: parent
+        id: weatherDetailsView
+        width: implicitWidth
+        height: implicitHeight
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: (parent.height - height) / 2 + (root.weatherDetailsOpen ? 0 : 28)
         sys: root
         forecastData: root.weatherForecastData
-        scale: root.weatherDetailsOpen ? 1 : 0.93
-        opacity: root.weatherDetailsOpen ? 1 : 0
-        Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutBack } }
-        Behavior on opacity { NumberAnimation { duration: 140 } }
+        scale: root.weatherDetailsOpen ? 1.0 : 0.92
+        opacity: root.weatherDetailsOpen ? 1.0 : 0.0
+        Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+        Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 200 } }
     }
 }
 

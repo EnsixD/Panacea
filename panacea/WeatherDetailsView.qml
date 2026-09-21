@@ -1,7 +1,10 @@
 import QtQuick
 import QtQuick.Layouts
 
-// Окно детального прогноза погоды на несколько дней (почасовой + 7 дней)
+// Окно детального прогноза погоды в стиле Nothing OS
+// Премиальный двухколоночный Bento-Grid дизайн:
+// Слева (520px): текущая погода, крупные карточки ключевых параметров и 24-часовая карусель
+// Справа (340px): полный 7-дневный прогноз с графическими температурными шкалами (все 7 дней видны сразу без обрезки)
 Item {
     id: view
 
@@ -9,12 +12,12 @@ Item {
     property var forecastData: null
     property int selectedDayIndex: 0
 
-    implicitWidth: 680
+    implicitWidth: 920
     implicitHeight: 560
 
     function dayName(dateStr, idx) {
-        if (idx === 0) return view.sys.tr("Сегодня");
-        if (idx === 1) return view.sys.tr("Завтра");
+        if (idx === 0) return view.sys ? view.sys.tr("Сегодня") : "Today";
+        if (idx === 1) return view.sys ? view.sys.tr("Завтра") : "Tomorrow";
         if (!dateStr) return "";
         var parts = dateStr.split("-");
         if (parts.length < 3) return dateStr;
@@ -23,8 +26,8 @@ Item {
         var daysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         var monthsRu = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
         var monthsEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        var dayArr = view.sys.isEn ? daysEn : daysRu;
-        var monArr = view.sys.isEn ? monthsEn : monthsRu;
+        var dayArr = (view.sys && view.sys.isEn) ? daysEn : daysRu;
+        var monArr = (view.sys && view.sys.isEn) ? monthsEn : monthsRu;
         return dayArr[d.getDay()] + ", " + d.getDate() + " " + monArr[d.getMonth()];
     }
 
@@ -46,16 +49,37 @@ Item {
     readonly property var hourlyList: (view.forecastData && view.forecastData.hourly) ? view.forecastData.hourly : []
     readonly property var activeDay: (dailyList.length > selectedDayIndex) ? dailyList[selectedDayIndex] : null
 
+    // Экстремумы недели для графических полосок температур
+    readonly property int weekMinTemp: {
+        if (!dailyList || !dailyList.length) return 0;
+        var m = dailyList[0].tempMin;
+        for (var i = 1; i < dailyList.length; i++) {
+            if (dailyList[i].tempMin < m) m = dailyList[i].tempMin;
+        }
+        return m;
+    }
+
+    readonly property int weekMaxTemp: {
+        if (!dailyList || !dailyList.length) return 30;
+        var m = dailyList[0].tempMax;
+        for (var i = 1; i < dailyList.length; i++) {
+            if (dailyList[i].tempMax > m) m = dailyList[i].tempMax;
+        }
+        return m;
+    }
+
+    readonly property int weekRange: Math.max(1, weekMaxTemp - weekMinTemp)
+
     Rectangle {
         id: bgCard
         anchors.fill: parent
-        radius: 24
-        color: Qt.rgba(0.06, 0.06, 0.07, 0.98)
-        border.color: view.sys.colLine
+        radius: 26
+        color: Qt.rgba(0.065, 0.065, 0.075, 0.98)
+        border.color: Qt.rgba(1, 1, 1, 0.08)
         border.width: 1
         clip: true
 
-        // Поглощает клики внутри карточки окна, предотвращая закрытие оверлея
+        // Блокировка кликов сквозь карточку
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
@@ -65,405 +89,640 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 20
-            spacing: 14
+            spacing: 12
 
             // ---------------------------------------------------- Шапка
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 12
 
-                Text {
-                    text: String.fromCodePoint(0xF034E)
-                    color: view.sys.colOn
-                    font { family: view.sys.fontFam; pixelSize: 18 }
+                // Фирменная красная точка Nothing OS
+                Rectangle {
+                    width: 8; height: 8; radius: 4
+                    color: view.sys ? view.sys.colCrit : "#d71921"
                 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 1
+                    spacing: 2
 
                     Text {
                         text: (view.forecastData && view.forecastData.city)
-                              ? view.forecastData.city : view.sys.weatherPlace
-                        color: view.sys.colFg
-                        font { family: view.sys.fontDisplay; pixelSize: view.sys.fontSize + 2; bold: true }
+                              ? view.forecastData.city : (view.sys && view.sys.weatherPlace ? view.sys.weatherPlace : "...")
+                        color: view.sys ? view.sys.colFg : "#ffffff"
+                        font {
+                            family: view.sys ? view.sys.fontFam : "sans-serif"
+                            pixelSize: 17
+                            bold: true
+                        }
                         elide: Text.ElideRight
                     }
 
                     Text {
-                        text: view.sys.tr("Прогноз погоды") + (activeDay ? " · " + view.dayName(activeDay.date, selectedDayIndex) : "")
-                        color: view.sys.colMuted
-                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
+                        text: (view.sys ? view.sys.tr("Прогноз погоды") : "Weather forecast") +
+                              (activeDay ? " · " + view.dayName(activeDay.date, selectedDayIndex) : "")
+                        color: view.sys ? view.sys.colMuted : "#888888"
+                        font {
+                            family: view.sys ? view.sys.fontFam : "sans-serif"
+                            pixelSize: 11
+                        }
                     }
                 }
 
-                // Кнопка обновления
+                // Кнопка обновления с вращением
                 Rectangle {
+                    id: refBtn
                     width: 32; height: 32; radius: 16
-                    color: refMa.containsMouse ? view.sys.colHover : "transparent"
+                    color: refMa.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.04)
+                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
                     Text {
+                        id: refIcon
                         anchors.centerIn: parent
-                        text: String.fromCodePoint(0xF0450)
-                        color: view.sys.weatherBusy ? view.sys.colOn : view.sys.colMuted
-                        font { family: view.sys.fontFam; pixelSize: 15 }
+                        text: "󰑐"
+                        color: (view.sys && view.sys.weatherBusy) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#ffffff")
+                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 14 }
+
+                        RotationAnimation on rotation {
+                            running: view.sys && view.sys.weatherBusy
+                            loops: Animation.Infinite
+                            from: 0; to: 360; duration: 900
+                        }
                     }
+
                     MouseArea {
                         id: refMa
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: view.sys.refreshWeatherForecast()
+                        onClicked: { if (view.sys) view.sys.refreshWeatherForecast(); }
                     }
                 }
 
                 // Кнопка закрытия
                 Rectangle {
+                    id: closeBtn
                     width: 32; height: 32; radius: 16
-                    color: closeMa.containsMouse ? view.sys.colHover : "transparent"
+                    color: closeMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.04)
+                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
                     Text {
                         anchors.centerIn: parent
                         text: "✕"
-                        color: view.sys.colMuted
-                        font { family: view.sys.fontFam; pixelSize: 13 }
+                        color: closeMa.containsMouse ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#ffffff")
+                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12; bold: true }
                     }
+
                     MouseArea {
                         id: closeMa
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: view.sys.weatherDetailsOpen = false
+                        onClicked: { if (view.sys) view.sys.weatherDetailsOpen = false; }
                     }
                 }
             }
 
-            // ------------------------------------ Главная карточка (Сводка)
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 120
-                radius: 18
-                color: Qt.rgba(1, 1, 1, 0.04)
-                border.color: Qt.rgba(1, 1, 1, 0.07)
-                border.width: 1
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 16
-
-                    // Температура и иконка
-                    RowLayout {
-                        Layout.alignment: Qt.AlignVCenter
-                        spacing: 12
-
-                        Text {
-                            text: view.iconGlyph(activeDay ? activeDay.icon : (currentObj ? currentObj.icon : "03d"))
-                            color: view.sys.colOn
-                            font { family: view.sys.fontFam; pixelSize: 42 }
-                        }
-
-                        ColumnLayout {
-                            spacing: 2
-                            Text {
-                                text: (activeDay ? activeDay.tempMax : (currentObj ? currentObj.temp : "--")) + "°"
-                                color: view.sys.colFg
-                                font { family: view.sys.fontFam; pixelSize: 34; bold: true }
-                            }
-                            Text {
-                                text: activeDay
-                                      ? (activeDay.tempMin + "° … " + activeDay.tempMax + "° · " + activeDay.desc)
-                                      : (currentObj ? currentObj.desc : "—")
-                                color: view.sys.colMuted
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
-                                elide: Text.ElideRight
-                                Layout.maximumWidth: 160
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.preferredWidth: 1
-                        Layout.fillHeight: true
-                        color: Qt.rgba(1, 1, 1, 0.08)
-                    }
-
-                    // Сетка параметров (2 колонки)
-                    GridLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        columns: 3
-                        rowSpacing: 6
-                        columnSpacing: 12
-
-                        // Ощущается
-                        ColumnLayout {
-                            spacing: 1
-                            Text { text: view.sys.tr("Ощущается"); color: view.sys.colMuted; font { family: view.sys.fontFam; pixelSize: 9 } }
-                            Text {
-                                text: (activeDay ? activeDay.feelsMax : (currentObj ? currentObj.feels : "--")) + "°"
-                                color: view.sys.colFg; font { family: view.sys.fontFam; pixelSize: 13; bold: true }
-                            }
-                        }
-
-                        // Влажность / Осадки
-                        ColumnLayout {
-                            spacing: 1
-                            Text { text: activeDay ? view.sys.tr("Осадки") : view.sys.tr("Влажность"); color: view.sys.colMuted; font { family: view.sys.fontFam; pixelSize: 9 } }
-                            Text {
-                                text: activeDay ? (activeDay.pop + "%") : ((currentObj ? currentObj.humidity : "--") + "%")
-                                color: (activeDay && activeDay.pop > 40) ? view.sys.colOn : view.sys.colFg
-                                font { family: view.sys.fontFam; pixelSize: 13; bold: true }
-                            }
-                        }
-
-                        // Ветер
-                        ColumnLayout {
-                            spacing: 1
-                            Text { text: view.sys.tr("Ветер"); color: view.sys.colMuted; font { family: view.sys.fontFam; pixelSize: 9 } }
-                            Text {
-                                text: (activeDay ? activeDay.wind : (currentObj ? currentObj.wind : "--")) + " " + view.sys.weatherWindUnit
-                                color: view.sys.colFg; font { family: view.sys.fontFam; pixelSize: 13; bold: true }
-                            }
-                        }
-
-                        // УФ-индекс
-                        ColumnLayout {
-                            spacing: 1
-                            Text { text: view.sys.tr("УФ-индекс"); color: view.sys.colMuted; font { family: view.sys.fontFam; pixelSize: 9 } }
-                            Text {
-                                text: activeDay ? (activeDay.uv + " (" + (activeDay.uv >= 6 ? view.sys.tr("Высокий") : activeDay.uv >= 3 ? view.sys.tr("Умеренный") : view.sys.tr("Низкий")) + ")") : "--"
-                                color: view.sys.colFg; font { family: view.sys.fontFam; pixelSize: 12; bold: true }
-                            }
-                        }
-
-                        // Восход
-                        ColumnLayout {
-                            spacing: 1
-                            Text { text: view.sys.tr("Восход"); color: view.sys.colMuted; font { family: view.sys.fontFam; pixelSize: 9 } }
-                            Text {
-                                text: activeDay ? activeDay.sunrise : "--:--"
-                                color: view.sys.colFg; font { family: view.sys.fontFam; pixelSize: 13; bold: true }
-                            }
-                        }
-
-                        // Закат
-                        ColumnLayout {
-                            spacing: 1
-                            Text { text: view.sys.tr("Закат"); color: view.sys.colMuted; font { family: view.sys.fontFam; pixelSize: 9 } }
-                            Text {
-                                text: activeDay ? activeDay.sunset : "--:--"
-                                color: view.sys.colFg; font { family: view.sys.fontFam; pixelSize: 13; bold: true }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ----------------------------- Почасовой прогноз (24 часа)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Text {
-                        text: view.sys.tr("ПОЧАСОВОЙ ПРОГНОЗ")
-                        color: view.sys.colMuted
-                        font { family: view.sys.fontFam; pixelSize: 10; letterSpacing: 1.1; bold: true }
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text: "◀ ▶ " + view.sys.tr("Прокрутка")
-                        color: Qt.rgba(1, 1, 1, 0.25)
-                        font { family: view.sys.fontFam; pixelSize: 9 }
-                    }
-                }
-
-                Flickable {
-                    id: hourlyFlick
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 92
-                    contentWidth: hourlyRow.implicitWidth
-                    contentHeight: 92
-                    clip: true
-                    interactive: true
-                    boundsBehavior: Flickable.StopAtBounds
-
-                    WheelHandler {
-                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                        orientation: Qt.Horizontal
-                        onWheel: ev => {
-                            var step = ev.pixelDelta.x !== 0 ? ev.pixelDelta.x : (ev.angleDelta.y !== 0 ? ev.angleDelta.y : ev.angleDelta.x);
-                            var max = Math.max(0, hourlyFlick.contentWidth - hourlyFlick.width);
-                            hourlyFlick.contentX = Math.max(0, Math.min(max, hourlyFlick.contentX - step));
-                        }
-                    }
-
-                    RowLayout {
-                        id: hourlyRow
-                        spacing: 8
-                        height: parent.height
-
-                        Repeater {
-                            model: hourlyList
-                            Rectangle {
-                                required property var modelData
-                                required property int index
-                                Layout.preferredWidth: 64
-                                Layout.preferredHeight: 88
-                                radius: 14
-                                color: index === 0 ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.16)
-                                                   : (hMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03))
-                                border.color: index === 0 ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.06)
-                                border.width: 1
-
-                                ColumnLayout {
-                                    anchors.centerIn: parent
-                                    spacing: 4
-
-                                    Text {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        text: index === 0 ? view.sys.tr("Сейчас") : modelData.time
-                                        color: index === 0 ? view.sys.colOn : view.sys.colMuted
-                                        font { family: view.sys.fontFam; pixelSize: 10; bold: index === 0 }
-                                    }
-
-                                    Text {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        text: view.iconGlyph(modelData.icon)
-                                        color: view.sys.colFg
-                                        font { family: view.sys.fontFam; pixelSize: 18 }
-                                    }
-
-                                    Text {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        text: modelData.temp + "°"
-                                        color: view.sys.colFg
-                                        font { family: view.sys.fontFam; pixelSize: 12; bold: true }
-                                    }
-
-                                    Text {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        visible: modelData.pop > 0
-                                        text: modelData.pop + "%"
-                                        color: view.sys.colOn
-                                        font { family: view.sys.fontFam; pixelSize: 9 }
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: hMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ------------------------------------ Прогноз на 7 дней (Карусель / Список)
-            ColumnLayout {
+            // ---------------------------------------------------- Основной двухколоночный контент
+            RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                spacing: 6
+                spacing: 18
 
-                Text {
-                    text: view.sys.tr("ПРОГНОЗ НА 7 ДНЕЙ")
-                    color: view.sys.colMuted
-                    font { family: view.sys.fontFam; pixelSize: 10; letterSpacing: 1.1; bold: true }
-                }
-
-                ListView {
-                    id: dailyListComp
-                    Layout.fillWidth: true
+                // =============================================== ЛЕВАЯ КОЛОНКА (520px)
+                ColumnLayout {
+                    Layout.preferredWidth: 520
+                    Layout.minimumWidth: 520
+                    Layout.maximumWidth: 520
                     Layout.fillHeight: true
-                    clip: true
-                    spacing: 6
-                    model: dailyList
-                    interactive: true
-                    boundsBehavior: Flickable.StopAtBounds
+                    spacing: 10
 
-                    delegate: Rectangle {
-                        id: dayItem
-                        required property var modelData
-                        required property int index
-                        width: dailyListComp.width
-                        height: 38
-                        radius: 12
-                        color: view.selectedDayIndex === index
-                               ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.22)
-                               : (dayMa.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.02))
-                        border.color: view.selectedDayIndex === index ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.05)
+                    // 1. Главная Hero-карточка погоды
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 100
+                        radius: 16
+                        color: Qt.rgba(1, 1, 1, 0.035)
+                        border.color: Qt.rgba(1, 1, 1, 0.07)
                         border.width: 1
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 10
+                            anchors.margins: 12
+                            spacing: 14
 
                             Text {
-                                Layout.preferredWidth: 110
-                                text: view.dayName(dayItem.modelData.date, dayItem.index)
-                                color: dayItem.index === 0 ? view.sys.colOn : view.sys.colFg
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3; bold: dayItem.index === 0 || view.selectedDayIndex === dayItem.index }
+                                text: view.iconGlyph(activeDay ? activeDay.icon : (currentObj ? currentObj.icon : (view.sys ? view.sys.weatherIcon : "03d")))
+                                color: view.sys ? view.sys.colFg : "#ffffff"
+                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 42 }
                             }
 
-                            Text {
-                                text: view.iconGlyph(dayItem.modelData.icon)
-                                color: view.sys.colFg
-                                font { family: view.sys.fontFam; pixelSize: 16 }
-                            }
-
-                            Text {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: dayItem.modelData.desc
-                                color: view.sys.colMuted
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
-                                elide: Text.ElideRight
-                            }
+                                spacing: 2
 
-                            // Осадки
-                            Text {
-                                Layout.preferredWidth: 42
-                                visible: dayItem.modelData.pop > 0
-                                text: "💧 " + dayItem.modelData.pop + "%"
-                                color: dayItem.modelData.pop > 40 ? view.sys.colOn : view.sys.colMuted
-                                horizontalAlignment: Text.AlignRight
-                                font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
-                            }
+                                RowLayout {
+                                    spacing: 10
+                                    Text {
+                                        text: (activeDay ? activeDay.tempMax : (currentObj ? currentObj.temp : (view.sys && view.sys.weatherTemp ? view.sys.weatherTemp : "--"))) + "°"
+                                        color: view.sys ? view.sys.colFg : "#ffffff"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 36; bold: true }
+                                    }
 
-                            // Мин / Макс температура
-                            RowLayout {
-                                Layout.preferredWidth: 90
-                                spacing: 6
-                                Layout.alignment: Qt.AlignRight
+                                    // Плашка диапазона температур дня
+                                    Rectangle {
+                                        visible: activeDay !== null
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: 6
+                                        color: Qt.rgba(1, 1, 1, 0.06)
+                                        implicitWidth: rangeText.implicitWidth + 12
+                                        implicitHeight: 20
+                                        Text {
+                                            id: rangeText
+                                            anchors.centerIn: parent
+                                            text: activeDay ? (activeDay.tempMin + "° … " + activeDay.tempMax + "°") : ""
+                                            color: view.sys ? view.sys.colMuted : "#888"
+                                            font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; bold: true }
+                                        }
+                                    }
+                                }
 
                                 Text {
-                                    text: dayItem.modelData.tempMin + "°"
-                                    color: view.sys.colMuted
-                                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
+                                    text: activeDay
+                                          ? activeDay.desc
+                                          : (currentObj ? currentObj.desc : (view.sys && view.sys.weatherDesc ? view.sys.weatherDesc : "—"))
+                                    color: view.sys ? view.sys.colFg : "#ffffff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12; bold: true }
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
                                 }
-                                Rectangle {
-                                    Layout.preferredWidth: 32
-                                    Layout.preferredHeight: 4
-                                    radius: 2
-                                    color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4)
+                            }
+                        }
+                    }
+
+                    // 2. Bento Grid ключевых показателей (6 карточек с КРУПНЫМ текстом и иконками)
+                    GridLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 154
+                        columns: 3
+                        rowSpacing: 8
+                        columnSpacing: 8
+
+                        // 1. Ощущается
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 14
+                            color: Qt.rgba(1, 1, 1, 0.035)
+                            border.color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 9
+                                spacing: 2
+                                RowLayout {
+                                    spacing: 5
+                                    Text {
+                                        text: "󰔄"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                    }
+                                    Text {
+                                        text: view.sys ? view.sys.tr("ОЩУЩАЕТСЯ") : "FEELS LIKE"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                    }
                                 }
                                 Text {
-                                    text: dayItem.modelData.tempMax + "°"
-                                    color: view.sys.colFg
-                                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3; bold: true }
+                                    text: (activeDay ? activeDay.feelsMax : (currentObj ? currentObj.feels : (view.sys && view.sys.weatherTemp ? view.sys.weatherTemp : "--"))) + "°"
+                                    color: view.sys ? view.sys.colFg : "#fff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 21; bold: true }
                                 }
                             }
                         }
 
-                        MouseArea {
-                            id: dayMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: view.selectedDayIndex = dayItem.index
+                        // 2. Влажность / Осадки
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 14
+                            color: Qt.rgba(1, 1, 1, 0.035)
+                            border.color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 9
+                                spacing: 2
+                                RowLayout {
+                                    spacing: 5
+                                    Text {
+                                        text: activeDay ? "󰖖" : "󰖉"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                    }
+                                    Text {
+                                        text: activeDay ? (view.sys ? view.sys.tr("ОСАДКИ") : "RAIN") : (view.sys ? view.sys.tr("ВЛАЖНОСТЬ") : "HUMIDITY")
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                    }
+                                }
+                                Text {
+                                    text: activeDay ? (activeDay.pop + "%") : ((currentObj ? currentObj.humidity : (view.sys && view.sys.weatherHumidity ? view.sys.weatherHumidity : "--")) + "%")
+                                    color: (activeDay && activeDay.pop > 40) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 21; bold: true }
+                                }
+                            }
+                        }
+
+                        // 3. Ветер
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 14
+                            color: Qt.rgba(1, 1, 1, 0.035)
+                            border.color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 9
+                                spacing: 2
+                                RowLayout {
+                                    spacing: 5
+                                    Text {
+                                        text: "󰖝"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                    }
+                                    Text {
+                                        text: view.sys ? view.sys.tr("ВЕТЕР") : "WIND"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                    }
+                                }
+                                Text {
+                                    text: (activeDay ? activeDay.wind : (currentObj ? currentObj.wind : (view.sys && view.sys.weatherWind ? view.sys.weatherWind : "--"))) + " " + (view.sys ? view.sys.weatherWindUnit : "m/s")
+                                    color: view.sys ? view.sys.colFg : "#fff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 18; bold: true }
+                                }
+                            }
+                        }
+
+                        // 4. Давление
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 14
+                            color: Qt.rgba(1, 1, 1, 0.035)
+                            border.color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 9
+                                spacing: 2
+                                RowLayout {
+                                    spacing: 5
+                                    Text {
+                                        text: "󰈵"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                    }
+                                    Text {
+                                        text: view.sys ? view.sys.tr("ДАВЛЕНИЕ") : "PRESSURE"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                    }
+                                }
+                                Text {
+                                    text: currentObj ? (currentObj.pressure + " hPa") : "--"
+                                    color: view.sys ? view.sys.colFg : "#fff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 18; bold: true }
+                                }
+                            }
+                        }
+
+                        // 5. УФ-индекс
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 14
+                            color: Qt.rgba(1, 1, 1, 0.035)
+                            border.color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 9
+                                spacing: 2
+                                RowLayout {
+                                    spacing: 5
+                                    Text {
+                                        text: "󰋘"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                    }
+                                    Text {
+                                        text: view.sys ? view.sys.tr("УФ-ИНДЕКС") : "UV INDEX"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                    }
+                                }
+                                Text {
+                                    text: activeDay ? String(activeDay.uv) : "--"
+                                    color: (activeDay && activeDay.uv >= 6) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 21; bold: true }
+                                }
+                            }
+                        }
+
+                        // 6. Восход / Закат
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 14
+                            color: Qt.rgba(1, 1, 1, 0.035)
+                            border.color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 9
+                                spacing: 2
+                                RowLayout {
+                                    spacing: 5
+                                    Text {
+                                        text: "󰖚"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                    }
+                                    Text {
+                                        text: view.sys ? view.sys.tr("СОЛНЦЕ") : "SUN"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                    }
+                                }
+                                Text {
+                                    text: activeDay ? (activeDay.sunrise + " / " + activeDay.sunset) : "--:--"
+                                    color: view.sys ? view.sys.colFg : "#fff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15; bold: true }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Почасовой прогноз (24 часа карусель)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 130
+                        spacing: 6
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: view.sys ? view.sys.tr("ПОЧАСОВОЙ ПРОГНОЗ") : "HOURLY FORECAST"
+                                color: view.sys ? view.sys.colMuted : "#888"
+                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; letterSpacing: 1.1; bold: true }
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: "◀  ▶"
+                                color: Qt.rgba(1, 1, 1, 0.25)
+                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9 }
+                            }
+                        }
+
+                        Flickable {
+                            id: hourlyFlick
+                            implicitWidth: 0
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 104
+                            contentWidth: hourlyRow.implicitWidth
+                            contentHeight: height
+                            clip: true
+                            interactive: true
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            WheelHandler {
+                                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                orientation: Qt.Horizontal
+                                onWheel: ev => {
+                                    var step = ev.pixelDelta.x !== 0 ? ev.pixelDelta.x : (ev.angleDelta.y !== 0 ? ev.angleDelta.y : ev.angleDelta.x);
+                                    var max = Math.max(0, hourlyFlick.contentWidth - hourlyFlick.width);
+                                    hourlyFlick.contentX = Math.max(0, Math.min(max, hourlyFlick.contentX - step));
+                                }
+                            }
+
+                            RowLayout {
+                                id: hourlyRow
+                                spacing: 8
+                                height: parent.height
+
+                                Repeater {
+                                    model: hourlyList
+                                    Rectangle {
+                                        required property var modelData
+                                        required property int index
+                                        width: 66
+                                        height: 100
+                                        radius: 13
+                                        color: index === 0 ? Qt.rgba(1, 1, 1, 0.10)
+                                                           : (hMa.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.025))
+                                        border.color: index === 0 ? (view.sys ? view.sys.colCrit : "#d71921") : Qt.rgba(1, 1, 1, 0.06)
+                                        border.width: 1
+                                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                                        ColumnLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 4
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                text: index === 0 ? (view.sys ? view.sys.tr("Сейчас") : "Now") : modelData.time
+                                                color: index === 0 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888")
+                                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; bold: index === 0 }
+                                            }
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                text: view.iconGlyph(modelData.icon)
+                                                color: view.sys ? view.sys.colFg : "#ffffff"
+                                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 18 }
+                                            }
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                text: modelData.temp + "°"
+                                                color: view.sys ? view.sys.colFg : "#ffffff"
+                                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12; bold: true }
+                                            }
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                text: modelData.pop > 0 ? ("💧" + modelData.pop + "%") : " "
+                                                color: modelData.pop > 40 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888")
+                                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9 }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: hMa
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // =============================================== ПРАВАЯ КОЛОНКА (7 ДНЕЙ)
+                ColumnLayout {
+                    id: rightCol
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 320
+                    Layout.fillHeight: true
+                    spacing: 8
+
+                    Text {
+                        text: view.sys ? view.sys.tr("ПРОГНОЗ НА 7 ДНЕЙ") : "7-DAY FORECAST"
+                        color: view.sys ? view.sys.colMuted : "#888"
+                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; letterSpacing: 1.1; bold: true }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 6
+
+                        Repeater {
+                            model: dailyList
+
+                            Rectangle {
+                                id: dayItem
+                                required property var modelData
+                                required property int index
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                radius: 14
+                                color: view.selectedDayIndex === index
+                                       ? Qt.rgba(1, 1, 1, 0.12)
+                                       : (dayMa.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(1, 1, 1, 0.025))
+                                border.color: view.selectedDayIndex === index ? (view.sys ? view.sys.colCrit : "#d71921") : Qt.rgba(1, 1, 1, 0.06)
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                                // Название дня
+                                Text {
+                                    id: dayLbl
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 74
+                                    text: view.dayName(dayItem.modelData.date, dayItem.index)
+                                    color: dayItem.index === 0 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#ffffff")
+                                    font {
+                                        family: view.sys ? view.sys.fontFam : "sans-serif"
+                                        pixelSize: 11
+                                        bold: dayItem.index === 0 || view.selectedDayIndex === dayItem.index
+                                    }
+                                    elide: Text.ElideRight
+                                }
+
+                                // Иконка погоды
+                                Text {
+                                    id: dayIcon
+                                    anchors.left: dayLbl.right
+                                    anchors.leftMargin: 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 20
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: view.iconGlyph(dayItem.modelData.icon)
+                                    color: view.sys ? view.sys.colFg : "#ffffff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 16 }
+                                }
+
+                                // Осадки
+                                Text {
+                                    id: dayPop
+                                    anchors.left: dayIcon.right
+                                    anchors.leftMargin: 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 34
+                                    horizontalAlignment: Text.AlignRight
+                                    text: dayItem.modelData.pop > 0 ? (dayItem.modelData.pop + "%") : ""
+                                    color: dayItem.modelData.pop > 40 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888888")
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10 }
+                                }
+
+                                // Мин. температура
+                                Text {
+                                    id: dayMin
+                                    anchors.left: dayPop.right
+                                    anchors.leftMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 20
+                                    horizontalAlignment: Text.AlignRight
+                                    text: dayItem.modelData.tempMin + "°"
+                                    color: view.sys ? view.sys.colMuted : "#888"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11 }
+                                }
+
+                                // Макс. температура (прижата к правому краю карточки)
+                                Text {
+                                    id: dayMax
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 20
+                                    horizontalAlignment: Text.AlignLeft
+                                    text: dayItem.modelData.tempMax + "°"
+                                    color: view.sys ? view.sys.colFg : "#fff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; bold: true }
+                                }
+
+                                // Графическая температурная полоска дня
+                                Item {
+                                    id: dayBar
+                                    anchors.left: dayMin.right
+                                    anchors.leftMargin: 6
+                                    anchors.right: dayMax.left
+                                    anchors.rightMargin: 6
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    height: 5
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 2.5
+                                        color: Qt.rgba(1, 1, 1, 0.08)
+                                    }
+
+                                    Rectangle {
+                                        x: Math.max(0, Math.min(parent.width - 8, ((dayItem.modelData.tempMin - view.weekMinTemp) / view.weekRange) * parent.width))
+                                        width: Math.max(10, Math.min(parent.width - x, ((dayItem.modelData.tempMax - dayItem.modelData.tempMin) / view.weekRange) * parent.width))
+                                        height: parent.height
+                                        radius: 2.5
+                                        color: view.selectedDayIndex === dayItem.index
+                                               ? (view.sys ? view.sys.colCrit : "#d71921")
+                                               : Qt.rgba(1, 1, 1, 0.75)
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: dayMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: view.selectedDayIndex = dayItem.index
+                                }
+                            }
                         }
                     }
                 }

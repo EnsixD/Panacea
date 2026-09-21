@@ -18,6 +18,16 @@ fail() { printf '{"err":"%s"}\n' "$1"; exit 0; }
 command -v curl >/dev/null 2>&1 || fail "no-curl"
 command -v jq   >/dev/null 2>&1 || fail "no-jq"
 
+CACHE_FILE="/tmp/panacea_forecast_${CITY//[^a-zA-Z0-9]/_}_${LANG_}.json"
+if [ -s "$CACHE_FILE" ]; then
+    NOW=$(date +%s)
+    MTIME=$(stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0)
+    if [ $((NOW - MTIME)) -lt 900 ]; then
+        cat "$CACHE_FILE"
+        exit 0
+    fi
+fi
+
 lat=""
 lon=""
 res_name=""
@@ -92,9 +102,12 @@ temp_unit=""
 raw=$(curl -sS --connect-timeout 5 --max-time 12 \
     "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m,cloud_cover&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,precipitation_probability,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_probability_max,wind_speed_10m_max,uv_index_max,sunrise,sunset&timezone=auto&forecast_days=7$temp_unit" 2>/dev/null)
 
-[ -n "$raw" ] || fail "network"
+[ -n "$raw" ] || {
+    if [ -s "$CACHE_FILE" ]; then cat "$CACHE_FILE"; exit 0; fi
+    fail "network"
+}
 
-printf '%s' "$raw" | jq --arg city "$display_city" --arg lang "$LANG_" --arg units "$UNITS" '
+out=$(printf '%s' "$raw" | jq --arg city "$display_city" --arg lang "$LANG_" --arg units "$UNITS" '
 def wmo_desc(c):
     if c == 0 then (if $lang == "ru" then "Ясно" else "Clear sky" end)
     elif c == 1 then (if $lang == "ru" then "В основном ясно" else "Mainly clear" end)
@@ -178,4 +191,15 @@ def current_hour_idx:
         }
     ]
 }
-' 2>/dev/null || fail "bad-answer"
+' 2>/dev/null)
+
+if [ -n "$out" ] && [ "$(printf '%s' "$out" | jq -r '.city // empty' 2>/dev/null)" != "" ]; then
+    printf '%s\n' "$out" > "$CACHE_FILE"
+    printf '%s\n' "$out"
+    exit 0
+elif [ -s "$CACHE_FILE" ]; then
+    cat "$CACHE_FILE"
+    exit 0
+else
+    fail "bad-answer"
+fi
