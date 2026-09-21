@@ -26,7 +26,7 @@
     "bind_toggleSplit": "SUPER + J",
     "clock12": false,
     "colFg": "#ffffff",
-    "colOn": "#3b82f6",
+    "colOn": "#ffffff",
     "cornerR": 14,
     "fontFam": "JetBrainsMono Nerd Font",
     "fontSize": 15,
@@ -36,5 +36,6 @@
     "panelW": 540,
     "pillH": 38,
     "pillPos": "top",
+    "themeId": "nothing",
     "uiSounds": true
 }

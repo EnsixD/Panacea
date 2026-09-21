@@ -65,12 +65,10 @@ ShellRoot {
     // Тема читается из settings.json тем же разбором, что и язык, а таблица
     // цветов общая — Themes.js. Держать здесь свою копию нельзя: она
     // разошлась бы с оболочкой на первой же правке палитры.
-    property string themeId: "default"
+    property string themeId: "nothing"
     readonly property var theme: Themes.of(root.themeId)
-    // у «default» акцент остаётся за настройками, как и в оболочке
-    property color cfgOn: "#3b82f6"
-    readonly property color accent: root.themeId === "default" ? root.cfgOn
-                                                               : root.theme.on
+    property color cfgOn: "#ffffff"
+    readonly property color accent: root.theme.on
     readonly property color colFg:   root.theme.fg
     readonly property color colCrit: root.theme.crit
     // Фон нужен для надписей поверх залитого акцентом: на светлом акценте

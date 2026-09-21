@@ -91,9 +91,8 @@ PanelWindow {
             property string clockDateFmt: "d MMMM"
 
             // ---------------------------------------------- Appearance
-            // Тема палитры, независимая от обоев. "default" — то, что стоит
-            // сейчас; остальные перечислены в root.themes.
-            property string themeId: "default"
+            // Тема палитры. "nothing" — основной облик
+            property string themeId: "nothing"
             // текстовый шрифт и шрифт заголовков
             property string fontBody: "JetBrainsMono Nerd Font"
             property string fontDisplay: "JetBrainsMono Nerd Font"
@@ -289,7 +288,7 @@ PanelWindow {
     readonly property var defaultCfg: ({
         fontFam: "JetBrainsMono Nerd Font", fontBody: "JetBrainsMono Nerd Font",
         fontDisplay: "JetBrainsMono Nerd Font", fontSize: 15, iconSize: 17,
-        colFg: "#ffffff", colOn: "#3b82f6", mutedAlpha: 0.45, themeId: "default",
+        colFg: "#ffffff", colOn: "#ffffff", mutedAlpha: 0.45, themeId: "nothing",
         spacingUnit: 8, smallRadius: 10,
         pillH: 38, pillPos: "top", pillScreen: "auto", pillAutoHide: false, pillOverlay: true,
         pillKeepVisible: false, closePanaceaFirst: true,
@@ -1181,10 +1180,9 @@ PanelWindow {
     readonly property var themes: Themes.list
     function themeOf(id) { return Themes.of(id); }
     readonly property var theme: themeOf(cfg.themeId)
-    readonly property bool themeCustom: cfg.themeId === "default"
-    // Единственный флаг на весь облик Nothing. Проверять cfg.themeId по строке
-    // в двух десятках мест значило бы искать их все при переименовании темы.
-    readonly property bool themeNothing: cfg.themeId === "nothing"
+    readonly property bool themeCustom: false
+    // Флаг на облик Nothing. Для Nothing (и старого default) всегда true.
+    readonly property bool themeNothing: cfg.themeId === "nothing" || cfg.themeId === "default" || !cfg.themeId
 
     // Размер точки в числах Nothing. Считается от размера шрифта, а не задан
     // числом: человек двигает ползунок кегля в настройках, и точечные часы
@@ -1209,12 +1207,11 @@ PanelWindow {
     }
 
     readonly property color colBg:     theme.bg
-    // у «default» цвета текста и акцента остаются за настройками
-    readonly property color colFg:     themeCustom ? cfg.colFg : theme.fg
+    readonly property color colFg:     theme.fg
     readonly property color colMuted:  Qt.rgba(colFg.r, colFg.g, colFg.b, cfg.mutedAlpha)
     readonly property color colLine:   Qt.rgba(colFg.r, colFg.g, colFg.b, 0.10)
     readonly property color colHover:  Qt.rgba(colFg.r, colFg.g, colFg.b, 0.10)
-    readonly property color colOn:     themeCustom ? cfg.colOn : theme.on
+    readonly property color colOn:     theme.on
     readonly property color colOk:     theme.ok
     readonly property color colCrit:   theme.crit
 
