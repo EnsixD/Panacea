@@ -4923,12 +4923,93 @@ PanelWindow {
                 }
             }
 
-            // Правая часть: кружок с процентом сигнала или индикатор
+            // Правая часть: кольцо качества связи или иконка состояния
             Item {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
                 Layout.alignment: Qt.AlignVCenter
-                Layout.leftMargin: 20
+                Layout.leftMargin: 48
+
+                // Кольцо качества связи (как btRing у наушников)
+                Canvas {
+                    id: wifiRing
+                    anchors.fill: parent
+                    visible: !root.wifiToastDisconnected && root.wifiToastQuality >= 0
+
+                    readonly property real level:
+                        root.wifiToastQuality >= 0 ? root.wifiToastQuality / 100 : 0
+                    property real fill: 0
+                    readonly property real lineW: 3.5
+
+                    onFillChanged: requestPaint()
+                    onLevelChanged: {
+                        if (!root.wifiToastActive) return;
+                        wifiRingAnim.stop();
+                        wifiRingAnim.from = wifiRing.fill;
+                        wifiRingAnim.to = wifiRing.level;
+                        wifiRingAnim.start();
+                    }
+
+                    NumberAnimation {
+                        id: wifiRingAnim
+                        target: wifiRing; property: "fill"
+                        duration: 900; easing.type: Easing.OutCubic
+                    }
+                    function play() {
+                        wifiRingAnim.stop();
+                        wifiRing.fill = 0;
+                        wifiRingAnim.from = 0;
+                        wifiRingAnim.to = wifiRing.level;
+                        wifiRingAnim.start();
+                    }
+                    Connections {
+                        target: root
+                        function onWifiToastActiveChanged() {
+                            if (root.wifiToastActive) wifiRing.play();
+                        }
+                    }
+
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.reset();
+                        if (width <= 0 || height <= 0) return;
+                        var c = root.colFg;
+                        if (root.wifiToastQuality >= 0 && root.wifiToastQuality <= 25) {
+                            c = root.colCrit;
+                        } else if (root.themeNothing) {
+                            c = root.colOn;
+                        } else if (root.wifiToastQuality > 25) {
+                            c = "#34d399";
+                        }
+                        var r = (Math.min(width, height) - lineW) / 2;
+                        var cx = width / 2, cy = height / 2;
+
+                        ctx.lineWidth = lineW;
+                        ctx.lineCap = "round";
+
+                        // бледный контур
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+                        ctx.strokeStyle = Qt.rgba(c.r, c.g, c.b, 0.22);
+                        ctx.stroke();
+
+                        // дуга качества связи
+                        if (fill > 0) {
+                            var start = -Math.PI / 2;
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, r, start, start + 2 * Math.PI * fill);
+                            ctx.strokeStyle = c;
+                            ctx.stroke();
+                        }
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: String(root.wifiToastQuality)
+                        color: root.wifiToastQuality <= 25 ? root.colCrit : root.colFg
+                        font { family: root.fontFam; pixelSize: root.fontSize - 6; bold: true }
+                    }
+                }
 
                 // Индикатор отключения
                 Rectangle {
@@ -4941,24 +5022,6 @@ PanelWindow {
                         text: "󰤮"
                         color: root.colCrit
                         font { family: root.fontFam; pixelSize: 14 }
-                    }
-                }
-
-                // Индикатор подключения с процентом
-                Rectangle {
-                    anchors.fill: parent
-                    visible: !root.wifiToastDisconnected
-                    radius: 14
-                    color: Qt.rgba(1, 1, 1, 0.10)
-                    Text {
-                        anchors.centerIn: parent
-                        text: root.wifiToastQuality > 0 ? (root.wifiToastQuality + "%") : "󰤨"
-                        color: root.colFg
-                        font {
-                            family: root.fontFam
-                            pixelSize: root.wifiToastQuality > 0 ? (root.fontSize - 6) : 13
-                            bold: true
-                        }
                     }
                 }
             }
