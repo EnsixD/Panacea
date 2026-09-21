@@ -166,7 +166,6 @@ QtObject {
         "Машина": "Machine",
         "мин": "min",
         "Нагрузка": "Load",
-        "На теме Default цвет текста и акцент берутся из настроек ниже; у остальных тем они свои.": "On the Default theme the text colour and accent come from the settings below; other themes bring their own.",
         "Не спать и кнопки": "Stay awake and buttons",
         "Не удалось: нужен пароль администратора": "Failed: an administrator password is required",
         "никогда": "never",

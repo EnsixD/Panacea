@@ -54,48 +54,32 @@ Item {
         property real gapRatio: 0.22
         property color color: view.sys.colFg
 
-        implicitWidth:  view.sys.themeNothing ? dots.implicitWidth  : plain.implicitWidth
-        implicitHeight: view.sys.themeNothing ? dots.implicitHeight : plain.implicitHeight
+        implicitWidth:  dots.implicitWidth
+        implicitHeight: dots.implicitHeight
 
         DotText {
             id: dots
-            visible: view.sys.themeNothing
             value: num.value
             size: num.size
             gapRatio: num.gapRatio
             color: num.color
         }
-        Text {
-            id: plain
-            visible: !view.sys.themeNothing
-            text: num.value
-            color: num.color
-            font { family: view.sys.fontFam; pixelSize: Math.round(num.size * 1.35) }
-        }
     }
 
-    // Значок погоды тем же порядком: точечный на Nothing, знак шрифта иначе.
+    // Значок погоды: фирменный точечный DotIcon
     component WIcon: Item {
         id: wico
         property real size: 20
         property color color: view.sys.colFg
 
-        implicitWidth:  view.sys.themeNothing ? wdots.implicitWidth  : wglyph.implicitWidth
-        implicitHeight: view.sys.themeNothing ? wdots.implicitHeight : wglyph.implicitHeight
+        implicitWidth:  wdots.implicitWidth
+        implicitHeight: wdots.implicitHeight
 
         DotIcon {
             id: wdots
-            visible: view.sys.themeNothing
             code: view.sys.weatherIcon
             size: wico.size
             color: wico.color
-        }
-        Text {
-            id: wglyph
-            visible: !view.sys.themeNothing
-            text: view.sys.weatherGlyph
-            color: wico.color
-            font { family: view.sys.fontFam; pixelSize: Math.round(wico.size * 1.3) }
         }
     }
 

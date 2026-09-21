@@ -644,7 +644,7 @@ PanelWindow {
             "if [ -n \"$1\" ]; then " +
             "printf '[colors-dark]\\nbackground=%s\\n' \"$1\" > \"$f\"; " +
             "else : > \"$f\"; fi",
-            "_", root.themeNothing ? root.termBg : ""]
+            "_", root.termBg]
     }
     function syncTermTheme() {
         pTermTheme.running = false;
@@ -1180,9 +1180,8 @@ PanelWindow {
     readonly property var themes: Themes.list
     function themeOf(id) { return Themes.of(id); }
     readonly property var theme: themeOf(cfg.themeId)
-    readonly property bool themeCustom: false
-    // Флаг на облик Nothing. Для Nothing (и старого default) всегда true.
-    readonly property bool themeNothing: cfg.themeId === "nothing" || cfg.themeId === "default" || !cfg.themeId
+    // Флаг на облик Nothing. Для обратной совместимости с дочерними элементами
+    readonly property bool themeNothing: true
 
     // Размер точки в числах Nothing. Считается от размера шрифта, а не задан
     // числом: человек двигает ползунок кегля в настройках, и точечные часы
@@ -1223,7 +1222,7 @@ PanelWindow {
     //
     // tint() для тех цветов, под которые заводить строку в палитре не за
     // чем: они встречаются в одном-двух местах и означают ровно себя.
-    function tint(c) { return root.themeNothing ? root.colFg : c; }
+    function tint(c) { return root.colFg; }
     // янтарный «на паузе» и «осторожно» — он встречается часто
     readonly property color colWarn: root.tint("#fbbf24")
     readonly property string fontFam:  cfg.fontFam
@@ -4288,8 +4287,7 @@ PanelWindow {
         // Nothing носит остров заметно длиннее: там по краям стоят точки
         // столов и три показателя сразу, и на общей нижней границе всё это
         // жалось к часам вплотную.
-        readonly property int collapsedMin: root.themeNothing
-                ? Math.max(root.cfg.collapsedW, 420) : root.cfg.collapsedW
+        readonly property int collapsedMin: Math.max(root.cfg.collapsedW, 420)
 
         // Округляем до чётного числа пикселей. Остров стоит по центру экрана,
         // то есть его x равен половине разности ширин: при нечётной или
@@ -4317,11 +4315,8 @@ PanelWindow {
                 : root.osdActive ? capsule.evenUp(osdCapsule.implicitWidth + 32)
                 : root.pillSide  ? capsule.evenUp(Math.max(vertCapsule.implicitHeight + 30,
                                                            capsule.collapsedMin))
-                : root.themeNothing
-                                 ? capsule.evenUp(Math.max(nothingCapsule.implicitWidth + 28,
-                                                           capsule.collapsedMin))
-                                 : capsule.evenUp(Math.max(idleCapsule.implicitWidth + 32,
-                                                           capsule.collapsedMin))
+                : capsule.evenUp(Math.max(nothingCapsule.implicitWidth + 28,
+                                          capsule.collapsedMin))
         readonly property real idleThick: (root.btToastActive || root.wifiToastActive || root.acToastActive
                     || root.recPickActive || root.voxActive)
                 ? root.pillH
@@ -4807,14 +4802,9 @@ PanelWindow {
                         var ctx = getContext("2d");
                         ctx.reset();
                         if (width <= 0 || height <= 0) return;
-                        var c = root.colFg;
-                        if (root.btConnectedBattery >= 0 && root.btConnectedBattery <= 20) {
-                            c = root.colCrit;
-                        } else if (root.themeNothing) {
-                            c = root.colOn;
-                        } else if (root.btConnectedBattery > 20) {
-                            c = "#34d399";
-                        }
+                        var c = (root.btConnectedBattery >= 0 && root.btConnectedBattery <= 20)
+                                ? root.colCrit
+                                : root.colOn;
                         var r = (Math.min(width, height) - lineW) / 2;
                         var cx = width / 2, cy = height / 2;
 
@@ -4973,14 +4963,9 @@ PanelWindow {
                         var ctx = getContext("2d");
                         ctx.reset();
                         if (width <= 0 || height <= 0) return;
-                        var c = root.colFg;
-                        if (root.wifiToastQuality >= 0 && root.wifiToastQuality <= 25) {
-                            c = root.colCrit;
-                        } else if (root.themeNothing) {
-                            c = root.colOn;
-                        } else if (root.wifiToastQuality > 25) {
-                            c = "#34d399";
-                        }
+                        var c = (root.wifiToastQuality >= 0 && root.wifiToastQuality <= 25)
+                                ? root.colCrit
+                                : root.colOn;
                         var r = (Math.min(width, height) - lineW) / 2;
                         var cx = width / 2, cy = height / 2;
 
@@ -5214,9 +5199,7 @@ PanelWindow {
             Text {
                 Layout.alignment: Qt.AlignVCenter
                 text: String.fromCodePoint(0xF036C)   // микрофон
-                color: root.voxState === "listening"
-                    ? (root.themeNothing ? root.colCrit : "#60a5fa")
-                    : (root.themeNothing ? root.colFg : root.colOn)
+                color: root.voxState === "listening" ? root.colCrit : root.colFg
                 font { family: root.fontFam; pixelSize: root.iconSize + 3 }
 
                 SequentialAnimation on opacity {
@@ -5242,7 +5225,7 @@ PanelWindow {
                 Layout.preferredHeight: 18
                 visible: root.voxState === "listening"
                 active: root.voxState === "listening" && root.voxActive
-                barColor: root.themeNothing ? root.colCrit : "#60a5fa"
+                barColor: root.colCrit
                 barCount: 9
                 gap: 2.5
             }
@@ -5332,324 +5315,19 @@ PanelWindow {
             text: "10"
         }
 
-        // ---------------------------------------------------- свёрнутое: покой
-        RowLayout {
-            id: idleCapsule
-            anchors.centerIn: parent
-            height: root.pillH
-            spacing: 14
-            // На теме Nothing свёрнутый остров устроен иначе — его собирает
-            // nothingCapsule, а эта раскладка целиком уступает ему место.
-            visible: !root.themeNothing && (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.osdActive && !root.toastActive && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
-            // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
-            // равен нулю, и остров считал бы свою длину по пустоте.
-            opacity: root.pillSide ? 0 : (visible ? 1 : 0)
-            Behavior on opacity { NumberAnimation { duration: root.animFast } }
-
-            // ------------------------------------------------ играет медиа
-            // Плеер больше не отдельное состояние пилюли: обложка, название и
-            // полосы просто встают слева от дня недели, а часы, стол и заряд
-            // остаются на местах. Так пилюля не «подменяется» на музыку.
-            RowLayout {
-                id: mediaSeg
-                spacing: 9
-                visible: root.mediaActive
-                opacity: visible ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: root.animFast } }
-
-                Rectangle {
-                    Layout.preferredWidth: 20
-                    Layout.preferredHeight: 20
-                    Layout.alignment: Qt.AlignVCenter
-                    radius: 6
-                    color: Qt.rgba(1, 1, 1, 0.08)
-                    // clip у Rectangle прямоугольный — углы обложки от него
-                    // острые. Скругляем саму картинку маской по радиусу:
-                    // скрытый Image-источник + маска, а рисует MultiEffect.
-                    Image {
-                        id: capsuleArt
-                        anchors.fill: parent
-                        source: root.mediaArt
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        cache: true
-                        sourceSize.width: 56
-                        visible: false
-                        layer.enabled: true
-                    }
-                    Item {
-                        id: capsuleArtMask
-                        anchors.fill: parent
-                        visible: false
-                        layer.enabled: true
-                        Rectangle { anchors.fill: parent; radius: 6; color: "#ffffff" }
-                    }
-                    MultiEffect {
-                        anchors.fill: parent
-                        source: capsuleArt
-                        maskEnabled: true
-                        maskSource: capsuleArtMask
-                        visible: capsuleArt.status === Image.Ready
-                    }
-                    Text {
-                        anchors.centerIn: parent
-                        visible: capsuleArt.status !== Image.Ready
-                        text: "󰝚"
-                        color: root.colMuted
-                        font { family: root.fontFam; pixelSize: 11 }
-                    }
-                }
-
-                Text {
-                    Layout.maximumWidth: 150
-                    Layout.alignment: Qt.AlignVCenter
-                    text: root.player ? root.player.trackTitle : ""
-                    color: root.colFg
-                    elide: Text.ElideRight
-                    font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
-                }
-
-                WaveBars {
-                    Layout.preferredWidth: 26
-                    Layout.preferredHeight: 14
-                    Layout.alignment: Qt.AlignVCenter
-                    barColor: root.colFg
-                    active: root.player ? root.player.isPlaying : false
-                }
-
-                // разделитель — чтобы трек читался отдельно от часов
-                Rectangle {
-                    Layout.preferredWidth: 1
-                    Layout.preferredHeight: 14
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.leftMargin: 2
-                    color: Qt.rgba(1, 1, 1, 0.14)
-                }
-            }
-
-            // идёт долгая работа — значок, подпись и полоска слева от даты
-            RowLayout {
-                spacing: 7
-                visible: root.busyLabel.length > 0
-
-                Text {
-                    Layout.alignment: Qt.AlignVCenter
-                    text: root.busyGlyph
-                    color: root.colOn
-                    font { family: root.fontFam; pixelSize: root.fontSize - 2 }
-                }
-
-                Text {
-                    Layout.maximumWidth: 130
-                    Layout.alignment: Qt.AlignVCenter
-                    text: root.busyLabel
-                    color: root.colFg
-                    elide: Text.ElideMiddle
-                    font { family: root.fontFam; pixelSize: root.fontSize - 2 }
-                }
-
-                // Полоска, а не проценты цифрами: остров и так узкий, а точное
-                // число тут никому не нужно — важно, что дело движется.
-                Rectangle {
-                    id: busyTrack
-                    Layout.preferredWidth: 34
-                    Layout.preferredHeight: 4
-                    Layout.alignment: Qt.AlignVCenter
-                    radius: 2
-                    color: Qt.rgba(1, 1, 1, 0.16)
-                    clip: true
-
-                    readonly property bool unknown: root.busyProgress < 0
-
-                    Rectangle {
-                        id: busyFill
-                        // Пока проценты неизвестны, короткий отрезок ходит
-                        // туда-обратно: полоса в ноль читалась бы как «ничего
-                        // не происходит», а полная — как «уже готово».
-                        width: busyTrack.unknown ? parent.width * 0.4
-                             : parent.width * Math.min(100, root.busyProgress) / 100
-                        height: parent.height
-                        radius: parent.radius
-                        color: root.colOn
-                        Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
-
-                        SequentialAnimation on x {
-                            running: busyTrack.unknown && busyTrack.visible
-                            loops: Animation.Infinite
-                            NumberAnimation { from: 0; to: busyTrack.width - busyFill.width
-                                              duration: 900; easing.type: Easing.InOutSine }
-                            NumberAnimation { from: busyTrack.width - busyFill.width; to: 0
-                                              duration: 900; easing.type: Easing.InOutSine }
-                        }
-                        onXChanged: if (!busyTrack.unknown) x = 0
-                    }
-                }
-
-                // разделитель — чтобы работа читалась отдельно от часов
-                Rectangle {
-                    Layout.preferredWidth: 1
-                    Layout.preferredHeight: 14
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.leftMargin: 2
-                    color: Qt.rgba(1, 1, 1, 0.14)
-                }
-            }
-
-            // идёт запись — мигающая точка и таймер слева от даты
-            RowLayout {
-                spacing: 6
-                visible: root.recActive
-
-                Rectangle {
-                    Layout.preferredWidth: 9
-                    Layout.preferredHeight: 9
-                    Layout.alignment: Qt.AlignVCenter
-                    radius: 5
-                    color: root.recPaused ? root.colWarn : root.colCrit
-                    // на паузе точка горит ровно, при записи — пульсирует
-                    SequentialAnimation on opacity {
-                        running: root.recActive && !root.recPaused
-                        loops: Animation.Infinite
-                        NumberAnimation { to: 0.25; duration: 620; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: 1.0;  duration: 620; easing.type: Easing.InOutSine }
-                    }
-                    onVisibleChanged: if (!visible) opacity = 1
-                }
-                Text {
-                    text: root.recTimeText
-                    color: root.recPaused ? root.colWarn : root.colCrit
-                    font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
-                }
-            }
-
-            // Погода перед датой: значок и градусы. Виджетов на обоях у этой
-            // темы нет, и остров — единственное место, где погода вообще
-            // видна, поэтому она здесь, а не только на Nothing.
-            RowLayout {
-                spacing: 5
-                visible: root.weatherReady && root.cfg.weatherOnIsland
-
-                Text {
-                    Layout.alignment: Qt.AlignVCenter
-                    text: root.weatherGlyph
-                    color: islWthMa1.containsMouse ? root.colOn : root.colFg
-                    font { family: root.fontFam; pixelSize: root.iconSize - 1 }
-                }
-                Text {
-                    Layout.alignment: Qt.AlignVCenter
-                    text: root.weatherTemp + "°"
-                    color: islWthMa1.containsMouse ? root.colOn : root.colFg
-                    font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
-                }
-
-                MouseArea {
-                    id: islWthMa1
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.openWeatherDetails()
-                }
-
-                // разделитель — чтобы погода читалась отдельно от даты
-                Rectangle {
-                    Layout.preferredWidth: 1
-                    Layout.preferredHeight: 14
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.leftMargin: 3
-                    color: Qt.rgba(1, 1, 1, 0.14)
-                }
-            }
-
-            Text {
-                text: root.dayText
-                color: root.colMuted
-                font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
-            }
-            Text {
-                text: root.timeText
-                color: root.colFg
-                Layout.preferredWidth: mClock.width
-                horizontalAlignment: Text.AlignHCenter
-                font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
-            }
-
-            // номер текущего рабочего стола: перелистывается при смене
-            FlipText {
-                value: String(root.wsId)
-                textColor: root.colFg
-                fontFam: root.fontFam
-                pixelSize: root.fontSize - 1
-                minWidth: mWs.width
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            // текущая раскладка: перелистывается при Alt+Shift
-            FlipText {
-                value: root.kbLayout
-                textColor: root.kbLayout === "RU" ? root.tint("#7FB3FF") : root.colMuted
-                fontFam: root.fontFam
-                pixelSize: root.fontSize - 2
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            // Место резервируется под самый широкий вариант («100%»), иначе
-            // пилюля дышала бы на каждом проценте. Но раньше эталонная
-            // ширина висела на самом числе, и весь запас копился между
-            // иконкой и цифрами — на «48%» там зияла дыра. Теперь ширину
-            // держит контейнер, а пара внутри стоит по центру вплотную.
-            Item {
-                // без батареи блока нет совсем: на настольной машине это не
-                // «ноль процентов», а «нечему показываться»
-                visible: root.batteryPresent
-                Layout.preferredWidth: root.batteryPresent
-                                       ? mBattIcon.width + battPair.spacing + mBatt.width : 0
-                Layout.preferredHeight: root.pillH
-                Layout.alignment: Qt.AlignVCenter
-
-                RowLayout {
-                    id: battPair
-                    anchors.centerIn: parent
-                    spacing: 4
-
-                    Text {
-                        text: root.batteryIcon
-                        color: root.batteryCharging || root.acOnline ? root.colOk
-                             : root.batteryPct <= 15 ? root.colCrit
-                             : root.colFg
-                        font { family: root.fontFam; pixelSize: root.iconSize }
-                        Behavior on color { ColorAnimation { duration: 200 } }
-                    }
-                    Text {
-                        text: root.batteryPct + "%"
-                        color: root.colMuted
-                        font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
-                    }
-                }
-            }
-        }
-
         // ------------------------------------------ свёрнутое: Nothing
         // Часы стоят ровно по центру острова, столы — слева, состояние
-        // машины — справа. Это не RowLayout: в строке часы уезжали бы от
-        // центра каждый раз, когда слева появляется точка нового стола или
-        // справа пропадают проценты заряда. Здесь края разведены по якорям,
-        // а под них резервируется одинаковое место — часы стоят намертво.
+        // машины — справа. Края разведены по якорям, а под них резервируется
+        // одинаковое место — часы стоят намертво по центру.
         Item {
             id: nothingCapsule
-            // Растянут на всю длину острова, а не сжат по содержимому.
-            // Прижатый к своей ширине, он вставал посреди пилюли, и при
-            // длине больше содержимого точки столов оказывались не у левого
-            // края, а где-то в середине, вместе с остальным.
-            //
-            // implicitWidth при этом остаётся: по нему считается, короче
-            // какой длины остров сжимать уже нельзя.
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 18
             anchors.rightMargin: 18
             height: root.pillH
-            visible: root.themeNothing && (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+            visible: (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
                      && !root.osdActive && !root.toastActive
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }

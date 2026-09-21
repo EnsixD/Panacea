@@ -422,7 +422,7 @@ Item {
         // указание, что заряжается, и на белой заливке она пропадала —
         // рисуется она полупрозрачным поверх фона, а поверх белого белым не
         // видно ничего. Двух указаний на одно и то же и не нужно.
-        readonly property bool solid: view.sys.themeNothing && tile.on && !tile.wave
+        readonly property bool solid: tile.on && !tile.wave
         // цвет подписей: на залитой плитке они тёмные
         readonly property color ink: tile.solid ? view.sys.fgOn(tile.accent)
                                                 : view.sys.colFg
@@ -1035,23 +1035,15 @@ Item {
         property real gapRatio: 0.22
         property color color: view.sys.colFg
 
-        implicitWidth:  view.sys.themeNothing ? nDots.implicitWidth  : nPlain.implicitWidth
-        implicitHeight: view.sys.themeNothing ? nDots.implicitHeight : nPlain.implicitHeight
+        implicitWidth:  nDots.implicitWidth
+        implicitHeight: nDots.implicitHeight
 
         DotText {
             id: nDots
-            visible: view.sys.themeNothing
             value: num.value
             size: num.size
             gapRatio: num.gapRatio
             color: num.color
-        }
-        Text {
-            id: nPlain
-            visible: !view.sys.themeNothing
-            text: num.value
-            color: num.color
-            font { family: view.sys.fontFam; pixelSize: Math.round(num.size * 1.35) }
         }
     }
 
@@ -1335,19 +1327,8 @@ Item {
                         anchors.leftMargin: 4
                         spacing: 10
 
-                        Text {
-                            visible: !view.sys.themeNothing
-                            text: view.sys.timeText
-                            color: view.sys.colFg
-                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 8; bold: true }
-                        }
-
-                        // Nothing: крупные часы точками, секунды — мелким
-                        // числом сбоку. Секунды здесь всегда, независимо от
-                        // настройки «показывать секунды»: та про часы в
-                        // строке, а это отдельное число рядом с ними.
+                        // Часы точками в стиле Nothing, секунды — мелким числом сбоку.
                         RowLayout {
-                            visible: view.sys.themeNothing
                             spacing: 5
 
                             DotText {
@@ -1475,10 +1456,7 @@ Item {
                              : view.sys.tr("Подключено"))
                           : view.sys.tr("Нет подключений"))
                     on: view.sys.btOn
-                    // Синий у Bluetooth — примета его собственного значка, но
-                    // на теме Nothing цветного акцента нет вовсе, и одна
-                    // голубая плитка среди чёрно-белых выбивается.
-                    accent: view.sys.themeNothing ? view.sys.colOn : "#0ea5e9"
+                    accent: view.sys.colOn
                     onIconClicked: view.sys.toggleBt()
                     onBodyClicked: {
                         if (!view.sys.btOn || !view.sys.cfg.featBluetooth) return;
@@ -1758,38 +1736,15 @@ Item {
                         // выглядели бы обрывом полосы.
                         // На теме Nothing её нет: там дорожка — только сам
                         // спектр, и подчёркивание снизу спорит с ним.
-                        Rectangle {
-                            visible: !view.sys.themeNothing
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            height: 2
-                            radius: 1
-                            color: Qt.rgba(1, 1, 1, 0.12)
-                            Rectangle {
-                                width: parent.width * seek.frac
-                                height: parent.height
-                                radius: 1
-                                color: view.sys.colOn
-                            }
-                        }
-
-                        // Ручка — вертикальная риска на позиции.
-                        //
-                        // На теме Nothing она не висит постоянно, а появляется
-                        // под курсором. Совсем убрать её нельзя: перемотка
-                        // осталась, а без всякого отклика непонятно, куда
-                        // попадёшь, — и промах слышен сразу. Пока мышь мимо,
-                        // никакой черты поверх спектра нет.
+                        // Ручка — вертикальная риска на позиции под курсором.
                         Rectangle {
                             x: seek.width * seek.frac - width / 2
                             width: seekMa.pressed ? 3 : 2
                             height: parent.height
                             radius: 1.5
                             color: "#ffffff"
-                            opacity: !seek.usable ? (view.sys.themeNothing ? 0 : 0.3)
-                                   : (seekMa.containsMouse || seekMa.pressed) ? 1
-                                   : (view.sys.themeNothing ? 0 : 0.75)
+                            opacity: !seek.usable ? 0
+                                   : (seekMa.containsMouse || seekMa.pressed) ? 1 : 0
                             Behavior on opacity { NumberAnimation { duration: 140 } }
                             Behavior on width { NumberAnimation { duration: 120 } }
                         }
@@ -1821,32 +1776,18 @@ Item {
                         }
                     }
 
-                    // время: прошло и всего
+                    // время: прошло и всего (точечный шрифт DotText)
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.topMargin: -6
                         visible: seek.visible && seek.dur > 0
-                        Text {
-                            visible: !view.sys.themeNothing
-                            text: view.fmtTime(seek.pos)
-                            color: view.sys.colMuted
-                            font { family: view.sys.fontFam; pixelSize: 10 }
-                        }
                         DotText {
-                            visible: view.sys.themeNothing
                             value: view.fmtTime(seek.pos)
                             size: view.sys.dotHSmall
                             color: view.sys.colMuted
                         }
                         Item { Layout.fillWidth: true }
-                        Text {
-                            visible: !view.sys.themeNothing
-                            text: view.fmtTime(seek.dur)
-                            color: Qt.rgba(1, 1, 1, 0.28)
-                            font { family: view.sys.fontFam; pixelSize: 10 }
-                        }
                         DotText {
-                            visible: view.sys.themeNothing
                             value: view.fmtTime(seek.dur)
                             size: view.sys.dotHSmall
                             color: Qt.rgba(1, 1, 1, 0.28)
@@ -1950,8 +1891,7 @@ Item {
                 // месту. На Nothing цветного акцента нет вовсе, и одна
                 // оранжевая полоса внизу чёрно-белой панели бросается в
                 // глаза сильнее, чем сам режим того стоит.
-                readonly property color tint: view.sys.themeNothing
-                                              ? view.sys.colOn : "#f59e0b"
+                readonly property color tint: view.sys.colOn
 
                 Layout.fillWidth: true
                 Layout.preferredHeight: 44

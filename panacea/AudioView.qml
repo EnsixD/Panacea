@@ -191,7 +191,7 @@ Item {
                     x: sl.pos * sl.usable
                     color: "#ffffff"
                     border.color: view.sys.colBg
-                    border.width: view.sys.themeNothing ? 2 : 0
+                    border.width: 2
                     scale: drag.pressed ? 1.25 : (drag.containsMouse ? 1.1 : 1.0)
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
                 }
@@ -439,7 +439,7 @@ Item {
                             x: appSl.pos * appSl.usable
                             color: "#ffffff"
                             border.color: view.sys.colBg
-                            border.width: view.sys.themeNothing ? 2 : 0
+                            border.width: 2
                             scale: appDrag.pressed ? 1.25 : (appDrag.containsMouse ? 1.1 : 1.0)
                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
                         }
