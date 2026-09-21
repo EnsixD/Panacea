@@ -910,16 +910,30 @@ install_configs() {
 # GitHub появилось что-то новее, и предлагает обновиться. Ставили из клона —
 # берём хеш прямо из него; из архива — спрашиваем конец ветки у GitHub.
 stamp_version() {
-    local sha=""
+    local sha="" ver=""
+    if [ -f "$SRC/panacea/VERSION" ]; then
+        ver="$(tr -d ' \r\n' < "$SRC/panacea/VERSION")"
+    elif [ -f "$SRC/VERSION" ]; then
+        ver="$(tr -d ' \r\n' < "$SRC/VERSION")"
+    elif [ -f "$SRC/panacea/shell.qml" ]; then
+        ver="$(grep -oP 'readonly property string version: "\K[^"]+' "$SRC/panacea/shell.qml" 2>/dev/null)"
+    fi
+
     if [ -d "$SRC/.git" ] && command -v git >/dev/null 2>&1; then
         sha="$(git -C "$SRC" rev-parse HEAD 2>/dev/null)"
     fi
     if [ -z "$sha" ] && command -v git >/dev/null 2>&1; then
         sha="$(git ls-remote https://github.com/EnsixD/Panacea.git main 2>/dev/null | cut -f1)"
     fi
+
+    [ -n "$ver" ] && printf '%s\n' "$ver" > "$CONF/panacea/VERSION"
+
     if [ -n "$sha" ]; then
         printf '%s\n' "$sha" > "$CONF/panacea/.version"
-        ok "version stamp ${sha:0:7}"
+        ok "version stamp ${ver:-${sha:0:7}}"
+    elif [ -n "$ver" ]; then
+        printf '%s\n' "$ver" > "$CONF/panacea/.version"
+        ok "version stamp $ver"
     else
         warn "could not determine version — the shell will not offer updates"
     fi

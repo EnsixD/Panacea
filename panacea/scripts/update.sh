@@ -94,6 +94,63 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 current() { [ -f "$STATE" ] && cat "$STATE" || echo ""; }
 
+current_version() {
+    if [ -f "$CONF/panacea/VERSION" ]; then
+        tr -d ' \r\n' < "$CONF/panacea/VERSION"
+        return
+    fi
+    if [ -f "$CONF/panacea/shell.qml" ]; then
+        local v
+        v="$(grep -oP 'readonly property string version: "\K[^"]+' "$CONF/panacea/shell.qml" 2>/dev/null)"
+        if [ -n "$v" ]; then
+            printf '%s' "$v"
+            return
+        fi
+    fi
+    if [ -f "$STATE" ]; then
+        local s
+        s="$(tr -d ' \r\n' < "$STATE" 2>/dev/null)"
+        if [[ "$s" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)? ]]; then
+            printf '%s' "$s"
+            return
+        fi
+    fi
+    local script_dir
+    script_dir="$(dirname "$0")"
+    if [ -f "$script_dir/../VERSION" ]; then
+        tr -d ' \r\n' < "$script_dir/../VERSION"
+        return
+    fi
+    echo ""
+}
+
+remote_version() {
+    local ver=""
+    if [ "$IS_GITHUB" = "1" ] && have curl; then
+        ver="$(curl -fsSL --max-time 6 "https://raw.githubusercontent.com/$REPO/$BRANCH/panacea/VERSION" 2>/dev/null | tr -d ' \r\n')"
+        if [ -z "$ver" ]; then
+            ver="$(curl -fsSL --max-time 6 "https://raw.githubusercontent.com/$REPO/$BRANCH/VERSION" 2>/dev/null | tr -d ' \r\n')"
+        fi
+        if [ -z "$ver" ]; then
+            ver="$(curl -fsSL --max-time 8 "https://raw.githubusercontent.com/$REPO/$BRANCH/panacea/shell.qml" 2>/dev/null \
+                   | grep -oP 'readonly property string version: "\K[^"]+' 2>/dev/null | head -1 | tr -d ' \r\n')"
+        fi
+    fi
+    if [ -z "$ver" ]; then
+        if [ -d "$GIT_URL/.git" ] || [ -d "$GIT_URL" ]; then
+            ver="$(git -C "$GIT_URL" show "$BRANCH:panacea/VERSION" 2>/dev/null | tr -d ' \r\n' \
+                   || git -C "$GIT_URL" show "$BRANCH:VERSION" 2>/dev/null | tr -d ' \r\n' \
+                   || git -C "$GIT_URL" show "$BRANCH:panacea/shell.qml" 2>/dev/null | grep -oP 'readonly property string version: "\K[^"]+' | head -1 | tr -d ' \r\n')"
+        fi
+    fi
+    printf '%s' "$ver"
+}
+
+version_gt() {
+    [ -n "$1" ] && [ -n "$2" ] || return 1
+    [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1)" = "$1" ]
+}
+
 # Хеш и заголовок последнего коммита. Через API — одним запросом получаем и
 # то, и другое; без него остаётся ls-remote, который отдаёт только хеш.
 remote_info() {
@@ -127,23 +184,39 @@ remote_info() {
 }
 
 cmd_check() {
-    local cur info sha subject
-    cur="$(current)"
+    local cur_ver rem_ver cur_sha sha subject
+    cur_ver="$(current_version)"
+    rem_ver="$(remote_version)"
+    cur_sha="$(current)"
     IFS=$'\t' read -r sha subject <<<"$(remote_info)"
 
-    if [ -z "$sha" ]; then
+    if [ -z "$rem_ver" ] && [ -z "$sha" ]; then
         echo "status=offline"
-        echo "current=$cur"
+        echo "current=${cur_sha:-$cur_ver}"
         exit 2
     fi
-    echo "current=$cur"
-    echo "latest=$sha"
-    echo "subject=$subject"
+
+    local target_ver="${rem_ver:-$sha}"
+    local active_ver="${cur_sha:-$cur_ver}"
+
+    echo "current=$active_ver"
+    echo "latest=$target_ver"
+    echo "version=${cur_ver:-$active_ver}"
+    echo "remote_version=${rem_ver:-$target_ver}"
+    echo "subject=${subject:-Panacea $target_ver}"
+
     # Версия неизвестна (ставили не установщиком) — предлагать обновление
     # наугад нельзя: человек не поймёт, с чего на что.
-    if [ -z "$cur" ]; then
+    if [ -z "$cur_ver" ] && [ -z "$cur_sha" ]; then
         echo "status=unknown"
-    elif [ "$cur" = "$sha" ]; then
+    elif [ -n "$rem_ver" ] && [ -n "$cur_ver" ]; then
+        # Обновление срабатывает только когда меняется версия в репозитории!
+        if version_gt "$rem_ver" "$cur_ver"; then
+            echo "status=behind"
+        else
+            echo "status=current"
+        fi
+    elif [ "$active_ver" = "$target_ver" ]; then
         echo "status=current"
     else
         echo "status=behind"
@@ -537,6 +610,9 @@ EOF
     # с GitHub: клон делается мелкий, в нём её нет.
     write_changelog "$was" "$sha"
     printf '%s\n' "$sha" > "$STATE"
+    local new_ver
+    new_ver="$(current_version)"
+    [ -n "$new_ver" ] && printf '%s\n' "$new_ver" > "$CONF/panacea/VERSION"
 
     # Пользовательские post-update скрипты
     local hook
@@ -590,6 +666,6 @@ EOF
 case "${1:-check}" in
     check)   cmd_check ;;
     apply)   cmd_apply ;;
-    version) current ;;
+    version) current_version ;;
     *) echo "usage: update.sh [check|apply|version]" >&2; exit 1 ;;
 esac
