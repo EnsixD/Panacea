@@ -5,6 +5,7 @@ import QtQuick.Layouts
 // Премиальный двухколоночный Bento-Grid дизайн:
 // Слева (520px): текущая погода, крупные карточки ключевых параметров и 24-часовая карусель
 // Справа (340px): полный 7-дневный прогноз с графическими температурными шкалами (все 7 дней видны сразу без обрезки)
+// Полная поддержка локализации (English / Русский) согласно системному языку
 Item {
     id: view
 
@@ -15,9 +16,11 @@ Item {
     implicitWidth: 920
     implicitHeight: 560
 
+    readonly property bool isEn: view.sys ? view.sys.isEn : false
+
     function dayName(dateStr, idx) {
-        if (idx === 0) return view.sys ? view.sys.tr("Сегодня") : "Today";
-        if (idx === 1) return view.sys ? view.sys.tr("Завтра") : "Tomorrow";
+        if (idx === 0) return view.isEn ? "Today" : "Сегодня";
+        if (idx === 1) return view.isEn ? "Tomorrow" : "Завтра";
         if (!dateStr) return "";
         var parts = dateStr.split("-");
         if (parts.length < 3) return dateStr;
@@ -26,8 +29,8 @@ Item {
         var daysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         var monthsRu = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
         var monthsEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        var dayArr = (view.sys && view.sys.isEn) ? daysEn : daysRu;
-        var monArr = (view.sys && view.sys.isEn) ? monthsEn : monthsRu;
+        var dayArr = view.isEn ? daysEn : daysRu;
+        var monArr = view.isEn ? monthsEn : monthsRu;
         return dayArr[d.getDay()] + ", " + d.getDate() + " " + monArr[d.getMonth()];
     }
 
@@ -119,7 +122,7 @@ Item {
                     }
 
                     Text {
-                        text: (view.sys ? view.sys.tr("Прогноз погоды") : "Weather forecast") +
+                        text: (view.isEn ? "Weather forecast" : "Прогноз погоды") +
                               (activeDay ? " · " + view.dayName(activeDay.date, selectedDayIndex) : "")
                         color: view.sys ? view.sys.colMuted : "#888888"
                         font {
@@ -272,7 +275,7 @@ Item {
                         rowSpacing: 8
                         columnSpacing: 8
 
-                        // 1. Ощущается
+                        // 1. Ощущается / Feels like
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -293,7 +296,7 @@ Item {
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
                                     }
                                     Text {
-                                        text: view.sys ? view.sys.tr("ОЩУЩАЕТСЯ") : "FEELS LIKE"
+                                        text: view.isEn ? "FEELS LIKE" : "ОЩУЩАЕТСЯ"
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
                                     }
@@ -306,7 +309,7 @@ Item {
                             }
                         }
 
-                        // 2. Влажность / Осадки
+                        // 2. Влажность / Осадки (Humidity / Rain)
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -327,7 +330,7 @@ Item {
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
                                     }
                                     Text {
-                                        text: activeDay ? (view.sys ? view.sys.tr("ОСАДКИ") : "RAIN") : (view.sys ? view.sys.tr("ВЛАЖНОСТЬ") : "HUMIDITY")
+                                        text: activeDay ? (view.isEn ? "RAIN" : "ОСАДКИ") : (view.isEn ? "HUMIDITY" : "ВЛАЖНОСТЬ")
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
                                     }
@@ -340,7 +343,7 @@ Item {
                             }
                         }
 
-                        // 3. Ветер
+                        // 3. Ветер / Wind
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -361,20 +364,20 @@ Item {
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
                                     }
                                     Text {
-                                        text: view.sys ? view.sys.tr("ВЕТЕР") : "WIND"
+                                        text: view.isEn ? "WIND" : "ВЕТЕР"
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
                                     }
                                 }
                                 Text {
-                                    text: (activeDay ? activeDay.wind : (currentObj ? currentObj.wind : (view.sys && view.sys.weatherWind ? view.sys.weatherWind : "--"))) + " " + (view.sys ? view.sys.weatherWindUnit : "m/s")
+                                    text: (activeDay ? activeDay.wind : (currentObj ? currentObj.wind : (view.sys && view.sys.weatherWind ? view.sys.weatherWind : "--"))) + " " + (view.isEn ? "m/s" : "м/с")
                                     color: view.sys ? view.sys.colFg : "#fff"
                                     font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 18; bold: true }
                                 }
                             }
                         }
 
-                        // 4. Давление
+                        // 4. Давление / Pressure
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -395,20 +398,20 @@ Item {
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
                                     }
                                     Text {
-                                        text: view.sys ? view.sys.tr("ДАВЛЕНИЕ") : "PRESSURE"
+                                        text: view.isEn ? "PRESSURE" : "ДАВЛЕНИЕ"
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
                                     }
                                 }
                                 Text {
-                                    text: currentObj ? (currentObj.pressure + " hPa") : "--"
+                                    text: currentObj ? (currentObj.pressure + (view.isEn ? " hPa" : " гПа")) : "--"
                                     color: view.sys ? view.sys.colFg : "#fff"
                                     font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 18; bold: true }
                                 }
                             }
                         }
 
-                        // 5. УФ-индекс
+                        // 5. УФ-индекс / UV Index
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -429,7 +432,7 @@ Item {
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
                                     }
                                     Text {
-                                        text: view.sys ? view.sys.tr("УФ-ИНДЕКС") : "UV INDEX"
+                                        text: view.isEn ? "UV INDEX" : "УФ-ИНДЕКС"
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
                                     }
@@ -442,7 +445,7 @@ Item {
                             }
                         }
 
-                        // 6. Восход / Закат
+                        // 6. Восход / Закат (Sun)
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -463,7 +466,7 @@ Item {
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
                                     }
                                     Text {
-                                        text: view.sys ? view.sys.tr("СОЛНЦЕ") : "SUN"
+                                        text: view.isEn ? "SUN" : "СОЛНЦЕ"
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
                                     }
@@ -486,7 +489,7 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             Text {
-                                text: view.sys ? view.sys.tr("ПОЧАСОВОЙ ПРОГНОЗ") : "HOURLY FORECAST"
+                                text: view.isEn ? "HOURLY FORECAST" : "ПОЧАСОВОЙ ПРОГНОЗ"
                                 color: view.sys ? view.sys.colMuted : "#888"
                                 font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; letterSpacing: 1.1; bold: true }
                             }
@@ -544,7 +547,7 @@ Item {
 
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
-                                                text: index === 0 ? (view.sys ? view.sys.tr("Сейчас") : "Now") : modelData.time
+                                                text: index === 0 ? (view.isEn ? "Now" : "Сейчас") : modelData.time
                                                 color: index === 0 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888")
                                                 font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; bold: index === 0 }
                                             }
@@ -592,7 +595,7 @@ Item {
                     spacing: 8
 
                     Text {
-                        text: view.sys ? view.sys.tr("ПРОГНОЗ НА 7 ДНЕЙ") : "7-DAY FORECAST"
+                        text: view.isEn ? "7-DAY FORECAST" : "ПРОГНОЗ НА 7 ДНЕЙ"
                         color: view.sys ? view.sys.colMuted : "#888"
                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; letterSpacing: 1.1; bold: true }
                     }

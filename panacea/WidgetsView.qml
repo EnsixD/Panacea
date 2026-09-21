@@ -224,30 +224,20 @@ Item {
                             ctx.reset();
                             var cx = width / 2;
                             var cy = height / 2;
-                            var r = Math.min(cx, cy) - 13;
+                            var r = Math.min(cx, cy) - 16;
 
-                            // 12 точечных маркеров
+                            // 12 точечных маркеров часов: одинарные точки, без лишних сдвоенных
                             for (var i = 0; i < 12; i++) {
                                 var ang = i * (Math.PI / 6) - Math.PI / 2;
                                 var x = cx + Math.cos(ang) * r;
                                 var y = cy + Math.sin(ang) * r;
                                 ctx.beginPath();
-                                if (i === 0) {
-                                    // 12 часов: двойная точка Nothing
-                                    var x2 = cx + Math.cos(ang) * (r - 4.5);
-                                    var y2 = cy + Math.sin(ang) * (r - 4.5);
-                                    ctx.arc(x, y, 1.8, 0, Math.PI * 2);
-                                    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-                                    ctx.fill();
-                                    ctx.beginPath();
-                                    ctx.arc(x2, y2, 1.8, 0, Math.PI * 2);
-                                    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-                                    ctx.fill();
-                                    continue;
-                                } else if (i % 3 === 0) {
-                                    ctx.arc(x, y, 2.2, 0, Math.PI * 2);
-                                    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+                                if (i % 3 === 0) {
+                                    // 12, 3, 6, 9 часов: четкие акцентные белые точки
+                                    ctx.arc(x, y, 2.0, 0, Math.PI * 2);
+                                    ctx.fillStyle = "#ffffff";
                                 } else {
+                                    // Промежуточные часы: полупрозрачные точки
                                     ctx.arc(x, y, 1.3, 0, Math.PI * 2);
                                     ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
                                 }
@@ -259,53 +249,51 @@ Item {
                             var m = (view.sys && view.sys.timeMinute !== undefined) ? view.sys.timeMinute : (new Date()).getMinutes();
                             var s = (view.sys && view.sys.timeSecond !== undefined) ? view.sys.timeSecond : (new Date()).getSeconds();
 
-                            // Часовая стрелка: короткая капсула 0.38*r, толщина 4.5px (вдвое короче минутной!)
+                            // 1. Часовая стрелка: элегантная белая капсула
                             var hAng = ((h % 12) + m / 60 + s / 3600) * (Math.PI / 6) - Math.PI / 2;
                             ctx.beginPath();
-                            ctx.lineWidth = 4.5;
+                            ctx.lineWidth = 3.6;
                             ctx.lineCap = "round";
-                            ctx.strokeStyle = "rgba(255, 255, 255, 0.98)";
-                            ctx.moveTo(cx, cy);
-                            ctx.lineTo(cx + Math.cos(hAng) * (r * 0.38), cy + Math.sin(hAng) * (r * 0.38));
+                            ctx.strokeStyle = "#ffffff";
+                            ctx.moveTo(cx + Math.cos(hAng) * 3, cy + Math.sin(hAng) * 3);
+                            ctx.lineTo(cx + Math.cos(hAng) * (r * 0.50), cy + Math.sin(hAng) * (r * 0.50));
                             ctx.stroke();
 
-                            // Минутная стрелка: длинная стрелка 0.78*r, толщина 2.2px (тянется к точкам циферблата)
+                            // 2. Минутная стрелка: тонкая изящная белая игла
                             var mAng = (m + s / 60) * (Math.PI / 30) - Math.PI / 2;
                             ctx.beginPath();
-                            ctx.lineWidth = 2.2;
+                            ctx.lineWidth = 2.0;
                             ctx.lineCap = "round";
-                            ctx.strokeStyle = "rgba(255, 255, 255, 0.98)";
-                            ctx.moveTo(cx, cy);
+                            ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+                            ctx.moveTo(cx + Math.cos(mAng) * 3, cy + Math.sin(mAng) * 3);
                             ctx.lineTo(cx + Math.cos(mAng) * (r * 0.78), cy + Math.sin(mAng) * (r * 0.78));
                             ctx.stroke();
 
-                            // Фирменная втулка-пончик Nothing OS (накладывается поверх стрелок)
-                            ctx.beginPath();
-                            ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
-                            ctx.fillStyle = "#ffffff";
-                            ctx.fill();
-                            ctx.beginPath();
-                            ctx.arc(cx, cy, 2.0, 0, Math.PI * 2);
-                            ctx.fillStyle = "#111111";
-                            ctx.fill();
-
-                            // Секундная стрелка: орбитальная красная точка colCrit
+                            // 3. Секундная стрелка Nothing Red: тонкая стрелка с противовесом
                             var sAng = s * (Math.PI / 30) - Math.PI / 2;
                             ctx.beginPath();
-                            ctx.arc(cx + Math.cos(sAng) * (r * 0.88), cy + Math.sin(sAng) * (r * 0.88), 3.2, 0, Math.PI * 2);
+                            ctx.lineWidth = 1.2;
+                            ctx.lineCap = "round";
+                            ctx.strokeStyle = view.sys ? String(view.sys.colCrit) : "#d71921";
+                            ctx.moveTo(cx - Math.cos(sAng) * (r * 0.18), cy - Math.sin(sAng) * (r * 0.18));
+                            ctx.lineTo(cx + Math.cos(sAng) * (r * 0.82), cy + Math.sin(sAng) * (r * 0.82));
+                            ctx.stroke();
+
+                            // 4. Фирменная центральная втулка Nothing OS
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, 3.8, 0, Math.PI * 2);
+                            ctx.fillStyle = "#141414";
+                            ctx.fill();
+                            ctx.lineWidth = 1.0;
+                            ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+                            ctx.stroke();
+
+                            // Красная точка в самом центре
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, 1.8, 0, Math.PI * 2);
                             ctx.fillStyle = view.sys ? String(view.sys.colCrit) : "#d71921";
                             ctx.fill();
                         }
-                    }
-
-                    // Аккуратная цифровая подсказка времени снизу
-                    Caption {
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 8
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: view.sys ? view.sys.timeText : ""
-                        font.pixelSize: 8
-                        color: view.sys ? Qt.rgba(view.sys.colFg.r, view.sys.colFg.g, view.sys.colFg.b, 0.4) : "#666666"
                     }
                 }
 

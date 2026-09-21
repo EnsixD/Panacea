@@ -58,7 +58,13 @@ if [ -n "$KEY" ]; then
         res_name=$(printf '%s' "$ow_data" | jq -r '.name // empty')
         ow_country=$(printf '%s' "$ow_data" | jq -r '.sys.country // empty')
         if [ "$ow_country" = "RU" ] && { [ "$res_name" = "Гусев" ] || [ "$res_name" = "Gusev" ]; }; then
-            admin1="Калининградская область"
+            if [ "$LANG_" = "en" ]; then
+                admin1="Kaliningrad Oblast"
+                res_name="Gusev"
+            else
+                admin1="Калининградская область"
+                res_name="Гусев"
+            fi
         fi
     fi
 fi
@@ -69,7 +75,7 @@ if [ -z "$lat" ] || [ -z "$lon" ]; then
     geo=$(curl -sS --connect-timeout 5 --max-time 10 --get \
         --data-urlencode "name=$city_clean" \
         --data-urlencode "count=10" \
-        --data-urlencode "language=ru" \
+        --data-urlencode "language=$LANG_" \
         --data-urlencode "format=json" \
         "https://geocoding-api.open-meteo.com/v1/search" 2>/dev/null)
 
