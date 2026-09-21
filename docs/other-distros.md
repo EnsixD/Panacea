@@ -128,26 +128,14 @@ subprojects.
 
 ## 4. NetworkManager / iwd conflict
 
-Panacea's Wi-Fi script (`panacea/scripts/wifi.sh`) talks directly to `iwd` via `iwctl` and is
-written assuming NetworkManager isn't present, typical of a minimal Arch install, but not the
-default on Ubuntu/Mint (where NetworkManager manages Wi-Fi out of the box).
+Panacea's Wi-Fi helper (`panacea/scripts/wifi.sh`) supports both **NetworkManager** (`nmcli`)
+and **iwd** (`iwctl`) with automatic runtime detection. On Ubuntu, Debian, Linux Mint and Fedora,
+it detects NetworkManager and manages Wi-Fi seamlessly using `nmcli`, keeping existing saved
+credentials and DHCP without requiring changes to the system network stack.
 
-Running both side by side causes a sequence of non-obvious issues:
+*(Historical note: in earlier versions that only supported `iwd`, running NetworkManager caused interface conflicts. That is now resolved natively).*
 
-1. `iwctl station ... connect` fails with `Operation aborted`. NetworkManager/wpa_supplicant
-   compete with iwd for the interface, even after marking the device `unmanaged` in
-   NetworkManager.
-2. With the interface set to `unmanaged`, the connection authenticates but never gets an IP
-   (`NO-CARRIER`). Nobody does DHCP on iwd's behalf anymore.
-3. Even after enabling iwd's internal DHCP (`EnableNetworkConfiguration=true` in
-   `/etc/iwd/main.conf`), iwd's log shows `netconfig agent call returned
-   org.freedesktop.NetworkManager.Device.InvalidConnection`. NetworkManager registers itself as
-   the system-wide netconfig agent for iwd regardless of the individual device's `unmanaged`
-   state, and rejects the request.
-
-**Fix applied** (a bit drastic, but consistent with the script's own assumption): remove
-NetworkManager from the equation entirely, leaving iwd for Wi-Fi and systemd-networkd for
-Ethernet.
+If you choose to use pure `iwd` on an Ubuntu base instead:
 
 ```bash
 sudo systemctl stop wpa_supplicant

@@ -63,6 +63,7 @@ one geometry, one palette and one animation timeline.
 | Recorder | `Super + P` | FPS, folder, system audio, microphone |
 | Passwords | `Super + Shift + P` | Encrypted vault, browser import, save prompts |
 | Battery | from quick settings | Power profiles, charge state, capacity and wear |
+| Lock screen | `Super + L` | Lock current session (or `Mod + Alt + L` on Niri) |
 | Power | `Ctrl + Alt + Del` | Sleep, lock, log out, restart, shut down |
 | Settings | `Super + I` | Pill, system, displays, keys — with live mock‑ups |
 | Shortcuts | `Super + /` | Every binding in one place, rebindable |
@@ -213,9 +214,26 @@ read Lua configs: they would otherwise come up bare — no bindings, no pill, no
 way to open a terminal. It carries only the essentials and makes no attempt to
 mirror `lua/`; if something is missing there, the answer is to update Hyprland.
 
-Networking assumes **iwd** (the Wi‑Fi page drives `iwctl` directly — no
-NetworkManager). Power profiles go through `power-profiles-daemon` over D‑Bus.
+Networking supports both **NetworkManager** (`nmcli`, standard on Fedora / Ubuntu) and **iwd** (`iwctl`, common on minimal Arch). Panacea detects the active daemon automatically — no manual configuration required. Power profiles go through `power-profiles-daemon` over D‑Bus.
 Everything resolves `$HOME` at runtime — no hardcoded paths.
+
+### Customising and keeping changes across updates
+
+Panacea is designed so your personal tweaks — shell aliases, terminal fonts, window rules, keybindings — survive all updates without conflicts or overwrites:
+
+| Component | Where your custom settings live | Kept on update? |
+|---|---|:---:|
+| **Hyprland** | `~/.config/hypr/custom/` (`custom.conf`, `keybinds.conf`, `rules.conf` or `custom.lua`) | ✅ Yes |
+| **Terminal (foot)** | `~/.config/foot/custom.ini` (or edits in `foot.ini`) | ✅ Yes |
+| **Shell (fish)** | `~/.config/fish/custom.fish`, `custom/*.fish`, and `fish_variables` | ✅ Yes |
+| **Niri** | `~/.config/niri/custom/custom.kdl` (and `config.kdl`) | ✅ Yes |
+| **Fastfetch** | `~/.config/fastfetch/config.jsonc` or `custom.jsonc` | ✅ Yes |
+| **Nano** | `~/.nanorc` (existing file is never overwritten) | ✅ Yes |
+| **Panacea** | `~/.config/panacea/settings.json` (merged with defaults via `jq`) | ✅ Yes |
+| **Post-update hook** | `~/.config/panacea/custom/post-update.sh` (executed after update) | ✅ Yes |
+
+As an extra safety net, the updater backs up modified configurations to `~/.config/<name>.bak-update` before applying changes.
+
 
 ### Voice to text
 
