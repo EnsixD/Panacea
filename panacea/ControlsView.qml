@@ -1428,14 +1428,19 @@ Item {
                     // антенна в Nerd Font сделана хорошо, а дерева сети без
                     // перекладины во всю ширину там просто нет.
                     iconItem: view.sys.wiredOn ? lanShape : null
-                    icon: view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
+                    icon: (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length) ? "󰤩"
+                        : view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
                                            : view.sys.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
                     // подключены — в заголовке имя сети, иначе обычное «Wi-Fi»
                     label: view.sys.wiredOn ? view.sys.tr("Проводная сеть")
+                         : (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length)
+                           ? view.sys.wifiConnectingSsid
                          : (view.sys.wifiOn && view.sys.wifiSsid.length)
                            ? view.sys.wifiSsid : "Wi-Fi"
                     sub: view.sys.wiredOn ? view.sys.wiredName
                        : !view.sys.wifiOn ? view.sys.tr("Выключен")
+                       : (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length)
+                         ? view.sys.tr("Подключение…")
                        : (view.sys.wifiSsid.length
                           ? view.sys.wifiQuality + "%"
                           : view.sys.tr("Не подключено"))
@@ -2372,7 +2377,7 @@ Item {
                         color: pwField.text.length ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.10)
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Text {
-                            anchors.centerIn: parent; text: ""
+                            anchors.centerIn: parent; text: "󰁕"
                             color: "#ffffff"
                             font { family: view.sys.fontFam; pixelSize: 13 }
                         }
@@ -2401,14 +2406,16 @@ Item {
                     model: view.sys.wifiNetworks
                     Row1 {
                         required property var model
-                        icon: model.quality > 66 ? "󰤨" : model.quality > 33 ? "󰤥" : "󰤟"
+                        readonly property bool isConnecting: view.sys.wifiConnectingSsid.length > 0 && model.ssid === view.sys.wifiConnectingSsid
+                        icon: isConnecting ? "󰤩" : (model.quality > 66 ? "󰤨" : model.quality > 33 ? "󰤥" : "󰤟")
                         title: model.ssid
-                        sub: (model.security === "open" ? view.sys.tr("Открытая") : view.sys.tr("Защищённая"))
-                             + " · " + model.quality + "%"
-                             + (model.known ? view.sys.tr(" · сохранена") : "")
-                        highlight: model.connected
+                        sub: isConnecting ? view.sys.tr("Подключение…")
+                             : ((model.security === "open" ? view.sys.tr("Открытая") : view.sys.tr("Защищённая"))
+                              + " · " + model.quality + "%"
+                              + (model.known ? view.sys.tr(" · сохранена") : ""))
+                        highlight: model.connected || isConnecting
                         onActivated: {
-                            if (model.connected) return;
+                            if (model.connected || isConnecting) return;
                             if (model.security === "open" || model.known) {
                                 view.sys.connectWifi(model.ssid, "");
                             } else {

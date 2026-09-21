@@ -277,7 +277,8 @@ PanelWindow {
         screenOff:      "SUPER + SHIFT + F12",
         packWorkspaces: "SUPER + SHIFT + A",
         emptyWorkspace: "SUPER + Space",
-        specialWorkspace: "SUPER + S"
+        specialWorkspace: "SUPER + S",
+        lockScreen:     "SUPER + L"
     })
 
     readonly property var cfg: cfgFile.adapter
@@ -615,22 +616,10 @@ PanelWindow {
         // lock.log, — и тут же умирала, не оставив ни строчки в stderr и ни
         // своего файла журнала. Так выглядит убитый процесс, а не упавший.
         //
-        // Hyprland запускает программы своим потомком — тем же способом,
-        // каким их открывают горячие клавиши, — и оболочка ему в этом не
-        // родитель. Дальше процесс живёт сам по себе.
-        //
-        // Одинарные кавычки внутри команды экранируем: путь их не содержит,
-        // но команда приходит извне, и молча испорченная строка хуже явной.
-        if (Compositor.isNiri) {
-            Compositor.exec(cmd);
-            return;
-        }
-        if (Hyprland.usingLua) {
-            var safe = String(cmd).replace(/'/g, "\\'");
-            Hyprland.dispatch("hl.dsp.exec_cmd('" + safe + "')");
-        } else {
-            Hyprland.dispatch("exec " + String(cmd));
-        }
+        // Компоновщик (Hyprland / Niri) запускает программы своим потомком —
+        // тем же способом, каким их открывают горячие клавиши, — и оболочка
+        // ему в этом не родитель. Дальше процесс живёт сам по себе.
+        Compositor.exec(cmd);
     }
 
     function restartTerminalServer() {
@@ -3292,6 +3281,65 @@ PanelWindow {
     property int wifiQuality: 0
     property bool wifiBusy: false
     property string wifiError: ""
+    property string wifiConnectingSsid: ""
+
+    // ---- Тост «Wi-Fi подключён / отключён» -----------------------------
+    // Аналогично Bluetooth-устройствам: при успешном подключении остров
+    // показывает карточку с именем сети, значком Wi-Fi и уровнем сигнала.
+    property bool   wifiToastShown: false
+    property string wifiToastSsid: ""
+    property int    wifiToastQuality: 0
+    property bool   wifiToastDisconnected: false
+    readonly property bool wifiToastActive:
+        wifiToastShown && !expanded && !btToastActive && !acToastActive
+    property string wifiPrevConnected: ""
+    property bool   wifiInitDone: false
+
+    Timer {
+        id: wifiInitTimer
+        interval: 3500
+        running: true
+        onTriggered: {
+            root.wifiPrevConnected = root.wifiSsid;
+            root.wifiInitDone = true;
+        }
+    }
+
+    onWifiSsidChanged: {
+        if (!root.wifiInitDone) return;
+        var ssid = root.wifiSsid;
+        if (ssid.length > 0 && ssid !== root.wifiPrevConnected) {
+            root.wifiPrevConnected = ssid;
+            root.wifiConnectingSsid = "";
+            root.showWifiToast(ssid, root.wifiQuality, false);
+        } else if (ssid.length === 0 && root.wifiPrevConnected.length > 0) {
+            var prev = root.wifiPrevConnected;
+            root.wifiPrevConnected = "";
+            root.wifiConnectingSsid = "";
+            root.showWifiToast(prev, 0, true);
+        }
+    }
+
+    function showWifiToast(ssid, quality, isDisconnect) {
+        root.wifiToastSsid = ssid;
+        root.wifiToastQuality = quality || root.wifiQuality || 0;
+        root.wifiToastDisconnected = isDisconnect || false;
+        root.wifiToastShown = true;
+        if (root.expanded) root.collapse();
+        wifiToastTimer.interval = 2500;
+        wifiToastTimer.restart();
+        root.playSound(isDisconnect ? "disconnect" : "connect");
+    }
+
+    function dismissWifiToast() {
+        root.wifiToastShown = false;
+        wifiToastTimer.stop();
+    }
+    Timer {
+        id: wifiToastTimer
+        interval: 2500
+        onTriggered: root.dismissWifiToast()
+    }
 
     ListModel { id: wifiModel }
     // отдаём модель наружу: ControlsView лежит в другом файле
@@ -3308,6 +3356,9 @@ PanelWindow {
                 root.wifiOn = (p[0] === "on");
                 root.wifiSsid = p[1] || "";
                 root.wifiQuality = parseInt(p[2]) || 0;
+                if (root.wifiSsid.length > 0 && root.wifiConnectingSsid === root.wifiSsid) {
+                    root.wifiConnectingSsid = "";
+                }
             }
         }
     }
@@ -3356,8 +3407,16 @@ PanelWindow {
         onRunningChanged: {
             if (running) return;
             root.wifiBusy = false;
-            if (exitCode !== 0) root.wifiError = "Не удалось подключиться";
-            else { root.wifiError = ""; root.page = "main"; }
+            if (exitCode !== 0) {
+                root.wifiError = "Не удалось подключиться";
+                root.wifiConnectingSsid = "";
+            } else {
+                root.wifiError = "";
+                if (root.wifiConnectingSsid.length > 0) {
+                    root.wifiSsid = root.wifiConnectingSsid;
+                }
+                root.page = "main";
+            }
             root.refreshWifiStatus();
             // iwctl возвращается раньше, чем соединение поднялось: сразу после
             // него `iw dev link` ещё пуст, и панель показывала подключённую
@@ -3380,6 +3439,9 @@ PanelWindow {
         onTriggered: {
             root.refreshWifiStatus();
             if (root.wifiSsid.length || ++wifiSettleTimer.tries > 6) {
+                if (root.wifiSsid.length && root.wifiConnectingSsid.length) {
+                    root.wifiConnectingSsid = "";
+                }
                 wifiSettleTimer.tries = 0;
                 wifiSettleTimer.stop();
             }
@@ -3422,6 +3484,7 @@ PanelWindow {
     Timer { id: wifiRescanTimer; interval: 2600; onTriggered: root.refreshWifiList() }
 
     function connectWifi(ssid, password) {
+        root.wifiConnectingSsid = ssid;
         root.wifiBusy = true;
         root.wifiError = "";
         pWifiConnect.command = password && password.length
@@ -3881,6 +3944,9 @@ PanelWindow {
         function testBtLowBatt(name: string, type: string): void {
             root.showBtLowBattToast(name || "AirPods Pro", type || "earbuds");
         }
+        function testWifiToast(ssid: string, quality: string): void {
+            root.showWifiToast(ssid || "Wi-Fi Network", parseInt(quality) || 85, false);
+        }
         function settings(): void { root.settingsTab = 0; root.togglePage("settings"); }
         // открыть окно настроек сразу на нужном разделе: удобно вешать на
         // сочетание клавиш и незаменимо при проверке самих настроек
@@ -4243,6 +4309,8 @@ PanelWindow {
                     ? capsule.evenUp(Math.max(recPickCapsule.implicitWidth + 28, 240))
                 : root.btToastActive
                     ? capsule.evenUp(Math.max(btCapsule.implicitWidth + 48, 240))
+                : root.wifiToastActive
+                    ? capsule.evenUp(Math.max(wifiCapsule.implicitWidth + 48, 240))
                 : root.acToastActive
                     ? capsule.evenUp(Math.max(acCapsule.implicitWidth + 48, 240))
                 : root.toastActive ? 440
@@ -4254,7 +4322,7 @@ PanelWindow {
                                                            capsule.collapsedMin))
                                  : capsule.evenUp(Math.max(idleCapsule.implicitWidth + 32,
                                                            capsule.collapsedMin))
-        readonly property real idleThick: (root.btToastActive || root.acToastActive
+        readonly property real idleThick: (root.btToastActive || root.wifiToastActive || root.acToastActive
                     || root.recPickActive || root.voxActive)
                 ? root.pillH
                 : root.toastActive
@@ -4467,7 +4535,7 @@ PanelWindow {
                 if (!root.hoverExpandArmed) return;
                 // пока висит уведомление, наведение не раскрывает панель:
                 // иначе до крестика не добраться
-                if (root.toastActive || root.btToastActive || root.acToastActive || root.recPickActive || root.voxActive) return;
+                if (root.toastActive || root.btToastActive || root.wifiToastActive || root.acToastActive || root.recPickActive || root.voxActive) return;
                 // При автопрятании наведением остров только показывают. Он и
                 // выезжает-то из-за кромки под этот самый курсор, так что
                 // раскрытие следом означало бы: хотел посмотреть время —
@@ -4495,7 +4563,7 @@ PanelWindow {
             anchors.fill: parent
             z: 0
             enabled: !root.expanded && !root.toastActive && !root.pillDragging
-                     && !root.osdActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+                     && !root.osdActive && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             cursorShape: Qt.PointingHandCursor
             onClicked: capsule.openPanel()
         }
@@ -4542,7 +4610,7 @@ PanelWindow {
             anchors.rightMargin: 14
             anchors.topMargin: 12
             spacing: 12
-            visible: root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+            visible: root.toastActive && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -4807,6 +4875,95 @@ PanelWindow {
             }
         }
 
+        // ---------------------------------- свёрнутое: Wi-Fi подключение
+        // Слева иконка Wi-Fi, по центру статус (Подключено / Отключено) и имя сети,
+        // справа кружок с качеством сигнала или иконка состояния.
+        RowLayout {
+            id: wifiCapsule
+            z: 110
+            anchors.centerIn: parent
+            spacing: 11
+            visible: root.wifiToastActive && !root.recPickActive && !root.voxActive
+            opacity: visible ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            Item {
+                Layout.preferredWidth: 26
+                Layout.preferredHeight: 26
+                Layout.alignment: Qt.AlignVCenter
+                Layout.rightMargin: 4
+
+                Text {
+                    anchors.centerIn: parent
+                    text: root.wifiToastDisconnected ? "󰤮"
+                        : root.wifiToastQuality > 66 ? "󰤨"
+                        : root.wifiToastQuality > 33 ? "󰤥" : "󰤟"
+                    color: root.wifiToastDisconnected ? root.colCrit : root.colFg
+                    font { family: root.fontFam; pixelSize: 22 }
+                }
+            }
+
+            ColumnLayout {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 0
+                transform: Translate { y: -2 }
+
+                Text {
+                    text: root.wifiToastDisconnected ? root.tr("Отключено") : root.tr("Подключено")
+                    color: root.wifiToastDisconnected ? root.colCrit : root.colMuted
+                    transform: Translate { y: 2 }
+                    font { family: root.fontFam; pixelSize: root.fontSize - 4 }
+                }
+                Text {
+                    Layout.maximumWidth: 220
+                    text: root.wifiToastSsid
+                    color: root.colFg
+                    elide: Text.ElideRight
+                    font { family: root.fontFam; pixelSize: root.fontSize + 1; bold: true }
+                }
+            }
+
+            // Правая часть: кружок с процентом сигнала или индикатор
+            Item {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                Layout.alignment: Qt.AlignVCenter
+                Layout.leftMargin: 20
+
+                // Индикатор отключения
+                Rectangle {
+                    anchors.fill: parent
+                    visible: root.wifiToastDisconnected
+                    radius: 14
+                    color: Qt.rgba(1, 0, 0, 0.12)
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󰤮"
+                        color: root.colCrit
+                        font { family: root.fontFam; pixelSize: 14 }
+                    }
+                }
+
+                // Индикатор подключения с процентом
+                Rectangle {
+                    anchors.fill: parent
+                    visible: !root.wifiToastDisconnected
+                    radius: 14
+                    color: Qt.rgba(1, 1, 1, 0.10)
+                    Text {
+                        anchors.centerIn: parent
+                        text: root.wifiToastQuality > 0 ? (root.wifiToastQuality + "%") : "󰤨"
+                        color: root.colFg
+                        font {
+                            family: root.fontFam
+                            pixelSize: root.wifiToastQuality > 0 ? (root.fontSize - 6) : 13
+                            bold: true
+                        }
+                    }
+                }
+            }
+        }
+
         // ---- свёрнутое: зарядка подключена ------------------------------
         // Фон карточки — та же волна заряда, что на кнопке батареи в быстрых
         // настройках (ControlsView.ChargeWave): две бегущие синусоиды цветом
@@ -5034,7 +5191,7 @@ PanelWindow {
             anchors.centerIn: parent
             height: root.pillH
             spacing: 12
-            visible: root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+            visible: root.osdActive && !root.toastActive && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -5120,7 +5277,7 @@ PanelWindow {
             spacing: 14
             // На теме Nothing свёрнутый остров устроен иначе — его собирает
             // nothingCapsule, а эта раскладка целиком уступает ему место.
-            visible: !root.themeNothing && (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.osdActive && !root.toastActive && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+            visible: !root.themeNothing && (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.osdActive && !root.toastActive && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             // Прозрачностью, а не visible: у скрытой раскладки implicitWidth
             // равен нулю, и остров считал бы свою длину по пустоте.
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
@@ -5429,7 +5586,7 @@ PanelWindow {
             anchors.leftMargin: 18
             anchors.rightMargin: 18
             height: root.pillH
-            visible: root.themeNothing && (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+            visible: root.themeNothing && (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
                      && !root.osdActive && !root.toastActive
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
@@ -5743,7 +5900,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: root.pillH
                 spacing: 7
-                visible: (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+                visible: (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
                 opacity: root.pillSide ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -5991,9 +6148,9 @@ PanelWindow {
             // панель сворачивается, а её содержимое иначе видно ещё пару кадров
             // позади карточки — экраны «проблёскивали».
             active: (root.expanded || capsule.height > root.pillH + 4 || (root.cfg.pillKeepVisible && detachedPanel.opacity > 0.005))
-                    && !root.recPickActive && !root.btToastActive
+                    && !root.recPickActive && !root.btToastActive && !root.wifiToastActive
                     && !root.acToastActive && !root.voxActive
-            visible: !root.recPickActive && !root.btToastActive && !root.acToastActive && !root.voxActive
+            visible: !root.recPickActive && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.voxActive
             // без этого клавиатура не доходила до содержимого страницы:
             // сам Loader фокуса не имел, и forceActiveFocus() внутри вида
             // ни к чему не приводил

@@ -119,6 +119,8 @@ Singleton {
     // умирают вместе с ним при перезапуске оболочки, и открытый редактор
     // закрывался бы на ровном месте. У обоих компоновщиков для этого есть
     // свой диспетчер.
+    Process { id: pCompFallback }
+
     function exec(cmd) {
         var s = String(cmd);
         if (comp.isNiri) {
@@ -131,8 +133,12 @@ Singleton {
         if (comp.usingLua) {
             var safe = s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             Hyprland.dispatch("hl.dsp.exec_cmd('" + safe + "')");
-        } else {
+        } else if (comp.isHyprland) {
             Hyprland.dispatch("exec " + s);
+        } else {
+            pCompFallback.command = ["sh", "-c", s + " &"];
+            pCompFallback.running = false;
+            pCompFallback.running = true;
         }
     }
 
