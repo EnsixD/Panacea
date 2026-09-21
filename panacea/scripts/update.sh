@@ -52,11 +52,31 @@ KEEP=(
     "$CONF/hypr/wallpaper.conf"
     "$CONF/hypr/hyprpaper.conf"
     "$CONF/niri/config.kdl"
+    # Пользовательские настройки терминала foot: основной конфиг и overrides
+    "$CONF/foot/foot.ini"
+    "$CONF/foot/custom.ini"
+    "$CONF/foot/panacea-theme"
+    # Пользовательские настройки shell fish
+    "$CONF/fish/config.fish"
+    "$CONF/fish/custom.fish"
+    "$CONF/fish/fish_variables"
+    # Пользовательские настройки fastfetch
+    "$CONF/fastfetch/config.jsonc"
+    "$CONF/fastfetch/custom.jsonc"
+    # Пользовательский конфиг voxtype
+    "$CONF/voxtype/config.toml"
+    # Пользовательский конфиг nano
+    "$HOME/.nanorc"
 )
 KEEP_DIRS=(
     "$CONF/hypr/wallpaper"
     "$CONF/hypr/custom"
     "$CONF/niri/custom"
+    "$CONF/foot/custom"
+    "$CONF/fish/custom"
+    "$CONF/fastfetch/custom"
+    "$CONF/panacea/custom"
+    "$CONF/panacea/scripts/custom"
 )
 
 # То же, но мягко: возвращаем только то, чего нет в свежей установке. В
@@ -66,6 +86,8 @@ KEEP_DIRS=(
 # прежним.
 KEEP_DIRS_SOFT=(
     "$CONF/panacea/assets"
+    "$CONF/fish/functions"
+    "$CONF/fish/conf.d"
 )
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -464,8 +486,8 @@ cmd_apply() {
         local models_dir="$HOME/.local/share/voxtype/models"
         mkdir -p "$models_dir" "$CONF/voxtype"
 
-        # Обновляем конфиг voxtype из актуального шаблона
-        if [ -f "$CONF/panacea/scripts/voxtype.config.toml" ]; then
+        # Конфиг voxtype: копируем только при первой настройке, не затирая пользовательский
+        if [ -f "$CONF/panacea/scripts/voxtype.config.toml" ] && [ ! -f "$CONF/voxtype/config.toml" ]; then
             cp "$CONF/panacea/scripts/voxtype.config.toml" "$CONF/voxtype/config.toml"
         fi
 
@@ -508,6 +530,14 @@ EOF
     # с GitHub: клон делается мелкий, в нём её нет.
     write_changelog "$was" "$sha"
     printf '%s\n' "$sha" > "$STATE"
+
+    # Пользовательские post-update скрипты
+    local hook
+    for hook in "$CONF/panacea/custom/post-update.sh" "$CONF/panacea/post-update.sh"; do
+        if [ -x "$hook" ]; then
+            "$hook" >/dev/null 2>&1 || true
+        fi
+    done
 
     echo "step=restart"
     if [ "$DRY" = "1" ]; then

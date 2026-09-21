@@ -79,3 +79,17 @@ abbr -a ff 'fastfetch'
 
 
 set -gx PATH "$HOME/.local/bin" $PATH
+
+# ==============================================================================
+# Пользовательские настройки (User Custom Overrides)
+# Файлы ~/.config/fish/custom.fish и ~/.config/fish/custom/*.fish
+# сохраняются при обновлениях Panacea и никогда не затираются.
+# ==============================================================================
+if test -f $__fish_config_dir/custom.fish
+    source $__fish_config_dir/custom.fish
+end
+if test -d $__fish_config_dir/custom
+    for f in $__fish_config_dir/custom/*.fish
+        test -r $f; and source $f
+    end
+end

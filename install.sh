@@ -628,9 +628,11 @@ BACKUP_KEEP=3
 backup() {
     [ -e "$1" ] || return 0
     # Обновление: своё уже сохранено через KEEP, остальное — файлы репозитория.
-    # Просто убираем старое, не оставляя .bak, иначе ~/.config зарастает
-    # каталогами-двойниками после каждого апдейта.
+    # Делаем резервную копию в *.bak-update на случай, если пользователь правил
+    # файлы напрямую, не накапливая лишние каталоги-двойники.
     if [ "$DO_BACKUP" = "0" ]; then
+        rm -rf -- "$1.bak-update"
+        cp -r "$1" "$1.bak-update" 2>/dev/null || true
         rm -rf -- "$1"
         return 0
     fi
@@ -685,13 +687,32 @@ KEEP_FILES=(
     # include в foot.ini не падал до первого запуска). Без сохранения
     # обновление возвращало бы терминалу общий фон палитры.
     "foot/panacea-theme"
+    # Пользовательские настройки терминала foot
+    "foot/foot.ini"
+    "foot/custom.ini"
     # Пользовательский конфиг Niri
     "niri/config.kdl"
+    # Пользовательские настройки shell fish
+    "fish/config.fish"
+    "fish/custom.fish"
+    "fish/fish_variables"
+    # Пользовательские настройки fastfetch
+    "fastfetch/config.jsonc"
+    "fastfetch/custom.jsonc"
+    # Пользовательский конфиг voxtype
+    "voxtype/config.toml"
 )
 KEEP_DIRS=(
     "hypr/wallpaper"
     "hypr/custom"
     "niri/custom"
+    "foot/custom"
+    "fish/custom"
+    "fish/functions"
+    "fish/conf.d"
+    "fastfetch/custom"
+    "panacea/custom"
+    "panacea/scripts/custom"
     "panacea/assets"
 )
 KEEP_STASH=""
@@ -806,9 +827,11 @@ install_configs() {
         [ -d "$SRC/$d" ] && copy_into_config "$d"
     done
     keep_restore
-    # nanorc lives at ~/.nanorc, not in a directory
+    # nanorc lives at ~/.nanorc, not in a directory. Не перезаписываем существующий конфиг
     if [ -f "$SRC/nano/nanorc" ]; then
-        backup "$HOME/.nanorc"; cp "$SRC/nano/nanorc" "$HOME/.nanorc"; ok "nanorc → ~/.nanorc"
+        if [ ! -f "$HOME/.nanorc" ]; then
+            cp "$SRC/nano/nanorc" "$HOME/.nanorc" && ok "nanorc → ~/.nanorc"
+        fi
     fi
     if [ -d "$SRC/bin" ]; then
         cp "$SRC"/bin/* "$HOME/.local/bin/" 2>/dev/null
