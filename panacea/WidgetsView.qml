@@ -33,6 +33,9 @@ Item {
     readonly property string rightMode: (view.sys && view.sys.cfg && view.sys.cfg.widgetRightMode) || "weather"
     readonly property string progressMode: (view.sys && view.sys.cfg && view.sys.cfg.widgetProgressMode) || "day"
 
+    // Формат часов: 12-часовой или 24-часовой (из системных настроек)
+    readonly property bool is12: view.sys && view.sys.cfg ? Boolean(view.sys.cfg.clock12) : false
+
     // Синхронизация с системным временем через view.sys
     readonly property int curHour: (view.sys && view.sys.timeHour !== undefined) ? view.sys.timeHour : (new Date()).getHours()
     readonly property int curMin: (view.sys && view.sys.timeMinute !== undefined) ? view.sys.timeMinute : (new Date()).getMinutes()
@@ -211,6 +214,11 @@ Item {
                             function onTimeHourChanged() { clockCanvas.requestPaint(); }
                         }
 
+                        Connections {
+                            target: view
+                            function onIs12Changed() { clockCanvas.requestPaint(); }
+                        }
+
                         Timer {
                             interval: 1000
                             running: view.visible && view.clockMode === "analog"
@@ -226,22 +234,48 @@ Item {
                             var cy = height / 2;
                             var r = Math.min(cx, cy) - 16;
 
-                            // 12 точечных маркеров часов: одинарные точки, без лишних сдвоенных
-                            for (var i = 0; i < 12; i++) {
-                                var ang = i * (Math.PI / 6) - Math.PI / 2;
-                                var x = cx + Math.cos(ang) * r;
-                                var y = cy + Math.sin(ang) * r;
-                                ctx.beginPath();
-                                if (i % 3 === 0) {
-                                    // 12, 3, 6, 9 часов: четкие акцентные белые точки
-                                    ctx.arc(x, y, 2.0, 0, Math.PI * 2);
-                                    ctx.fillStyle = "#ffffff";
-                                } else {
-                                    // Промежуточные часы: полупрозрачные точки
-                                    ctx.arc(x, y, 1.3, 0, Math.PI * 2);
-                                    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+                            var is12 = view.is12;
+
+                            if (is12) {
+                                // 12-часовой циферблат: 12 точечных меток (шаг 30°)
+                                for (var i = 0; i < 12; i++) {
+                                    var ang = i * (Math.PI / 6) - Math.PI / 2;
+                                    var x = cx + Math.cos(ang) * r;
+                                    var y = cy + Math.sin(ang) * r;
+                                    ctx.beginPath();
+                                    if (i % 3 === 0) {
+                                        // 12, 3, 6, 9 часов: акцентные белые точки
+                                        ctx.arc(x, y, 2.0, 0, Math.PI * 2);
+                                        ctx.fillStyle = "#ffffff";
+                                    } else {
+                                        // Промежуточные часы: полупрозрачные точки
+                                        ctx.arc(x, y, 1.3, 0, Math.PI * 2);
+                                        ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+                                    }
+                                    ctx.fill();
                                 }
-                                ctx.fill();
+                            } else {
+                                // 24-часовой циферблат: 24 точечные метки (шаг 15°)
+                                for (var j = 0; j < 24; j++) {
+                                    var ang24 = j * (Math.PI / 12) - Math.PI / 2;
+                                    var x24 = cx + Math.cos(ang24) * r;
+                                    var y24 = cy + Math.sin(ang24) * r;
+                                    ctx.beginPath();
+                                    if (j % 6 === 0) {
+                                        // 00 (полночь/верх), 06 (утро/право), 12 (полдень/низ), 18 (вечер/лево)
+                                        ctx.arc(x24, y24, 2.0, 0, Math.PI * 2);
+                                        ctx.fillStyle = "#ffffff";
+                                    } else if (j % 2 === 0) {
+                                        // Четные часы: средние белые точки
+                                        ctx.arc(x24, y24, 1.4, 0, Math.PI * 2);
+                                        ctx.fillStyle = "rgba(255, 255, 255, 0.50)";
+                                    } else {
+                                        // Нечетные часы: тонкие деликатные точки
+                                        ctx.arc(x24, y24, 1.0, 0, Math.PI * 2);
+                                        ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+                                    }
+                                    ctx.fill();
+                                }
                             }
 
                             // Синхронизация с системным временем через view.sys
@@ -250,7 +284,11 @@ Item {
                             var s = (view.sys && view.sys.timeSecond !== undefined) ? view.sys.timeSecond : (new Date()).getSeconds();
 
                             // 1. Часовая стрелка: элегантная белая капсула
-                            var hAng = ((h % 12) + m / 60 + s / 3600) * (Math.PI / 6) - Math.PI / 2;
+                            // В 12-часовом формате оборот 12 часов (PI/6), в 24-часовом — 24 часа (PI/12)
+                            var hAng = is12
+                                ? (((h % 12) + m / 60 + s / 3600) * (Math.PI / 6) - Math.PI / 2)
+                                : ((h + m / 60 + s / 3600) * (Math.PI / 12) - Math.PI / 2);
+
                             ctx.beginPath();
                             ctx.lineWidth = 3.6;
                             ctx.lineCap = "round";
@@ -259,7 +297,7 @@ Item {
                             ctx.lineTo(cx + Math.cos(hAng) * (r * 0.50), cy + Math.sin(hAng) * (r * 0.50));
                             ctx.stroke();
 
-                            // 2. Минутная стрелка: тонкая изящная белая игла
+                            // 2. Минутная стрелка: тонкая изящная белая игла (1 оборот = 60 минут)
                             var mAng = (m + s / 60) * (Math.PI / 30) - Math.PI / 2;
                             ctx.beginPath();
                             ctx.lineWidth = 2.0;
@@ -269,7 +307,7 @@ Item {
                             ctx.lineTo(cx + Math.cos(mAng) * (r * 0.78), cy + Math.sin(mAng) * (r * 0.78));
                             ctx.stroke();
 
-                            // 3. Секундная стрелка Nothing Red: тонкая стрелка с противовесом
+                            // 3. Секундная стрелка Nothing Red: тонкая стрелка с противовесом (1 оборот = 60 секунд)
                             var sAng = s * (Math.PI / 30) - Math.PI / 2;
                             ctx.beginPath();
                             ctx.lineWidth = 1.2;
@@ -311,7 +349,14 @@ Item {
 
                     Num {
                         Layout.alignment: Qt.AlignHCenter
-                        value: view.sys ? view.sys.timeText : ""
+                        value: {
+                            if (!view.sys) return "";
+                            if (view.is12) {
+                                var d12 = new Date();
+                                return Qt.formatDateTime(d12, "h:mm");
+                            }
+                            return view.sys.timeText;
+                        }
                         size: 32
                         gapRatio: 0.14
                         color: view.sys ? view.sys.colFg : "#ffffff"
@@ -319,7 +364,13 @@ Item {
 
                     Caption {
                         Layout.alignment: Qt.AlignHCenter
-                        text: view.sys && view.sys.clockSeconds ? (new Date()).getSeconds() : "LOCAL"
+                        text: {
+                            if (view.is12) {
+                                var d = new Date();
+                                return (d.getHours() >= 12 ? "PM" : "AM") + (view.sys && view.sys.clockSeconds ? " · " + d.getSeconds() : "");
+                            }
+                            return view.sys && view.sys.clockSeconds ? (new Date()).getSeconds() : "LOCAL";
+                        }
                         color: view.sys ? view.sys.colMuted : "#888888"
                     }
                 }
