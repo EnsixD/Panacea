@@ -3265,10 +3265,14 @@ PanelWindow {
             root.timeHour = d.getHours();
             root.timeMinute = d.getMinutes();
             root.timeSecond = d.getSeconds();
-            var sec = root.cfg.clockSeconds ? ":ss" : "";
+            var hr = d.getHours();
+            var hr12 = (hr % 12) === 0 ? 12 : (hr % 12);
+            var mm = ("0" + d.getMinutes()).slice(-2);
+            var secStr = root.cfg.clockSeconds ? (":" + ("0" + d.getSeconds()).slice(-2)) : "";
+            var ampm = hr >= 12 ? "PM" : "AM";
             root.timeText = root.cfg.clock12
-                ? Qt.formatDateTime(d, "h:mm" + sec + " AP")
-                : Qt.formatDateTime(d, "HH:mm" + sec);
+                ? (hr12 + ":" + mm + secStr + " " + ampm)
+                : Qt.formatDateTime(d, "HH:mm" + (root.cfg.clockSeconds ? ":ss" : ""));
             root.secText = Qt.formatDateTime(d, "ss");
             root.dateLong = (root.cfg.clockWeekday ? Qt.formatDateTime(d, "dddd") + ", " : "")
                 + Qt.formatDateTime(d, root.cfg.clockDateFmt || "d MMMM");
