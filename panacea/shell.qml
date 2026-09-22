@@ -3326,11 +3326,9 @@ PanelWindow {
             root.wifiPrevConnected = ssid;
             root.wifiConnectingSsid = "";
             root.showWifiToast(ssid, root.wifiQuality, false);
-        } else if (ssid.length === 0 && root.wifiPrevConnected.length > 0) {
-            var prev = root.wifiPrevConnected;
+        } else if (ssid.length === 0) {
             root.wifiPrevConnected = "";
             root.wifiConnectingSsid = "";
-            root.showWifiToast(prev, 0, true);
         }
     }
 
