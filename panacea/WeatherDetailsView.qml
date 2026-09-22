@@ -499,23 +499,13 @@ Item {
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; letterSpacing: 0.9; bold: true }
                                     }
                                 }
-                                RowLayout {
-                                    spacing: 5
-                                    Text {
-                                        text: (activeDay && activeDay.sunrise) ? activeDay.sunrise : "--:--"
-                                        color: view.sys ? view.sys.colFg : "#fff"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15; bold: true }
-                                    }
-                                    Text {
-                                        text: "/"
-                                        color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
-                                    }
-                                    Text {
-                                        text: (activeDay && activeDay.sunset) ? activeDay.sunset : "--:--"
-                                        color: view.sys ? view.sys.colFg : "#fff"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15; bold: true }
-                                    }
+                                Text {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignHCenter
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: (activeDay && activeDay.sunrise && activeDay.sunset) ? (activeDay.sunrise + " / " + activeDay.sunset) : "--:--"
+                                    color: view.sys ? view.sys.colFg : "#fff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 17; bold: true }
                                 }
                             }
                         }
