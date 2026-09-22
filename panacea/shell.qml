@@ -3296,6 +3296,7 @@ PanelWindow {
     property bool wifiBusy: false
     property string wifiError: ""
     property string wifiConnectingSsid: ""
+    property bool   wifiConnecting: false
 
     // ---- Тост «Wi-Fi подключён / отключён» -----------------------------
     // Аналогично Bluetooth-устройствам: при успешном подключении остров
@@ -3307,6 +3308,7 @@ PanelWindow {
     readonly property bool wifiToastActive:
         wifiToastShown && !expanded && !btToastActive && !acToastActive
     property string wifiPrevConnected: ""
+    property string wifiLastSsid: ""
     property bool   wifiInitDone: false
 
     Timer {
@@ -3315,6 +3317,7 @@ PanelWindow {
         running: true
         onTriggered: {
             root.wifiPrevConnected = root.wifiSsid;
+            if (root.wifiSsid.length > 0) root.wifiLastSsid = root.wifiSsid;
             root.wifiInitDone = true;
         }
     }
@@ -3324,11 +3327,27 @@ PanelWindow {
         var ssid = root.wifiSsid;
         if (ssid.length > 0 && ssid !== root.wifiPrevConnected) {
             root.wifiPrevConnected = ssid;
+            root.wifiLastSsid = ssid;
+            root.wifiConnecting = false;
             root.wifiConnectingSsid = "";
             root.showWifiToast(ssid, root.wifiQuality, false);
         } else if (ssid.length === 0) {
             root.wifiPrevConnected = "";
             root.wifiConnectingSsid = "";
+        }
+    }
+
+    onWifiOnChanged: {
+        if (!root.wifiInitDone) return;
+        if (root.wifiOn && root.wifiSsid.length === 0) {
+            root.wifiConnecting = true;
+            wifiSettleTimer.begin();
+        } else if (!root.wifiOn) {
+            root.wifiConnecting = false;
+            root.wifiSsid = "";
+            root.wifiPrevConnected = "";
+            root.wifiConnectingSsid = "";
+            wifiSettleTimer.stop();
         }
     }
 
@@ -3366,10 +3385,15 @@ PanelWindow {
                 var p = line.trim().split("|");
                 if (p.length < 3) return;
                 root.wifiOn = (p[0] === "on");
-                root.wifiSsid = p[1] || "";
+                var newSsid = p[1] || "";
                 root.wifiQuality = parseInt(p[2]) || 0;
-                if (root.wifiSsid.length > 0 && root.wifiConnectingSsid === root.wifiSsid) {
+                root.wifiSsid = newSsid;
+                if (newSsid.length > 0) {
+                    root.wifiLastSsid = newSsid;
+                    root.wifiConnecting = false;
                     root.wifiConnectingSsid = "";
+                    wifiSettleTimer.stop();
+                    wifiSettleTimer.tries = 0;
                 }
             }
         }
@@ -3412,7 +3436,12 @@ PanelWindow {
     Process {
         id: pWifiToggle
         command: ["sh", "-c", root.wifiScript + " toggle"]
-        onRunningChanged: if (!running) pWifiStatus.running = true
+        onRunningChanged: if (!running) {
+            root.refreshWifiStatus();
+            if (root.wifiOn) {
+                wifiSettleTimer.begin();
+            }
+        }
     }
     Process {
         id: pWifiConnect
@@ -3422,6 +3451,7 @@ PanelWindow {
             if (exitCode !== 0) {
                 root.wifiError = "Не удалось подключиться";
                 root.wifiConnectingSsid = "";
+                root.wifiConnecting = false;
             } else {
                 root.wifiError = "";
                 if (root.wifiConnectingSsid.length > 0) {
@@ -3445,13 +3475,14 @@ PanelWindow {
     // без имени до ближайшего общего опроса — или до ручного сканирования.
     Timer {
         id: wifiSettleTimer
-        interval: 1200
+        interval: 800
         repeat: true
         property int tries: 0
         onTriggered: {
             root.refreshWifiStatus();
-            if (root.wifiSsid.length || ++wifiSettleTimer.tries > 6) {
-                if (root.wifiSsid.length && root.wifiConnectingSsid.length) {
+            if (root.wifiSsid.length > 0 || ++wifiSettleTimer.tries > 15) {
+                root.wifiConnecting = false;
+                if (root.wifiSsid.length > 0) {
                     root.wifiConnectingSsid = "";
                 }
                 wifiSettleTimer.tries = 0;
@@ -3470,11 +3501,16 @@ PanelWindow {
         pWifiDisconnect.running = false;
         pWifiDisconnect.command = ["sh", "-c", root.wifiScript + " disconnect"];
         pWifiDisconnect.running = true;
+        root.wifiConnecting = false;
+        root.wifiSsid = "";
+        root.wifiPrevConnected = "";
+        root.wifiConnectingSsid = "";
         wifiSettleTimer.begin();
     }
     Process { id: pWifiForget }
     function forgetWifi(ssid) {
         if (!ssid || !ssid.length) return;
+        if (root.wifiLastSsid === ssid) root.wifiLastSsid = "";
         pWifiForget.running = false;
         pWifiForget.command = ["sh", "-c", root.wifiScript + " forget \"$1\"", "_", String(ssid)];
         pWifiForget.running = true;
@@ -3482,7 +3518,24 @@ PanelWindow {
         wifiRescanTimer.restart();
     }
 
-    function toggleWifi() { pWifiToggle.running = true; }
+    function toggleWifi() {
+        if (root.wifiOn) {
+            if (root.wifiSsid.length > 0) root.wifiLastSsid = root.wifiSsid;
+            root.wifiOn = false;
+            root.wifiConnecting = false;
+            root.wifiSsid = "";
+            root.wifiPrevConnected = "";
+            root.wifiConnectingSsid = "";
+            wifiSettleTimer.stop();
+        } else {
+            root.wifiOn = true;
+            root.wifiConnecting = true;
+            root.wifiConnectingSsid = "";
+            wifiSettleTimer.begin();
+        }
+        pWifiToggle.running = false;
+        pWifiToggle.running = true;
+    }
     function refreshWifiList() {
         wifiModel.clear();
         root.wifiBusy = true;

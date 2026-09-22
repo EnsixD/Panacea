@@ -1409,22 +1409,22 @@ Item {
                     // антенна в Nerd Font сделана хорошо, а дерева сети без
                     // перекладины во всю ширину там просто нет.
                     iconItem: view.sys.wiredOn ? lanShape : null
-                    icon: (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length) ? "󰤩"
+                    icon: (view.sys.wifiConnecting || (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length)) ? "󰤩"
                         : view.sys.wifiOn ? (view.sys.wifiQuality > 66 ? "󰤨"
                                            : view.sys.wifiQuality > 33 ? "󰤥" : "󰤟") : "󰤮"
                     // подключены — в заголовке имя сети, иначе обычное «Wi-Fi»
                     label: view.sys.wiredOn ? view.sys.tr("Проводная сеть")
-                         : (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length)
-                           ? view.sys.wifiConnectingSsid
                          : (view.sys.wifiOn && view.sys.wifiSsid.length)
-                           ? view.sys.wifiSsid : "Wi-Fi"
+                           ? view.sys.wifiSsid
+                         : (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length)
+                           ? view.sys.wifiConnectingSsid : "Wi-Fi"
                     sub: view.sys.wiredOn ? view.sys.wiredName
                        : !view.sys.wifiOn ? view.sys.tr("Выключен")
-                       : (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length)
+                       : (view.sys.wifiSsid.length)
+                         ? view.sys.wifiQuality + "%"
+                       : (view.sys.wifiConnecting || (view.sys.wifiConnectingSsid && view.sys.wifiConnectingSsid.length))
                          ? view.sys.tr("Подключение…")
-                       : (view.sys.wifiSsid.length
-                          ? view.sys.wifiQuality + "%"
-                          : view.sys.tr("Не подключено"))
+                       : view.sys.tr("Не подключено")
                     on: view.sys.wiredOn || view.sys.wifiOn
                     // Значок кабеля ничего не переключает: проводную сеть
                     // выключают кабелем, а не кнопкой. Wi-Fi при этом остаётся
