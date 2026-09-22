@@ -22,7 +22,6 @@
     "bind_specialWorkspace": "SUPER + S",
     "bind_terminal": "SUPER + T",
     "bind_terminalAlt": "SUPER + Return",
-    "bind_themeSwitch": "SUPER + SHIFT + T",
     "bind_toggleSplit": "SUPER + J",
     "clock12": false,
     "colFg": "#ffffff",

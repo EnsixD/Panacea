@@ -33,8 +33,8 @@ Item {
           sub: view.sys.tr("Формат времени, часовой пояс и подпись под ним."),
           keys: "clock time date timezone часы дата время пояс регион" },
         { id: "look",    title: "Appearance",     g: 0xF03D8, page: "SetAppearance.qml",
-          sub: view.sys.tr("Тема, шрифты и то, из чего складывается геометрия."),
-          keys: "theme font size radius spacing sounds audio haptics звуки звук звуковые эффекты тема шрифт цвет радиус отступ" },
+          sub: view.sys.tr("Виджеты, шрифты и оформление системы."),
+          keys: "theme nothing font size sounds audio haptics виджеты звуки звук звуковые эффекты тема шрифт цвет" },
         { id: "weather", title: "Weather",        g: 0xF0590, page: "SetWeather.qml",
           sub: view.sys.tr("Ключ, город и шкала для виджета погоды."),
           keys: "weather temperature city openweather api key celsius fahrenheit "

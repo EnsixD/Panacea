@@ -360,7 +360,7 @@ ColumnLayout {
             Rectangle {
                 Layout.preferredWidth: 118
                 Layout.preferredHeight: 32
-                radius: page.sys.radiusS
+                radius: 10
                 color: detectMa.containsMouse
                        ? Qt.rgba(page.sys.colOn.r, page.sys.colOn.g, page.sys.colOn.b, 0.28)
                        : Qt.rgba(page.sys.colFg.r, page.sys.colFg.g, page.sys.colFg.b, 0.07)

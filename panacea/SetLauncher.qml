@@ -74,7 +74,7 @@ ColumnLayout {
 
         SetToggle {
             sys: page.sys
-            label: page.sys.tr("Обои и темы")
+            label: page.sys.tr("Обои")
             on: page.sys.cfg.featThemes
             onToggled: v => { page.sys.cfg.featThemes = v; page.sys.saveCfg(); }
         }

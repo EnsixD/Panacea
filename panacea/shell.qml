@@ -226,7 +226,6 @@ PanelWindow {
             property string bind_browser: "SUPER + F"
             property string bind_fullscreen: "SUPER + SHIFT + F"
             property string bind_exitHypr: "SUPER + SHIFT + M"
-            property string bind_themeSwitch: "SUPER + SHIFT + T"
             property string bind_floatToggle: "SUPER + W"
             property string bind_pillVault: "SUPER + SHIFT + P"
             // Голос в текст (voxtype): зажми правый Alt — говоришь, отпустил —
@@ -264,7 +263,6 @@ PanelWindow {
         browser:        "SUPER + F",
         fullscreen:     "SUPER + SHIFT + F",
         exitHypr:       "SUPER + SHIFT + M",
-        themeSwitch:    "SUPER + SHIFT + T",
         floatToggle:    "SUPER + W",
         pillVault:      "SUPER + SHIFT + P",
         voxDictate:     "Alt_R",

@@ -1,10 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
 
-// Appearance. Тема задаёт палитру всей оболочки и ни от чего больше не
-// зависит: обои меняются сами по себе, цвет — сам по себе. Тема «Default»
-// оставлена как была, поэтому вручную выбранные цвет текста и акцент
-// продолжают работать именно на ней.
+// Appearance. Оформление в стиле Nothing OS: минималистичная монохромная
+// палитра, фирменные точечные шрифты, виджеты рабочего стола и системные звуки.
 ColumnLayout {
     id: page
 
@@ -44,84 +42,15 @@ ColumnLayout {
         }
     }
 
-    // ------------------------------------------------------------- тема
+    // ------------------------------------------------------------- виджеты
     SetCard {
         sys: page.sys
 
-        SetLabel { sys: page.sys; text: page.sys.tr("Тема") }
+        SetLabel { sys: page.sys; text: page.sys.tr("Настольные виджеты") }
 
-        GridLayout {
-            Layout.fillWidth: true
-            columns: 3
-            columnSpacing: 8
-            rowSpacing: 8
-
-            Repeater {
-                model: page.sys.themes
-
-                Rectangle {
-                    id: swatch
-                    required property var modelData
-                    readonly property bool active: page.sys.cfg.themeId === swatch.modelData.id
-
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 64
-                    radius: 14
-                    color: swatch.modelData.bg
-                    border.width: swatch.active ? 2 : 1
-                    border.color: swatch.active
-                                  ? swatch.modelData.on
-                                  : Qt.rgba(page.sys.colFg.r, page.sys.colFg.g, page.sys.colFg.b,
-                                            swatchMa.containsMouse ? 0.30 : 0.12)
-                    Behavior on border.color { ColorAnimation { duration: page.sys.animFade } }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 9
-
-                        // три кружка: акцент, текст, тревожный цвет — по ним
-                        // тема узнаётся быстрее, чем по названию
-                        Repeater {
-                            model: [swatch.modelData.on, swatch.modelData.fg, swatch.modelData.crit]
-                            Rectangle {
-                                required property var modelData
-                                width: 14; height: 14; radius: 7
-                                color: modelData
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-                    }
-
-                    Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 12
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 9
-                        text: swatch.modelData.name
-                        color: swatch.modelData.fg
-                        font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
-                    }
-
-                    MouseArea {
-                        id: swatchMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: { page.sys.cfg.themeId = swatch.modelData.id; page.sys.saveCfg(); }
-                    }
-                }
-            }
-        }
-
-
-
-        // Тумблер стоит здесь, рядом с выбором темы: карточки — часть облика,
-        // а не отдельная служба.
         SetToggle {
             sys: page.sys
-            label: page.sys.tr("Настольные виджеты")
+            label: page.sys.tr("Виджеты на рабочем столе")
             sub: page.sys.tr("Карточки Nothing OS на обоях: дата, часы, погода, системный монитор и шкала прогресса. Клик по карточкам переключает режимы.")
             on: page.sys.cfg.featWidgets
             onToggled: v => { page.sys.cfg.featWidgets = v; page.sys.saveCfg(); }
@@ -172,9 +101,24 @@ ColumnLayout {
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
+    }
 
-        // Прозрачность терминала. Здесь, а не в отдельной вкладке: это одна
-        // ручка, и стоит она рядом с прочим внешним видом.
+    // ------------------------------------------------------------- оформление
+    SetCard {
+        sys: page.sys
+
+        SetLabel { sys: page.sys; text: page.sys.tr("Оформление") }
+
+        SetSlider {
+            sys: page.sys
+            label: page.sys.tr("Приглушённый текст")
+            from: 0.2; to: 1.0; step: 0.05
+            decimals: 2
+            value: page.sys.cfg.mutedAlpha
+            onMoved: v => { page.sys.cfg.mutedAlpha = v; page.sys.saveCfg(); }
+        }
+
+        // Прозрачность терминала
         SetSlider {
             sys: page.sys
             label: page.sys.tr("Прозрачность терминала")
@@ -216,22 +160,13 @@ ColumnLayout {
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
-
-        SetSlider {
-            sys: page.sys
-            label: page.sys.tr("Приглушённый текст")
-            from: 0.2; to: 1.0; step: 0.05
-            decimals: 2
-            value: page.sys.cfg.mutedAlpha
-            onMoved: v => { page.sys.cfg.mutedAlpha = v; page.sys.saveCfg(); }
-        }
     }
 
     // ------------------------------------------------------------- шрифты
     SetCard {
         sys: page.sys
 
-        SetLabel { sys: page.sys; text: page.sys.tr("Type") }
+        SetLabel { sys: page.sys; text: page.sys.tr("Шрифты") }
 
         SetSlider {
             sys: page.sys
@@ -275,31 +210,6 @@ ColumnLayout {
             options: page.sys.fontList
             value: page.sys.cfg.fontFam
             onPicked: id => { page.sys.cfg.fontFam = id; page.sys.saveCfg(); }
-        }
-    }
-
-    // ------------------------------------------------------------- геометрия
-    SetCard {
-        sys: page.sys
-
-        SetLabel { sys: page.sys; text: page.sys.tr("Shape & depth") }
-
-        SetSlider {
-            sys: page.sys
-            label: page.sys.tr("Spacing unit")
-            from: 4; to: 16; step: 1
-            value: page.sys.cfg.spacingUnit
-            suffix: "px"
-            onMoved: v => { page.sys.cfg.spacingUnit = v; page.sys.saveCfg(); }
-        }
-
-        SetSlider {
-            sys: page.sys
-            label: page.sys.tr("Small radius")
-            from: 0; to: 24; step: 1
-            value: page.sys.cfg.smallRadius
-            suffix: "px"
-            onMoved: v => { page.sys.cfg.smallRadius = v; page.sys.saveCfg(); }
         }
     }
 

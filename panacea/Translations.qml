@@ -131,6 +131,7 @@ QtObject {
         "Плеер, обложки и то, что видно в свёрнутом острове.": "The player, cover art, and what shows in the collapsed island.",
         "Формат времени, часовой пояс и подпись под ним.": "Time format, time zone, and the line beneath it.",
         "Тема, шрифты и то, из чего складывается геометрия.": "Theme, fonts, and what the geometry is built from.",
+        "Виджеты, шрифты и оформление системы.": "Widgets, fonts, and system appearance.",
         "Поиск приложений и то, что он ищет кроме них.": "App search, and what else it looks through.",
         "Сколько карточек висит на экране и как долго.": "How many cards stay on screen, and for how long.",
         "Раскладка быстрых настроек — плитки переставляются мышью.": "The quick settings layout — blocks are rearranged by hand.",
@@ -200,6 +201,8 @@ QtObject {
         "никогда": "never",
         "Обложка, перемотка и переключение источника звука.": "Cover art, seeking and switching the audio source.",
         "Обои и темы": "Wallpapers and themes",
+        "Обои": "Wallpapers",
+        "Оформление": "Appearance",
         "Оболочка перестаёт двигаться совсем: длительности считаются нулевыми.": "The shell stops moving entirely: every duration counts as zero.",
         "Оперативная память": "Memory",
         "Остров можно взять прямо на экране и перетащить к другой кромке.": "The island can be grabbed right on the screen and dragged to another edge.",
@@ -743,6 +746,8 @@ QtObject {
 
         // --------------------------------------------- настольные виджеты
         "Настольные виджеты": "Desktop widgets",
+        "Виджеты на рабочем столе": "Desktop widgets",
+        "Шрифты": "Fonts",
         "Карточки на обоях: дата, погода и часы. Начертание берут у выбранной темы.":
             "Cards on the wallpaper: date, weather and clock. They take their type from the current theme.",
         "Впишите ключ и город во вкладке Weather, иначе карточка погоды останется пустой.":

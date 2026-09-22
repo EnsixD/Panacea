@@ -270,7 +270,7 @@ Item {
                     // 2. Bento Grid ключевых показателей (6 карточек с КРУПНЫМ текстом и иконками)
                     GridLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 154
+                        Layout.preferredHeight: 168
                         columns: 3
                         rowSpacing: 8
                         columnSpacing: 8
@@ -286,25 +286,25 @@ Item {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 9
-                                spacing: 2
+                                anchors.margins: 12
+                                spacing: 4
                                 RowLayout {
-                                    spacing: 5
+                                    spacing: 6
                                     Text {
                                         text: "󰔄"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15 }
                                     }
                                     Text {
                                         text: view.isEn ? "FEELS LIKE" : "ОЩУЩАЕТСЯ"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; letterSpacing: 0.9; bold: true }
                                     }
                                 }
                                 Text {
                                     text: (activeDay ? activeDay.feelsMax : (currentObj ? currentObj.feels : (view.sys && view.sys.weatherTemp ? view.sys.weatherTemp : "--"))) + "°"
                                     color: view.sys ? view.sys.colFg : "#fff"
-                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 21; bold: true }
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
                                 }
                             }
                         }
@@ -320,25 +320,25 @@ Item {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 9
-                                spacing: 2
+                                anchors.margins: 12
+                                spacing: 4
                                 RowLayout {
-                                    spacing: 5
+                                    spacing: 6
                                     Text {
                                         text: activeDay ? "󰖖" : "󰖉"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15 }
                                     }
                                     Text {
                                         text: activeDay ? (view.isEn ? "RAIN" : "ОСАДКИ") : (view.isEn ? "HUMIDITY" : "ВЛАЖНОСТЬ")
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; letterSpacing: 0.9; bold: true }
                                     }
                                 }
                                 Text {
                                     text: activeDay ? (activeDay.pop + "%") : ((currentObj ? currentObj.humidity : (view.sys && view.sys.weatherHumidity ? view.sys.weatherHumidity : "--")) + "%")
                                     color: (activeDay && activeDay.pop > 40) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
-                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 21; bold: true }
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
                                 }
                             }
                         }
@@ -354,25 +354,34 @@ Item {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 9
-                                spacing: 2
+                                anchors.margins: 12
+                                spacing: 4
                                 RowLayout {
-                                    spacing: 5
+                                    spacing: 6
                                     Text {
                                         text: "󰖝"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15 }
                                     }
                                     Text {
                                         text: view.isEn ? "WIND" : "ВЕТЕР"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; letterSpacing: 0.9; bold: true }
                                     }
                                 }
-                                Text {
-                                    text: (activeDay ? activeDay.wind : (currentObj ? currentObj.wind : (view.sys && view.sys.weatherWind ? view.sys.weatherWind : "--"))) + " " + (view.isEn ? "m/s" : "м/с")
-                                    color: view.sys ? view.sys.colFg : "#fff"
-                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 18; bold: true }
+                                RowLayout {
+                                    spacing: 4
+                                    Text {
+                                        text: String(activeDay ? activeDay.wind : (currentObj ? currentObj.wind : (view.sys && view.sys.weatherWind ? view.sys.weatherWind : "--")))
+                                        color: view.sys ? view.sys.colFg : "#fff"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
+                                    }
+                                    Text {
+                                        Layout.alignment: Qt.AlignBaseline
+                                        text: view.isEn ? "m/s" : "м/с"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13; bold: true }
+                                    }
                                 }
                             }
                         }
@@ -388,25 +397,34 @@ Item {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 9
-                                spacing: 2
+                                anchors.margins: 12
+                                spacing: 4
                                 RowLayout {
-                                    spacing: 5
+                                    spacing: 6
                                     Text {
                                         text: "󰈵"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15 }
                                     }
                                     Text {
                                         text: view.isEn ? "PRESSURE" : "ДАВЛЕНИЕ"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; letterSpacing: 0.9; bold: true }
                                     }
                                 }
-                                Text {
-                                    text: currentObj ? (currentObj.pressure + (view.isEn ? " hPa" : " гПа")) : "--"
-                                    color: view.sys ? view.sys.colFg : "#fff"
-                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 18; bold: true }
+                                RowLayout {
+                                    spacing: 4
+                                    Text {
+                                        text: currentObj ? String(currentObj.pressure) : "--"
+                                        color: view.sys ? view.sys.colFg : "#fff"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
+                                    }
+                                    Text {
+                                        Layout.alignment: Qt.AlignBaseline
+                                        text: view.isEn ? "hPa" : "гПа"
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13; bold: true }
+                                    }
                                 }
                             }
                         }
@@ -422,25 +440,35 @@ Item {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 9
-                                spacing: 2
+                                anchors.margins: 12
+                                spacing: 4
                                 RowLayout {
-                                    spacing: 5
+                                    spacing: 6
                                     Text {
                                         text: "󰋘"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15 }
                                     }
                                     Text {
                                         text: view.isEn ? "UV INDEX" : "УФ-ИНДЕКС"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; letterSpacing: 0.9; bold: true }
                                     }
                                 }
-                                Text {
-                                    text: activeDay ? String(activeDay.uv) : "--"
-                                    color: (activeDay && activeDay.uv >= 6) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
-                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 21; bold: true }
+                                RowLayout {
+                                    spacing: 8
+                                    Text {
+                                        text: activeDay ? String(activeDay.uv) : "--"
+                                        color: (activeDay && activeDay.uv >= 6) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
+                                    }
+                                    Text {
+                                        Layout.alignment: Qt.AlignBaseline
+                                        visible: activeDay !== null
+                                        text: (activeDay && activeDay.uv >= 6) ? (view.isEn ? "High" : "Высокий") : (view.isEn ? "Moderate" : "Умерен.")
+                                        color: view.sys ? view.sys.colMuted : "#888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12; bold: true }
+                                    }
                                 }
                             }
                         }
@@ -456,25 +484,25 @@ Item {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 9
-                                spacing: 2
+                                anchors.margins: 12
+                                spacing: 4
                                 RowLayout {
-                                    spacing: 5
+                                    spacing: 6
                                     Text {
                                         text: "󰖚"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15 }
                                     }
                                     Text {
                                         text: view.isEn ? "SUN" : "СОЛНЦЕ"
                                         color: view.sys ? view.sys.colMuted : "#888"
-                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.8; bold: true }
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; letterSpacing: 0.9; bold: true }
                                     }
                                 }
                                 Text {
-                                    text: activeDay ? (activeDay.sunrise + " / " + activeDay.sunset) : "--:--"
+                                    text: activeDay ? (activeDay.sunrise + "  /  " + activeDay.sunset) : "--:--"
                                     color: view.sys ? view.sys.colFg : "#fff"
-                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15; bold: true }
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 17; bold: true }
                                 }
                             }
                         }

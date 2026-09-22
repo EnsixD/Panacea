@@ -425,7 +425,6 @@ ColumnLayout {
             BindRow { bindId: "fileManagerTui"; label: page.sys.tr("Файлы в терминале") }
             BindRow { bindId: "notes";          label: page.sys.tr("Заметки") }
             BindRow { bindId: "screenshot";     label: page.sys.tr("Скриншот области") }
-            BindRow { bindId: "themeSwitch";    label: page.sys.tr("Смена темы") }
 
             Head { text: page.sys.tr("Окна") }
             BindRow { bindId: "closeWindow"; label: page.sys.tr("Закрыть окно") }
