@@ -139,7 +139,10 @@ known_networks() {
 
 case "$1" in
 status)
-    echo "$(radio_state)|$(current_ssid)|$(current_quality)"
+    last_file="${XDG_CONFIG_HOME:-$HOME/.config}/panacea/last_wifi_ssid"
+    cur_s="$(current_ssid)"
+    [ -n "$cur_s" ] && printf '%s' "$cur_s" > "$last_file" 2>/dev/null
+    echo "$(radio_state)|$cur_s|$(current_quality)"
     ;;
 
 scan)
@@ -222,20 +225,46 @@ list)
     ;;
 
 toggle)
+    last_file="${XDG_CONFIG_HOME:-$HOME/.config}/panacea/last_wifi_ssid"
     if use_nm; then
         if [ "$(radio_state)" = "on" ]; then
             nmcli radio wifi off >/dev/null 2>&1
         else
             nmcli radio wifi on >/dev/null 2>&1
+            last_net=""
+            [ -f "$last_file" ] && last_net=$(cat "$last_file" 2>/dev/null)
+            if [ -n "$last_net" ]; then
+                ( sleep 0.3 && ( nmcli connection up id "$last_net" >/dev/null 2>&1 || nmcli dev wifi rescan >/dev/null 2>&1 ) ) &
+            else
+                ( sleep 0.3 && nmcli dev wifi rescan >/dev/null 2>&1 ) &
+            fi
         fi
     else
-        if [ "$(radio_state)" = "on" ]; then rfkill block wifi; else rfkill unblock wifi; fi
+        if [ "$(radio_state)" = "on" ]; then
+            rfkill block wifi
+        else
+            rfkill unblock wifi
+            cur_iface="$(active_iface)"
+            cur_iface="${cur_iface:-wlan0}"
+            if command -v iwctl >/dev/null 2>&1; then
+                iwctl device "$cur_iface" set-property Powered on >/dev/null 2>&1 || true
+                last_net=""
+                [ -f "$last_file" ] && last_net=$(cat "$last_file" 2>/dev/null)
+                if [ -n "$last_net" ]; then
+                    ( sleep 0.3 && ( iwctl station "$cur_iface" connect "$last_net" >/dev/null 2>&1 || iwctl station "$cur_iface" scan >/dev/null 2>&1 ) ) &
+                else
+                    ( sleep 0.3 && iwctl station "$cur_iface" scan >/dev/null 2>&1 ) &
+                fi
+            fi
+        fi
     fi
     ;;
 
 connect)
     SSID="$2"; PW="$3"
     [ -z "$SSID" ] && exit 1
+    last_file="${XDG_CONFIG_HOME:-$HOME/.config}/panacea/last_wifi_ssid"
+    printf '%s' "$SSID" > "$last_file" 2>/dev/null
     if use_nm; then
         if [ -n "$PW" ]; then
             nmcli dev wifi connect "$SSID" password "$PW" >/dev/null 2>&1
