@@ -137,6 +137,124 @@ known_networks() {
     printf '%s\n' "$list" | sed '/^[[:space:]]*$/d' | sort -u
 }
 
+find_available_known() {
+    local known="$(known_networks)"
+    [ -z "$known" ] && return
+
+    if use_nm; then
+        nmcli -t -f SSID,SIGNAL dev wifi list --rescan no 2>/dev/null | awk -v known="$known" -F: '
+            BEGIN {
+                n = split(known, karr, "\n")
+                for (i = 1; i <= n; i++) if (karr[i] != "") isKnown[karr[i]] = 1
+            }
+            {
+                s = $1; q = int($2)
+                if (s == "" || s == "--" || !isKnown[s]) next
+                if (!(s in best_q) || q > best_q[s]) {
+                    best_q[s] = q
+                }
+            }
+            END {
+                for (s in best_q) {
+                    printf "%03d\t%s\n", best_q[s], s
+                }
+            }
+        ' | sort -rn | cut -f2-
+    else
+        iwctl station "$IFACE" get-networks 2>/dev/null | strip | awk -v known="$known" '
+            BEGIN {
+                n = split(known, arr, "\n")
+                for (i = 1; i <= n; i++) if (arr[i] != "") isKnown[arr[i]] = 1
+            }
+            {
+                line = $0
+                sub(/^[[:space:]]*>[[:space:]]*/, "", line)
+                sub(/^[[:space:]]*/, "", line)
+                if (match(line, /[[:space:]][[:space:]]+(psk|open|8021x|wep)[[:space:]]+\*+[[:space:]]*$/)) {
+                    rest = substr(line, RSTART)
+                    name = substr(line, 1, RSTART - 1)
+                    split(rest, a, /[[:space:]]+/)
+                    stars = a[3]
+                    gsub(/[[:space:]]+$/, "", name)
+                    quality = length(stars) * 25
+                    if (isKnown[name]) {
+                        if (!(name in best_q) || quality > best_q[name]) {
+                            best_q[name] = quality
+                        }
+                    }
+                }
+            }
+            END {
+                for (name in best_q) {
+                    printf "%03d\t%s\n", best_q[name], name
+                }
+            }
+        ' | sort -rn | cut -f2-
+    fi
+}
+
+autoconnect() {
+    local last_file="${XDG_CONFIG_HOME:-$HOME/.config}/panacea/last_wifi_ssid"
+    local last_net=""
+    [ -f "$last_file" ] && last_net=$(cat "$last_file" 2>/dev/null)
+
+    if use_nm; then
+        if [ -n "$last_net" ] && nmcli -t -f SSID dev wifi list --rescan no 2>/dev/null | grep -Fxq "$last_net"; then
+            nmcli connection up id "$last_net" >/dev/null 2>&1 && return 0
+        fi
+        while IFS= read -r net; do
+            [ -z "$net" ] && continue
+            if nmcli connection up id "$net" >/dev/null 2>&1; then
+                printf '%s' "$net" > "$last_file" 2>/dev/null
+                return 0
+            fi
+        done < <(find_available_known)
+        nmcli dev wifi rescan >/dev/null 2>&1 || true
+    else
+        local cur_iface="$(active_iface)"
+        cur_iface="${cur_iface:-wlan0}"
+
+        if [ -n "$(ssid_on "$cur_iface")" ]; then
+            return 0
+        fi
+
+        # Scan to refresh available networks
+        iwctl station "$cur_iface" scan >/dev/null 2>&1
+        sleep 0.5
+
+        # 1. Try last connected network first if available
+        if [ -n "$last_net" ]; then
+            if iwctl station "$cur_iface" connect "$last_net" >/dev/null 2>&1; then
+                return 0
+            fi
+        fi
+
+        # 2. If last_net is not available or failed to connect, try other available known networks
+        while IFS= read -r net; do
+            [ -z "$net" ] && continue
+            [ "$net" = "$last_net" ] && continue
+            if iwctl station "$cur_iface" connect "$net" >/dev/null 2>&1; then
+                printf '%s' "$net" > "$last_file" 2>/dev/null
+                return 0
+            fi
+        done < <(find_available_known)
+
+        # 3. If still not connected, wait briefly and retry in case scan was still in progress
+        if [ -z "$(ssid_on "$cur_iface")" ]; then
+            sleep 0.6
+            while IFS= read -r net; do
+                [ -z "$net" ] && continue
+                if iwctl station "$cur_iface" connect "$net" >/dev/null 2>&1; then
+                    printf '%s' "$net" > "$last_file" 2>/dev/null
+                    return 0
+                fi
+            done < <(find_available_known)
+        fi
+
+        iwctl station "$cur_iface" scan >/dev/null 2>&1
+    fi
+}
+
 case "$1" in
 status)
     last_file="${XDG_CONFIG_HOME:-$HOME/.config}/panacea/last_wifi_ssid"
@@ -225,19 +343,12 @@ list)
     ;;
 
 toggle)
-    last_file="${XDG_CONFIG_HOME:-$HOME/.config}/panacea/last_wifi_ssid"
     if use_nm; then
         if [ "$(radio_state)" = "on" ]; then
             nmcli radio wifi off >/dev/null 2>&1
         else
             nmcli radio wifi on >/dev/null 2>&1
-            last_net=""
-            [ -f "$last_file" ] && last_net=$(cat "$last_file" 2>/dev/null)
-            if [ -n "$last_net" ]; then
-                ( sleep 0.3 && ( nmcli connection up id "$last_net" >/dev/null 2>&1 || nmcli dev wifi rescan >/dev/null 2>&1 ) ) &
-            else
-                ( sleep 0.3 && nmcli dev wifi rescan >/dev/null 2>&1 ) &
-            fi
+            ( sleep 0.3 && autoconnect ) &
         fi
     else
         if [ "$(radio_state)" = "on" ]; then
@@ -248,16 +359,14 @@ toggle)
             cur_iface="${cur_iface:-wlan0}"
             if command -v iwctl >/dev/null 2>&1; then
                 iwctl device "$cur_iface" set-property Powered on >/dev/null 2>&1 || true
-                last_net=""
-                [ -f "$last_file" ] && last_net=$(cat "$last_file" 2>/dev/null)
-                if [ -n "$last_net" ]; then
-                    ( sleep 0.3 && ( iwctl station "$cur_iface" connect "$last_net" >/dev/null 2>&1 || iwctl station "$cur_iface" scan >/dev/null 2>&1 ) ) &
-                else
-                    ( sleep 0.3 && iwctl station "$cur_iface" scan >/dev/null 2>&1 ) &
-                fi
+                ( sleep 0.3 && autoconnect ) &
             fi
         fi
     fi
+    ;;
+
+autoconnect)
+    autoconnect
     ;;
 
 connect)
