@@ -264,6 +264,39 @@ PanelWindow {
             property string bind_moveWorkspace8: "SUPER + SHIFT + 8"
             property string bind_moveWorkspace9: "SUPER + SHIFT + 9"
             property string bind_moveWorkspace10: "SUPER + SHIFT + 0"
+            property string bind_themeSwitch: "SUPER + SHIFT + T"
+            property string bind_lockScreen: "SUPER + L"
+            property string bind_closeMouse: "mouse:277"
+            property string bind_focusLeft: "SUPER + left"
+            property string bind_focusRight: "SUPER + right"
+            property string bind_focusUp: "SUPER + up"
+            property string bind_focusDown: "SUPER + down"
+            property string bind_moveLeft: "SUPER + SHIFT + left"
+            property string bind_moveRight: "SUPER + SHIFT + right"
+            property string bind_moveUp: "SUPER + SHIFT + up"
+            property string bind_moveDown: "SUPER + SHIFT + down"
+            property string bind_resizeRight: "ALT + right"
+            property string bind_resizeLeft: "ALT + left"
+            property string bind_resizeUp: "ALT + up"
+            property string bind_resizeDown: "ALT + down"
+            property string bind_workspaceNext: "SUPER + mouse_down"
+            property string bind_workspacePrevious: "SUPER + mouse_up"
+            property string bind_dragWindow: "SUPER + mouse:272"
+            property string bind_resizeWindowMouse: "SUPER + mouse:273"
+            property string bind_micMute: "XF86AudioMicMute"
+            property string bind_volumeUp: "XF86AudioRaiseVolume"
+            property string bind_volumeDown: "XF86AudioLowerVolume"
+            property string bind_volumeMute: "XF86AudioMute"
+            property string bind_brightnessUp: "XF86MonBrightnessUp"
+            property string bind_brightnessDown: "XF86MonBrightnessDown"
+            property string bind_mediaNextAlt: "SUPER + XF86AudioRaiseVolume"
+            property string bind_mediaPreviousAlt: "SUPER + XF86AudioLowerVolume"
+            property string bind_mediaNext: "XF86AudioNext"
+            property string bind_mediaPause: "XF86AudioPause"
+            property string bind_mediaPlay: "XF86AudioPlay"
+            property string bind_mediaPrevious: "XF86AudioPrev"
+            property string bind_lidOn: "switch:on:Lid Switch"
+            property string bind_lidOff: "switch:off:Lid Switch"
         }
     }
     // Заводские сочетания. Держим одним списком, чтобы «Сбросить»
@@ -319,7 +352,39 @@ PanelWindow {
         moveWorkspace7: "SUPER + SHIFT + 7",
         moveWorkspace8: "SUPER + SHIFT + 8",
         moveWorkspace9: "SUPER + SHIFT + 9",
-        moveWorkspace10: "SUPER + SHIFT + 0"
+        moveWorkspace10: "SUPER + SHIFT + 0",
+        themeSwitch: "SUPER + SHIFT + T",
+        closeMouse: "mouse:277",
+        focusLeft: "SUPER + left",
+        focusRight: "SUPER + right",
+        focusUp: "SUPER + up",
+        focusDown: "SUPER + down",
+        moveLeft: "SUPER + SHIFT + left",
+        moveRight: "SUPER + SHIFT + right",
+        moveUp: "SUPER + SHIFT + up",
+        moveDown: "SUPER + SHIFT + down",
+        resizeRight: "ALT + right",
+        resizeLeft: "ALT + left",
+        resizeUp: "ALT + up",
+        resizeDown: "ALT + down",
+        workspaceNext: "SUPER + mouse_down",
+        workspacePrevious: "SUPER + mouse_up",
+        dragWindow: "SUPER + mouse:272",
+        resizeWindowMouse: "SUPER + mouse:273",
+        micMute: "XF86AudioMicMute",
+        volumeUp: "XF86AudioRaiseVolume",
+        volumeDown: "XF86AudioLowerVolume",
+        volumeMute: "XF86AudioMute",
+        brightnessUp: "XF86MonBrightnessUp",
+        brightnessDown: "XF86MonBrightnessDown",
+        mediaNextAlt: "SUPER + XF86AudioRaiseVolume",
+        mediaPreviousAlt: "SUPER + XF86AudioLowerVolume",
+        mediaNext: "XF86AudioNext",
+        mediaPause: "XF86AudioPause",
+        mediaPlay: "XF86AudioPlay",
+        mediaPrevious: "XF86AudioPrev",
+        lidOn: "switch:on:Lid Switch",
+        lidOff: "switch:off:Lid Switch"
     })
 
     readonly property var cfg: cfgFile.adapter

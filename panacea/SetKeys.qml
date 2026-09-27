@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell.Io
 
 // Быстрые клавиши. Открывается отдельным окном по Super + /, а не разделом
@@ -259,22 +260,19 @@ ColumnLayout {
         id: brow
         property string bindId: ""
         property string label: ""
+        property bool manual: false
         readonly property bool capturing: page.capturingKey === brow.bindId
         readonly property string combo: page.bindCombo(brow.bindId)
         readonly property bool edited: page.bindChanged(brow.bindId)
 
-        // Строки делят высоту колонки между собой: карточка занимает почти
-        // весь экран, и без растяжения список сбивался бы к верхнему краю,
-        // оставляя под собой пустое поле. Потолок нужен, чтобы на высоком
-        // экране строки не разъезжались в разрежённый список.
+        // Keep each shortcut at a consistent height in the scrollable list.
         Layout.fillWidth: true
-        Layout.fillHeight: true
-        Layout.maximumHeight: 56
+        Layout.preferredHeight: 36
         spacing: 14
 
         Rectangle {
             id: box
-            Layout.preferredWidth: 176
+            Layout.preferredWidth: brow.manual ? 220 : 176
             Layout.preferredHeight: 32
             Layout.alignment: Qt.AlignVCenter
             radius: 9
@@ -295,6 +293,7 @@ ColumnLayout {
             }
 
             Text {
+                visible: !brow.manual
                 anchors.centerIn: parent
                 // во время захвата показываем то, что уже нажато
                 text: brow.capturing
@@ -303,6 +302,20 @@ ColumnLayout {
                       : (brow.combo.length ? brow.combo : "—")
                 color: brow.combo.length || brow.capturing ? page.sys.colFg : page.sys.colMuted
                 font { family: page.sys.fontFam; pixelSize: page.sys.fontSize - 4; bold: true }
+            }
+
+            TextField {
+                visible: brow.manual
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                verticalAlignment: TextInput.AlignVCenter
+                text: brow.combo
+                color: page.sys.colFg
+                selectByMouse: true
+                background: null
+                font { family: page.sys.fontFam; pixelSize: page.sys.fontSize - 4 }
+                onEditingFinished: if (text.trim() !== brow.combo) page.setBind(brow.bindId, text.trim())
             }
 
             // точка-отметка: сочетание изменено, но ещё не применено
@@ -318,6 +331,7 @@ ColumnLayout {
             MouseArea {
                 id: bMa
                 anchors.fill: parent
+                enabled: !brow.manual
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: page.startCapture(brow.bindId)
@@ -367,8 +381,6 @@ ColumnLayout {
     // (столы по цифрам, фокус стрелками, мышь) отсюда убраны — в окне, где
     // каждая строка кликается, нечего показывать строки, которые не кликаются.
     //
-    // Прокрутки нет: две колонки по пятнадцать строк помещаются целиком, и
-    // строки растягиваются по высоте карточки, а не жмутся к верхнему краю.
     Layout.fillWidth: true
     spacing: 10
 
@@ -379,14 +391,31 @@ ColumnLayout {
         font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
     }
 
-    RowLayout {
+    Flickable {
+        id: bindScroll
         Layout.fillWidth: true
         Layout.fillHeight: true
+        clip: true
+        contentWidth: width
+        contentHeight: bindColumns.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: SetScroll { sys: page.sys }
+
+        WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: event => {
+                var max = Math.max(0, bindScroll.contentHeight - bindScroll.height);
+                bindScroll.contentY = Math.max(0, Math.min(max, bindScroll.contentY - event.angleDelta.y));
+            }
+        }
+
+    RowLayout {
+        id: bindColumns
+        width: bindScroll.width - 12
         spacing: 26
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.fillHeight: true
             Layout.preferredWidth: 1     // делим поровну, а не по содержимому
             spacing: 9
 
@@ -401,7 +430,7 @@ ColumnLayout {
             BindRow { bindId: "pillClip";      label: page.sys.tr("Буфер обмена") }
             BindRow { bindId: "pillPower";     label: page.sys.tr("Меню питания") }
             BindRow { bindId: "pillRecord";    label: page.sys.tr("Запись экрана") }
-            BindRow { bindId: "voxDictate";    label: page.sys.tr("Голос в текст") }
+            BindRow { bindId: "voxDictate";    label: page.sys.tr("Голос в текст"); manual: true }
             BindRow { bindId: "pillNotif";     label: page.sys.tr("Уведомления") }
             BindRow { bindId: "fileManager";   label: page.sys.tr("Проводник") }
             BindRow { bindId: "pillVault";     label: page.sys.tr("Менеджер паролей") }
@@ -410,11 +439,40 @@ ColumnLayout {
             BindRow { bindId: "lockScreen"; label: page.sys.tr("Заблокировать экран") }
             BindRow { bindId: "screenOff";  label: page.sys.tr("Погасить экран") }
             BindRow { bindId: "exitHypr";   label: page.sys.tr("Выйти из Hyprland") }
+            BindRow { bindId: "themeSwitch"; label: page.sys.tr("Смена темы") }
+
+            Head { text: page.sys.tr("Рабочие столы") }
+            Repeater {
+                model: 10
+                BindRow {
+                    bindId: "workspace" + (index + 1)
+                    label: page.sys.tr("Перейти на стол") + " " + (index + 1)
+                }
+            }
+            BindRow { bindId: "workspaceNext"; label: page.sys.tr("Следующий рабочий стол"); manual: true }
+            BindRow { bindId: "workspacePrevious"; label: page.sys.tr("Предыдущий рабочий стол"); manual: true }
+
+            Head { text: page.sys.tr("Мультимедиа-клавиши") }
+            BindRow { bindId: "volumeUp"; label: page.sys.tr("Увеличить громкость"); manual: true }
+            BindRow { bindId: "volumeDown"; label: page.sys.tr("Уменьшить громкость"); manual: true }
+            BindRow { bindId: "volumeMute"; label: page.sys.tr("Выключить звук"); manual: true }
+            BindRow { bindId: "micMute"; label: page.sys.tr("Выключить микрофон"); manual: true }
+            BindRow { bindId: "brightnessUp"; label: page.sys.tr("Увеличить яркость"); manual: true }
+            BindRow { bindId: "brightnessDown"; label: page.sys.tr("Уменьшить яркость"); manual: true }
+            BindRow { bindId: "mediaNext"; label: page.sys.tr("Следующий трек"); manual: true }
+            BindRow { bindId: "mediaPrevious"; label: page.sys.tr("Предыдущий трек"); manual: true }
+            BindRow { bindId: "mediaPlay"; label: page.sys.tr("Воспроизвести"); manual: true }
+            BindRow { bindId: "mediaPause"; label: page.sys.tr("Пауза"); manual: true }
+            BindRow { bindId: "mediaNextAlt"; label: page.sys.tr("Следующий трек (запасная)"); manual: true }
+            BindRow { bindId: "mediaPreviousAlt"; label: page.sys.tr("Предыдущий трек (запасная)"); manual: true }
+
+            Head { text: page.sys.tr("Крышка ноутбука") }
+            BindRow { bindId: "lidOn"; label: page.sys.tr("Закрытие крышки"); manual: true }
+            BindRow { bindId: "lidOff"; label: page.sys.tr("Открытие крышки"); manual: true }
         }
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.fillHeight: true
             Layout.preferredWidth: 1
             spacing: 9
 
@@ -432,16 +490,26 @@ ColumnLayout {
             BindRow { bindId: "floatToggle"; label: page.sys.tr("Плавающее окно") }
             BindRow { bindId: "floatCenter"; label: page.sys.tr("Плавающее по центру") }
             BindRow { bindId: "toggleSplit"; label: page.sys.tr("Сменить направление сплита") }
+            BindRow { bindId: "closeMouse"; label: page.sys.tr("Закрыть средней кнопкой"); manual: true }
+            BindRow { bindId: "dragWindow"; label: page.sys.tr("Перетащить окно"); manual: true }
+            BindRow { bindId: "resizeWindowMouse"; label: page.sys.tr("Размер окна мышью"); manual: true }
+
+            Head { text: page.sys.tr("Навигация по окнам") }
+            BindRow { bindId: "focusLeft"; label: page.sys.tr("Фокус влево") }
+            BindRow { bindId: "focusRight"; label: page.sys.tr("Фокус вправо") }
+            BindRow { bindId: "focusUp"; label: page.sys.tr("Фокус вверх") }
+            BindRow { bindId: "focusDown"; label: page.sys.tr("Фокус вниз") }
+            BindRow { bindId: "moveLeft"; label: page.sys.tr("Переместить окно влево") }
+            BindRow { bindId: "moveRight"; label: page.sys.tr("Переместить окно вправо") }
+            BindRow { bindId: "moveUp"; label: page.sys.tr("Переместить окно вверх") }
+            BindRow { bindId: "moveDown"; label: page.sys.tr("Переместить окно вниз") }
+            BindRow { bindId: "resizeLeft"; label: page.sys.tr("Уменьшить ширину") }
+            BindRow { bindId: "resizeRight"; label: page.sys.tr("Увеличить ширину") }
+            BindRow { bindId: "resizeUp"; label: page.sys.tr("Уменьшить высоту") }
+            BindRow { bindId: "resizeDown"; label: page.sys.tr("Увеличить высоту") }
 
             Head { text: page.sys.tr("Рабочие столы") }
             BindRow { bindId: "emptyWorkspace";   label: page.sys.tr("На пустой стол") }
-            Repeater {
-                model: 10
-                BindRow {
-                    bindId: "workspace" + (index + 1)
-                    label: page.sys.tr("Перейти на стол") + " " + (index + 1)
-                }
-            }
             Repeater {
                 model: 10
                 BindRow {
@@ -452,6 +520,7 @@ ColumnLayout {
             BindRow { bindId: "specialWorkspace"; label: page.sys.tr("Спецстол") }
             BindRow { bindId: "packWorkspaces";   label: page.sys.tr("Собрать столы подряд") }
         }
+    }
     }
 
     // ------------------------------------------------------------- кнопки

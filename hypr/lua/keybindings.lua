@@ -81,7 +81,7 @@ B("toggleSplit",  mainMod .. " + J",         hl.dsp.layout("togglesplit"))
 B("notes",        mainMod .. " + O",         hl.dsp.exec_cmd(p.note))
 B("screenshot",   mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(p.screenshot))
 B("screenOff",    mainMod .. " + SHIFT + F12", hl.dsp.exec_cmd("brightnessctl s 0"))
-hl.bind("mouse:277", hl.dsp.window.close())
+B("closeMouse", "mouse:277", hl.dsp.window.close())
 -- Super+B удалён вместе с режимом энергосбережения оболочки:
 -- профили питания теперь в панели (наведение на пилюлю).
 
@@ -117,20 +117,20 @@ B("packWorkspaces", mainMod .. " + SHIFT + A", function()
 end)
 
 -- Movement
-hl.bind(mainMod .. " + left",  hl.dsp.focus({ direction = "left" }))
-hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
-hl.bind(mainMod .. " + up",    hl.dsp.focus({ direction = "up" }))
-hl.bind(mainMod .. " + down",  hl.dsp.focus({ direction = "down" }))
-hl.bind(mainMod .. " + SHIFT + left",  hl.dsp.window.move({ direction = "left" }))
-hl.bind(mainMod .. " + SHIFT + right", hl.dsp.window.move({ direction = "right" }))
-hl.bind(mainMod .. " + SHIFT + up",    hl.dsp.window.move({ direction = "up" }))
-hl.bind(mainMod .. " + SHIFT + down",  hl.dsp.window.move({ direction = "down" }))
+B("focusLeft", mainMod .. " + left",  hl.dsp.focus({ direction = "left" }))
+B("focusRight", mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
+B("focusUp", mainMod .. " + up",    hl.dsp.focus({ direction = "up" }))
+B("focusDown", mainMod .. " + down",  hl.dsp.focus({ direction = "down" }))
+B("moveLeft", mainMod .. " + SHIFT + left",  hl.dsp.window.move({ direction = "left" }))
+B("moveRight", mainMod .. " + SHIFT + right", hl.dsp.window.move({ direction = "right" }))
+B("moveUp", mainMod .. " + SHIFT + up",    hl.dsp.window.move({ direction = "up" }))
+B("moveDown", mainMod .. " + SHIFT + down",  hl.dsp.window.move({ direction = "down" }))
 
 -- Resize
-hl.bind("ALT + right", hl.dsp.window.resize({ x = 30,  y = 0,  relative = true }), { repeating = true })
-hl.bind("ALT + left",  hl.dsp.window.resize({ x = -30, y = 0,  relative = true }), { repeating = true })
-hl.bind("ALT + up",    hl.dsp.window.resize({ x = 0,   y = -30, relative = true }), { repeating = true })
-hl.bind("ALT + down",  hl.dsp.window.resize({ x = 0,   y = 30,  relative = true }), { repeating = true })
+B("resizeRight", "ALT + right", hl.dsp.window.resize({ x = 30,  y = 0,  relative = true }), { repeating = true })
+B("resizeLeft", "ALT + left",  hl.dsp.window.resize({ x = -30, y = 0,  relative = true }), { repeating = true })
+B("resizeUp", "ALT + up",    hl.dsp.window.resize({ x = 0,   y = -30, relative = true }), { repeating = true })
+B("resizeDown", "ALT + down",  hl.dsp.window.resize({ x = 0,   y = 30,  relative = true }), { repeating = true })
 
 -- Workspaces
 B("emptyWorkspace", mainMod .. " + Space",   hl.dsp.focus({ workspace = "empty" }))
@@ -140,32 +140,32 @@ for i = 1, 10 do
     B("moveWorkspace" .. i, mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }))
 end
 B("specialWorkspace", mainMod .. " + S",     hl.dsp.workspace.toggle_special("magic"))
-hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
+B("workspaceNext", mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
+B("workspacePrevious", mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
 
 -- Mouse
-hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
-hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+B("dragWindow", mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
+B("resizeWindowMouse", mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
 -- Media
-hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true, repeating = true })
+B("micMute", "XF86AudioMicMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"), { locked = true, repeating = true })
 local HOME = os.getenv("HOME")
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_volume.sh up"), { locked = true, repeating = true })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_volume.sh down"), { locked = true, repeating = true })
-hl.bind("XF86AudioMute",        hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_volume.sh mute"), { locked = true })
-hl.bind("XF86MonBrightnessUp",  hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_brightness.sh up"), { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown",hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_brightness.sh down"), { locked = true, repeating = true })
-hl.bind(mainMod .. " + XF86AudioRaiseVolume", hl.dsp.exec_cmd("playerctl next"),       { locked = true })
-hl.bind(mainMod .. " + XF86AudioLowerVolume", hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+B("volumeUp", "XF86AudioRaiseVolume", hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_volume.sh up"), { locked = true, repeating = true })
+B("volumeDown", "XF86AudioLowerVolume", hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_volume.sh down"), { locked = true, repeating = true })
+B("volumeMute", "XF86AudioMute", hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_volume.sh mute"), { locked = true })
+B("brightnessUp", "XF86MonBrightnessUp", hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_brightness.sh up"), { locked = true, repeating = true })
+B("brightnessDown", "XF86MonBrightnessDown", hl.dsp.exec_cmd(HOME .. "/.local/bin/smart_brightness.sh down"), { locked = true, repeating = true })
+B("mediaNextAlt", mainMod .. " + XF86AudioRaiseVolume", hl.dsp.exec_cmd("playerctl next"), { locked = true })
+B("mediaPreviousAlt", mainMod .. " + XF86AudioLowerVolume", hl.dsp.exec_cmd("playerctl previous"), { locked = true })
 
-hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })
-hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPlay",  hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+B("mediaNext", "XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true })
+B("mediaPause", "XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
+B("mediaPlay", "XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
+B("mediaPrevious", "XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true })
 
 -- Switch
-hl.bind("switch:on:Lid Switch", hl.dsp.exec_cmd(p.lock), { locked = true })
-hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd(p.lock), { locked = true })
+B("lidOn", "switch:on:Lid Switch", hl.dsp.exec_cmd(p.lock), { locked = true })
+B("lidOff", "switch:off:Lid Switch", hl.dsp.exec_cmd(p.lock), { locked = true })
 
 
 -- Пилюля: панели открываются в ней же
