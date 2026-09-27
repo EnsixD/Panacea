@@ -33,6 +33,8 @@ STATE="$CONF/panacea/.version"
 # Что принадлежит человеку, а не репозиторию: пережить обновление обязано.
 KEEP=(
     "$CONF/panacea/settings.json"
+    "$CONF/panacea/clipboard_pins.json"
+    "$CONF/panacea/last_wifi_ssid"
     "$CONF/hypr/lua/binds_data.lua"
     # Настройки экрана: разрешение, частота, масштаб. Без них после обновления
     # масштаб панели молча возвращался к 100%. monitors_data.lua читает
@@ -69,25 +71,18 @@ KEEP=(
     "$HOME/.nanorc"
 )
 KEEP_DIRS=(
+    "$CONF/panacea/translations"
     "$CONF/hypr/wallpaper"
     "$CONF/hypr/custom"
     "$CONF/niri/custom"
     "$CONF/foot/custom"
     "$CONF/fish/custom"
+    "$CONF/fish/functions"
+    "$CONF/fish/conf.d"
     "$CONF/fastfetch/custom"
     "$CONF/panacea/custom"
     "$CONF/panacea/scripts/custom"
-)
-
-# То же, но мягко: возвращаем только то, чего нет в свежей установке. В
-# panacea/assets лежат и наши файлы (логотип, desktop-запись), и всё, что
-# человек положил туда сам. Возвращая каталог целиком, мы клали старый логотип
-# поверх нового — оболочка обновлялась, а значок в уведомлениях оставался
-# прежним.
-KEEP_DIRS_SOFT=(
     "$CONF/panacea/assets"
-    "$CONF/fish/functions"
-    "$CONF/fish/conf.d"
 )
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -282,17 +277,18 @@ stash_user_state() {
     # лежат сотни мегабайт — они уезжали в память целиком, и на машине без
     # запаса это уходило в подкачку. Каталоги переносим: внутри одного
     # раздела это переименование и не зависит от объёма.
-    STASH="$CONF/.panacea-update-stash"
-    rm -rf "$STASH"; mkdir -p "$STASH"
+    STASH="$(mktemp -d "$CONF/.panacea-update-stash.XXXXXXXX")" || return 1
     local f
     for f in "${KEEP[@]}"; do
-        [ -f "$f" ] && { mkdir -p "$STASH/$(dirname "${f#$HOME/}")"; cp "$f" "$STASH/${f#$HOME/}"; }
+        [ -e "$f" ] || [ -L "$f" ] || continue
+        mkdir -p "$STASH/$(dirname "${f#$HOME/}")"
+        cp -a "$f" "$STASH/${f#$HOME/}"
     done
     for f in "${KEEP_DIRS[@]}"; do
         [ -d "$f" ] || continue
         mkdir -p "$STASH/$(dirname "${f#$HOME/}")"
         mv "$f" "$STASH/${f#$HOME/}" 2>/dev/null \
-            || cp -r "$f" "$STASH/${f#$HOME/}"
+            || cp -a "$f" "$STASH/${f#$HOME/}"
     done
 }
 
@@ -300,7 +296,7 @@ restore_user_state() {
     [ -n "${STASH:-}" ] && [ -d "$STASH" ] || return 0
     local f
     for f in "${KEEP[@]}"; do
-        if [ -f "$STASH/${f#$HOME/}" ]; then
+        if [ -e "$STASH/${f#$HOME/}" ] || [ -L "$STASH/${f#$HOME/}" ]; then
             mkdir -p "$(dirname "$f")"
             if [ "$f" = "$CONF/panacea/settings.json" ] && command -v jq >/dev/null 2>&1 && [ -f "$f" ]; then
                 local tmp_json
@@ -309,10 +305,10 @@ restore_user_state() {
                     mv "$tmp_json" "$f"
                 else
                     rm -f "$tmp_json"
-                    cp "$STASH/${f#$HOME/}" "$f"
+                    cp -a "$STASH/${f#$HOME/}" "$f"
                 fi
             else
-                cp "$STASH/${f#$HOME/}" "$f"
+                cp -a "$STASH/${f#$HOME/}" "$f"
             fi
         fi
     done
@@ -321,19 +317,15 @@ restore_user_state() {
     # внутрь него вторым уровнем — обои человека уезжали в wallpaper/wallpaper.
     # Файлы из свежей установки при этом остаются: своё кладём поверх.
     local item base
-    for f in "${KEEP_DIRS[@]}" "${KEEP_DIRS_SOFT[@]}"; do
+    for f in "${KEEP_DIRS[@]}"; do
         [ -d "$STASH/${f#$HOME/}" ] || continue
-        # мягкий каталог: свежие файлы оболочки остаются на месте
-        local soft=0 d
-        for d in "${KEEP_DIRS_SOFT[@]}"; do [ "$d" = "$f" ] && soft=1; done
         mkdir -p "$f"
         # По одному и переносом: набор обоев так возвращается мгновенно.
         for item in "$STASH/${f#$HOME/}"/* "$STASH/${f#$HOME/}"/.[!.]*; do
-            [ -e "$item" ] || continue
+            [ -e "$item" ] || [ -L "$item" ] || continue
             base="$(basename "$item")"
-            [ "$soft" = "1" ] && [ -e "$f/$base" ] && continue
             rm -rf "$f/$base"
-            mv "$item" "$f/$base" 2>/dev/null || cp -r "$item" "$f/$base"
+            mv "$item" "$f/$base" 2>/dev/null || cp -a "$item" "$f/$base"
         done
     done
     rm -rf "$STASH"
@@ -504,7 +496,8 @@ cmd_apply() {
     # Обновляем через pkexec: агент polkit у оболочки есть, и он покажет
     # обычное окно запроса пароля. Отказались или агента нет — пропускаем
     # молча, обновление из-за этого падать не должно.
-    if [ -d /usr/share/sddm/themes/panacea ] \
+    if [ "$DRY" != "1" ] \
+       && [ -d /usr/share/sddm/themes/panacea ] \
        && [ -d "$tmp/src/sddm/panacea" ] \
        && ! diff -rq /usr/share/sddm/themes/panacea "$tmp/src/sddm/panacea" >/dev/null 2>&1
     then
@@ -562,7 +555,7 @@ cmd_apply() {
     [ -z "$vox_cmd" ] && [ -x "/usr/lib/voxtype/voxtype-vulkan" ] && vox_cmd="/usr/lib/voxtype/voxtype-vulkan"
     [ -z "$vox_cmd" ] && [ -x "/usr/bin/voxtype" ] && vox_cmd="/usr/bin/voxtype"
 
-    if [ -n "$vox_cmd" ]; then
+    if [ "$DRY" != "1" ] && [ -n "$vox_cmd" ]; then
         local models_dir="$HOME/.local/share/voxtype/models"
         mkdir -p "$models_dir" "$CONF/voxtype"
 

@@ -249,9 +249,15 @@ Panacea is designed so your personal tweaks — shell aliases, terminal fonts, w
 | **Fastfetch** | `~/.config/fastfetch/config.jsonc` or `custom.jsonc` | ✅ Yes |
 | **Nano** | `~/.nanorc` (existing file is never overwritten) | ✅ Yes |
 | **Panacea** | `~/.config/panacea/settings.json` (merged with defaults via `jq`) | ✅ Yes |
+| **Clipboard pins and Wi-Fi history** | `clipboard_pins.json` and `last_wifi_ssid` in `~/.config/panacea/` | ✅ Yes |
+| **UI translation cache** | `~/.config/panacea/translations/` | ✅ Yes |
 | **Post-update hook** | `~/.config/panacea/custom/post-update.sh` (executed after update) | ✅ Yes |
 
-As an extra safety net, the updater backs up modified configurations to `~/.config/<name>.bak-update` before applying changes.
+As an extra safety net, the updater backs up modified configurations to `~/.config/<name>.bak-update` before applying changes and retains two earlier update snapshots.
+Files owned by the shell, such as `panacea/shell.qml` and
+`hypr/lua/keybindings.lua`, are replaced to deliver code updates. Put durable
+overrides in `settings.json` or the `custom/` directories above; a direct edit
+to an owned file remains in the `.bak-update` copy for manual recovery.
 
 
 ### Voice to text

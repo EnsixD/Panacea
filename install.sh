@@ -626,17 +626,24 @@ install_deps() {
 BACKUP_KEEP=3
 
 backup() {
-    [ -e "$1" ] || return 0
+    [ -e "$1" ] || [ -L "$1" ] || return 0
     # Обновление: своё уже сохранено через KEEP, остальное — файлы репозитория.
     # Делаем резервную копию в *.bak-update на случай, если пользователь правил
-    # файлы напрямую, не накапливая лишние каталоги-двойники.
+    # файлы напрямую. Две предыдущие копии храним на случай, если правки
+    # заметят потерянными только после следующего обновления.
     if [ "$DO_BACKUP" = "0" ]; then
-        rm -rf -- "$1.bak-update"
-        cp -r "$1" "$1.bak-update" 2>/dev/null || true
-        rm -rf -- "$1"
+        if [ -e "$1.bak-update" ] || [ -L "$1.bak-update" ]; then
+            mv "$1.bak-update" "$1.bak-update-$STAMP-$$" || return 1
+        fi
+        cp -a "$1" "$1.bak-update" || return 1
+        rm -rf -- "$1" || return 1
+        local old_update
+        while IFS= read -r old_update; do
+            [ -n "$old_update" ] && rm -rf -- "$old_update"
+        done < <(ls -d "$1".bak-update-* 2>/dev/null | sort | head -n -2)
         return 0
     fi
-    mv "$1" "$1.bak-$STAMP"
+    mv "$1" "$1.bak-$STAMP" || return 1
     warn "existing $(basename "$1") saved as $(basename "$1").bak-$STAMP"
 
     # Копии названы по времени, поэтому обычная сортировка — она же
@@ -644,7 +651,7 @@ backup() {
     local old
     while IFS= read -r old; do
         [ -n "$old" ] && rm -rf -- "$old"
-    done < <(ls -d "$1".bak-* 2>/dev/null | sort | head -n "-$BACKUP_KEEP")
+    done < <(ls -d "$1".bak-* 2>/dev/null | grep -v -F "$1.bak-update" | sort | head -n "-$BACKUP_KEEP")
 }
 
 # ------------------------------------------------------------- своё состояние
@@ -655,6 +662,8 @@ backup() {
 # возвращаем после. Список тот же, что в scripts/update.sh.
 KEEP_FILES=(
     "panacea/settings.json"
+    "panacea/clipboard_pins.json"
+    "panacea/last_wifi_ssid"
     "hypr/lua/binds_data.lua"
     # Настройки экрана: разрешение, частота, масштаб. binds_data.lua здесь уже
     # есть, а эти его собратья — нет, и после обновления масштаб панели молча
@@ -703,6 +712,7 @@ KEEP_FILES=(
     "voxtype/config.toml"
 )
 KEEP_DIRS=(
+    "panacea/translations"
     "hypr/wallpaper"
     "hypr/custom"
     "niri/custom"
@@ -737,15 +747,15 @@ keep_stash() {
     mkdir -p "$KEEP_STASH" || { KEEP_STASH=""; return 0; }
     local f
     for f in "${KEEP_FILES[@]}"; do
-        [ -f "$CONF/$f" ] || continue
+        [ -e "$CONF/$f" ] || [ -L "$CONF/$f" ] || continue
         mkdir -p "$KEEP_STASH/$(dirname "$f")"
-        cp "$CONF/$f" "$KEEP_STASH/$f"
+        cp -a "$CONF/$f" "$KEEP_STASH/$f"
     done
     for f in "${KEEP_DIRS[@]}"; do
         [ -d "$CONF/$f" ] || continue
         mkdir -p "$KEEP_STASH/$(dirname "$f")"
         mv "$CONF/$f" "$KEEP_STASH/$f" 2>/dev/null \
-            || cp -r "$CONF/$f" "$KEEP_STASH/$f"
+            || cp -a "$CONF/$f" "$KEEP_STASH/$f"
     done
     # Оборвётся установка — унесённое вернём на место: без этого обои
     # остались бы лежать в скрытом каталоге, а человек решил бы, что их
@@ -757,7 +767,7 @@ keep_restore() {
     [ -n "$KEEP_STASH" ] && [ -d "$KEEP_STASH" ] || return 0
     local f restored=0
     for f in "${KEEP_FILES[@]}"; do
-        [ -f "$KEEP_STASH/$f" ] || continue
+        [ -e "$KEEP_STASH/$f" ] || [ -L "$KEEP_STASH/$f" ] || continue
         mkdir -p "$CONF/$(dirname "$f")"
         if [ "$f" = "panacea/settings.json" ] && command -v jq >/dev/null 2>&1 && [ -f "$CONF/$f" ]; then
             local tmp_json
@@ -767,10 +777,10 @@ keep_restore() {
                 restored=1
             else
                 rm -f "$tmp_json"
-                cp "$KEEP_STASH/$f" "$CONF/$f" && restored=1
+                cp -a "$KEEP_STASH/$f" "$CONF/$f" && restored=1
             fi
         else
-            cp "$KEEP_STASH/$f" "$CONF/$f" && restored=1
+            cp -a "$KEEP_STASH/$f" "$CONF/$f" && restored=1
         fi
     done
     # Каталоги вливаем в свежий, а не заменяем им: в repo-версии лежат свои
@@ -790,7 +800,7 @@ keep_restore() {
         mkdir -p "$CONF/$f"
         moved_all=1
         for item in "$KEEP_STASH/$f"/* "$KEEP_STASH/$f"/.[!.]*; do
-            [ -e "$item" ] || continue
+            [ -e "$item" ] || [ -L "$item" ] || continue
             base="$(basename "$item")"
             rm -rf "$CONF/$f/$base"
             mv "$item" "$CONF/$f/$base" 2>/dev/null || moved_all=0
@@ -798,7 +808,7 @@ keep_restore() {
         if [ "$moved_all" = "0" ]; then
             printf '  copying %s back (%s) — this can take a while\n' \
                 "$f" "$(du -sh "$KEEP_STASH/$f" 2>/dev/null | cut -f1)"
-            cp -r "$KEEP_STASH/$f/." "$CONF/$f/"
+            cp -a "$KEEP_STASH/$f/." "$CONF/$f/"
         fi
         restored=1
     done
@@ -811,8 +821,16 @@ keep_restore() {
 copy_into_config() {   # copy_into_config <dir-in-repo>
     local name="$1" dst="$CONF/$1"
     [ -d "$SRC/$name" ] || { warn "no $name in this checkout — skipping"; return; }
-    backup "$dst"
-    cp -r "$SRC/$name" "$dst"
+    backup "$dst" || return 1
+    if ! cp -a "$SRC/$name" "$dst"; then
+        rm -rf -- "$dst"
+        if [ "$DO_BACKUP" = "0" ]; then
+            cp -a "$dst.bak-update" "$dst" 2>/dev/null || true
+        else
+            mv "$dst.bak-$STAMP" "$dst" 2>/dev/null || true
+        fi
+        return 1
+    fi
     # Чистый клон с GitHub их не содержит (*.bak в .gitignore), но грязный
     # checkout мейнтейнера мог занести — и cp унёс бы их в ~/.config. Не
     # тащим чужой мусор в конфиг.
@@ -824,7 +842,9 @@ install_configs() {
     mkdir -p "$CONF" "$HOME/.local/bin"
     keep_stash
     for d in panacea hypr niri foot fish fastfetch nano; do
-        [ -d "$SRC/$d" ] && copy_into_config "$d"
+        if [ -d "$SRC/$d" ]; then
+            copy_into_config "$d" || die "could not replace $d without losing its backup"
+        fi
     done
     keep_restore
     # nanorc lives at ~/.nanorc, not in a directory. Не перезаписываем существующий конфиг
@@ -896,7 +916,7 @@ install_configs() {
     # Конфиг voxtype (голос → текст): кладём наш. Правый
     # Alt слушает Hyprland, а не сам voxtype, поэтому в нашем конфиге встроенный
     # хоткей выключен.
-    if [ -f "$CONF/panacea/scripts/voxtype.config.toml" ]; then
+    if [ -f "$CONF/panacea/scripts/voxtype.config.toml" ] && [ ! -f "$CONF/voxtype/config.toml" ]; then
         mkdir -p "$CONF/voxtype"
         cp "$CONF/panacea/scripts/voxtype.config.toml" "$CONF/voxtype/config.toml" \
             && ok "voxtype config written (voice-to-text on Right Alt, Russian, VAD, GPU)"
