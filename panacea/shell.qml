@@ -206,6 +206,8 @@ PanelWindow {
             property string widgetProgressMode: "day"
             // JSON string: {"Turkish":"TR","Russian":"RU"}
             property string keyboardLayoutMap: ""
+            property string translationUrl: ""
+            property string translationApiKey: ""
 
             // Прозрачность терминала. Живёт здесь, а правится в foot.ini:
             // сам foot настройки оболочки не читает.
@@ -350,6 +352,7 @@ PanelWindow {
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
         weatherKey: "", weatherCity: "", weatherUnits: "metric",
         weatherOnIsland: false, systemLoadOnIsland: false, keyboardLayoutMap: "", featWidgets: false,
+        translationUrl: "", translationApiKey: "",
         widgetClockMode: "analog", widgetRightMode: "weather", widgetProgressMode: "day",
         termAlpha: 0.90,
         uiSounds: true
@@ -551,8 +554,63 @@ PanelWindow {
     // а словарь нужен только для английского; сами строки — в Translations.qml.
     readonly property Translations i18n: Translations {}
 
-    readonly property bool isEn: cfg.lang === "en"
-    function tr(k) { return isEn && i18n.en[k] !== undefined ? i18n.en[k] : k; }
+    readonly property string uiLocaleId: String(cfg.lang || "en")
+    readonly property string languageCode: uiLocaleId.split(/[_-]/)[0].toLowerCase()
+    readonly property bool isEn: languageCode === "en"
+    property var translatedStrings: ({})
+    property string translationError: ""
+    property bool translationBusy: false
+    property bool translationPending: false
+    onUiLocaleIdChanged: {
+        root.translatedStrings = ({});
+        root.translationError = "";
+        root.syncGreeterLocale();
+        if (root.cfg.featWidgets || root.cfg.weatherOnIsland) root.refreshWeather();
+        if (root.languageCode !== "ru" && root.languageCode !== "en") {
+            root.translationPending = true;
+            translateStartTimer.restart();
+        }
+    }
+    Timer {
+        id: translateStartTimer
+        interval: 1500
+        onTriggered: root.refreshTranslation()
+    }
+    Process {
+        id: pTranslateUi
+        stderr: StdioCollector {
+            onStreamFinished: if (String(text).trim().length) root.translationError = String(text).trim()
+        }
+        onRunningChanged: root.translationBusy = running
+    }
+    function refreshTranslation() {
+        if (root.languageCode === "ru" || root.languageCode === "en") return;
+        root.translationPending = false;
+        root.translationError = "";
+        pTranslateUi.running = false;
+        pTranslateUi.command = ["python3", root.scriptDir + "/translate_ui.py", root.uiLocaleId];
+        pTranslateUi.running = true;
+    }
+    FileView {
+        id: translatedFile
+        path: Quickshell.env("HOME") + "/.config/panacea/translations/"
+              + root.uiLocaleId.replace(/[^A-Za-z0-9_-]/g, "") + ".json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            try { root.translatedStrings = JSON.parse(text()); }
+            catch (e) { root.translatedStrings = ({}); }
+            root.syncGreeterLocale();
+        }
+        onLoadFailed: root.translatedStrings = ({})
+    }
+    function tr(k) {
+        if (root.languageCode === "ru") return k;
+        if (root.languageCode === "en") return i18n.en[k] !== undefined ? i18n.en[k] : k;
+        return root.translatedStrings[k] !== undefined ? root.translatedStrings[k]
+             : (i18n.en[k] !== undefined ? i18n.en[k] : k);
+    }
 
     // -------------------------------------------------- язык экрана входа
     // Greeter работает от пользователя sddm и наши настройки прочитать не
@@ -562,11 +620,7 @@ PanelWindow {
     // Каталог заводит установщик; если его нет, молча ничего не делаем.
     Process {
         id: pGreeterLocale
-        command: ["sh", "-c",
-            "d=/var/lib/panacea; [ -w \"$d\" ] || exit 0; " +
-            "printf 'import QtQuick 2.15\\nQtObject { property string lang: \"%s\" }\\n' " +
-            "\"$1\" > \"$d/locale.qml\" && chmod 644 \"$d/locale.qml\"",
-            "_", root.cfg.lang]
+        command: ["python3", root.scriptDir + "/sync_greeter_locale.py", root.uiLocaleId]
     }
     // Палитра для экрана входа — тем же способом и в тот же каталог.
     //
@@ -723,7 +777,7 @@ PanelWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 var s = text.trim().split("\n").pop().trim();
-                if (s === "ru" || s === "en") root.sysLang = s;
+                if (s.length) root.sysLang = s;
             }
         }
     }
@@ -744,8 +798,7 @@ PanelWindow {
         root.saveCfg();
 
         root.sysLangPending = true;
-        pLocaleSet.command = ["sh", "-c",
-            "pkexec " + Quickshell.env("HOME") + "/.config/panacea/scripts/locale.sh set " + code];
+        pLocaleSet.command = ["pkexec", Quickshell.env("HOME") + "/.config/panacea/scripts/locale.sh", "set", code];
         pLocaleSet.running = false;
         pLocaleSet.running = true;
     }
@@ -761,10 +814,6 @@ PanelWindow {
     // уже переведённым — язык передаётся в запросе. Свои подписи оболочка
     // переключает сразу, а это одно осталось бы на прежнем языке до
     // следующего опроса, то есть до четверти часа.
-    onIsEnChanged: {
-        root.syncGreeterLocale();
-        if (root.cfg.featWidgets || root.cfg.weatherOnIsland) root.refreshWeather();
-    }
 
     // Видимость вогнутых уголков острова.
     //
@@ -1214,7 +1263,13 @@ PanelWindow {
     }
     Connections {
         target: cfgFile
-        function onSaved() { root.runGenBinds(); }
+        function onSaved() {
+            root.runGenBinds();
+            if (root.translationPending) {
+                translateStartTimer.stop();
+                root.refreshTranslation();
+            }
+        }
     }
 
     // ---------------------------------------------------------------- палитра

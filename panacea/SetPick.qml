@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 
 // Выбор из длинного списка: шрифты, часовые пояса, форматы даты.
 // Список раскрывается прямо в потоке страницы, а не всплывающим окном —
@@ -14,6 +15,8 @@ ColumnLayout {
     property var options: []
     property string value: ""
     property bool open: false
+    property bool searchable: false
+    property string query: ""
     // сколько строк видно до появления собственной прокрутки
     property int visibleRows: 7
     signal picked(string id)
@@ -25,6 +28,13 @@ ColumnLayout {
             if (idOf(pick.options[i]) === id) return textOf(pick.options[i]);
         return id;
     }
+    readonly property var filteredOptions: {
+        if (!pick.searchable || !pick.query.length) return pick.options;
+        var q = pick.query.toLowerCase();
+        return pick.options.filter(o => String(pick.textOf(o)).toLowerCase().indexOf(q) >= 0
+                                        || String(pick.idOf(o)).toLowerCase().indexOf(q) >= 0);
+    }
+    onOpenChanged: if (!open) { query = ""; searchField.clear(); }
 
     Layout.fillWidth: true
     spacing: 8
@@ -87,7 +97,8 @@ ColumnLayout {
     Rectangle {
         Layout.fillWidth: true
         Layout.preferredHeight: pick.open
-            ? Math.min(pick.visibleRows, Math.max(1, pick.options.length)) * 28 + 12 : 0
+            ? Math.min(pick.visibleRows, Math.max(1, pick.filteredOptions.length)) * 28 + 12
+              + (pick.searchable ? 38 : 0) : 0
         clip: true
         visible: Layout.preferredHeight > 0
         radius: 12
@@ -96,12 +107,29 @@ ColumnLayout {
             NumberAnimation { duration: pick.sys.animFade; easing.type: Easing.OutCubic }
         }
 
+        TextField {
+            id: searchField
+            visible: pick.searchable
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 6
+            height: 30
+            placeholderText: pick.sys.tr("Поиск языка или кода")
+            onTextEdited: pick.query = text
+            color: pick.sys.colFg
+            placeholderTextColor: pick.sys.colMuted
+            background: null
+            font { family: pick.sys.fontBody; pixelSize: pick.sys.fontSize - 3 }
+        }
+
         ListView {
             id: list
             anchors.fill: parent
             anchors.margins: 6
+            anchors.topMargin: pick.searchable ? 38 : 6
             clip: true
-            model: pick.options
+            model: pick.filteredOptions
             boundsBehavior: Flickable.StopAtBounds
             currentIndex: -1
 

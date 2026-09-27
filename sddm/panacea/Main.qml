@@ -54,7 +54,14 @@ Rectangle {
         "Перезагрузка": "Restart",
         "Выключить": "Shut down"
     })
-    function tr(k) { return isEn && dictEn[k] !== undefined ? dictEn[k] : k; }
+    function tr(k) {
+        var lang = localeLoader.item ? String(localeLoader.item.lang).split("_")[0] : "en";
+        if (lang === "ru") return k;
+        if (lang === "en") return dictEn[k] !== undefined ? dictEn[k] : k;
+        var translated = localeLoader.item ? localeLoader.item.translations : null;
+        return translated && translated[k] !== undefined ? translated[k]
+             : (dictEn[k] !== undefined ? dictEn[k] : k);
+    }
     readonly property color fg:
         (accentLoader.item && accentLoader.item.fg !== undefined)
             ? accentLoader.item.fg : "#f2f2f2"
