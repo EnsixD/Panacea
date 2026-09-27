@@ -42,9 +42,6 @@ Rectangle {
         asynchronous: false
     }
     // По умолчанию английский — как и у пилюли, пока файла ещё нет.
-    readonly property bool isEn:
-        localeLoader.item ? localeLoader.item.lang === "en" : true
-
     // Ключ — русский текст, как в пилюле: исходник остаётся читаемым, а
     // словарь нужен только для английского.
     readonly property var dictEn: ({
@@ -54,7 +51,19 @@ Rectangle {
         "Перезагрузка": "Restart",
         "Выключить": "Shut down"
     })
-    function tr(k) { return isEn && dictEn[k] !== undefined ? dictEn[k] : k; }
+    readonly property var dictTr: ({
+        "Пароль": "Parola",
+        "Неверный пароль": "Yanlış parola",
+        "Сон": "Uyku",
+        "Перезагрузка": "Yeniden başlat",
+        "Выключить": "Kapat"
+    })
+    function tr(k) {
+        var language = localeLoader.item ? String(localeLoader.item.lang).split("_")[0] : "en";
+        if (language === "ru") return k;
+        if (language === "tr" && dictTr[k] !== undefined) return dictTr[k];
+        return dictEn[k] !== undefined ? dictEn[k] : k;
+    }
     readonly property color fg:
         (accentLoader.item && accentLoader.item.fg !== undefined)
             ? accentLoader.item.fg : "#f2f2f2"

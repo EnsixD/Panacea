@@ -125,7 +125,7 @@ PanelWindow {
             // разрешено ли переносить остров мышью прямо на экране
             property bool   pillDrag: false
             property int    panelW: 540
-            property string lang: "en"        // "en" | "ru", по умолчанию английский
+            property string lang: "en"        // Built-in UI: en, ru, tr; other system locales use English UI.
             property bool   clock12: false    // 12-часовой формат с AM/PM
             // запись экрана
             property int    recFps: 60
@@ -616,8 +616,13 @@ PanelWindow {
     // а словарь нужен только для английского; сами строки — в Translations.qml.
     readonly property Translations i18n: Translations {}
 
-    readonly property bool isEn: cfg.lang === "en"
-    function tr(k) { return isEn && i18n.en[k] !== undefined ? i18n.en[k] : k; }
+    readonly property string localeId: String(cfg.lang || "en")
+    readonly property string languageCode: localeId.split(/[_-]/)[0].toLowerCase()
+    function tr(k) {
+        if (root.languageCode === "ru") return k;
+        if (root.languageCode === "tr" && i18n.tr[k] !== undefined) return i18n.tr[k];
+        return i18n.en[k] !== undefined ? i18n.en[k] : k;
+    }
 
     // -------------------------------------------------- язык экрана входа
     // Greeter работает от пользователя sddm и наши настройки прочитать не
@@ -780,6 +785,13 @@ PanelWindow {
     // отдельная переменная, и скрипт её не трогает.
     property string sysLang: "en"
     property bool   sysLangPending: false
+    function canonicalLocale(value) {
+        if (value === "en") return "en_US";
+        if (value === "ru") return "ru_RU";
+        if (value === "tr") return "tr_TR";
+        return String(value || "");
+    }
+    readonly property bool systemLocaleMatches: canonicalLocale(root.sysLang) === canonicalLocale(root.cfg.lang)
 
     Process {
         id: pLocaleGet
@@ -788,7 +800,7 @@ PanelWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 var s = text.trim().split("\n").pop().trim();
-                if (s === "ru" || s === "en") root.sysLang = s;
+                if (s.length) root.sysLang = s;
             }
         }
     }
@@ -805,12 +817,12 @@ PanelWindow {
     function setLang(code) {
         // Оболочка переключается сразу, не дожидаясь пароля: её словарь
         // системного языка не касается, и ждать здесь нечего.
+        if (root.cfg.lang === code) return;
         root.cfg.lang = code;
         root.saveCfg();
 
         root.sysLangPending = true;
-        pLocaleSet.command = ["sh", "-c",
-            "pkexec " + Quickshell.env("HOME") + "/.config/panacea/scripts/locale.sh set " + code];
+        pLocaleSet.command = ["pkexec", Quickshell.env("HOME") + "/.config/panacea/scripts/locale.sh", "set", code];
         pLocaleSet.running = false;
         pLocaleSet.running = true;
     }
@@ -826,7 +838,7 @@ PanelWindow {
     // уже переведённым — язык передаётся в запросе. Свои подписи оболочка
     // переключает сразу, а это одно осталось бы на прежнем языке до
     // следующего опроса, то есть до четверти часа.
-    onIsEnChanged: {
+    onLocaleIdChanged: {
         root.syncGreeterLocale();
         if (root.cfg.featWidgets || root.cfg.weatherOnIsland) root.refreshWeather();
     }
@@ -2194,8 +2206,8 @@ PanelWindow {
     // Единица скорости ветра — она же подпись под числом в кружке, поэтому
     // переводится здесь, а не остаётся латиницей на русском интерфейсе.
     readonly property string weatherWindUnit:
-        root.cfg.weatherUnits === "imperial" ? (root.isEn ? "mph" : "миль/ч")
-                                             : (root.isEn ? "m/s" : "м/с")
+        root.cfg.weatherUnits === "imperial" ? (root.languageCode === "ru" ? "миль/ч" : "mph")
+                                             : (root.languageCode === "ru" ? "м/с" : root.languageCode === "tr" ? "m/sn" : "m/s")
 
     // Значок погоды знаком шрифта — для тем, где точечных значков нет.
     // Разбор кода тот же, что в DotIcon: первые две цифры — сама погода.
@@ -2257,7 +2269,7 @@ PanelWindow {
         pWeather.command = ["sh", "-c",
             root.scriptDir + "/weather.sh \"$1\" \"$2\" \"$3\" \"$4\"", "_",
             String(root.cfg.weatherKey), String(root.cfg.weatherCity),
-            String(root.cfg.weatherUnits), root.isEn ? "en" : "ru"];
+            String(root.cfg.weatherUnits), ["ru", "tr"].indexOf(root.languageCode) >= 0 ? root.languageCode : "en"];
         pWeather.running = false;
         pWeather.running = true;
         root.refreshWeatherForecast();
@@ -2303,7 +2315,7 @@ PanelWindow {
         pWeatherForecast.command = ["sh", "-c",
             root.scriptDir + "/weather_forecast.sh \"$1\" \"$2\" \"$3\" \"$4\"", "_",
             String(root.cfg.weatherKey), String(root.cfg.weatherCity),
-            String(root.cfg.weatherUnits), root.isEn ? "en" : "ru"];
+            String(root.cfg.weatherUnits), ["ru", "tr"].indexOf(root.languageCode) >= 0 ? root.languageCode : "en"];
         pWeatherForecast.running = false;
         pWeatherForecast.running = true;
     }
@@ -3381,18 +3393,13 @@ PanelWindow {
                 ? (hr12 + ":" + mm + secStr + " " + ampm)
                 : Qt.formatDateTime(d, "HH:mm" + (root.cfg.clockSeconds ? ":ss" : ""));
             root.secText = Qt.formatDateTime(d, "ss");
-            root.dateLong = (root.cfg.clockWeekday ? Qt.formatDateTime(d, "dddd") + ", " : "")
-                + Qt.formatDateTime(d, root.cfg.clockDateFmt || "d MMMM");
-            root.dayText = root.isEn
-                ? ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]
-                : ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][d.getDay()];
+            var dateLocale = Qt.locale(root.cfg.lang === "en" ? "en_US" : root.cfg.lang === "ru" ? "ru_RU" : root.cfg.lang === "tr" ? "tr_TR" : root.cfg.lang);
+            root.dateLong = (root.cfg.clockWeekday ? d.toLocaleDateString(dateLocale, "dddd") + ", " : "")
+                + d.toLocaleDateString(dateLocale, root.cfg.clockDateFmt || "d MMMM");
+            root.dayText = dateLocale.dayName(d.getDay(), Locale.ShortFormat);
             root.dayNum = String(d.getDate());
             root.weekend = d.getDay() === 0 || d.getDay() === 6;
-            root.monthText = (root.isEn
-                ? ["January","February","March","April","May","June","July",
-                   "August","September","October","November","December"]
-                : ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль",
-                   "Август","Сентябрь","Октябрь","Ноябрь","Декабрь"])[d.getMonth()];
+            root.monthText = dateLocale.monthName(d.getMonth(), Locale.LongFormat);
         }
     }
 

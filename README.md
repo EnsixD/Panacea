@@ -224,6 +224,15 @@ mirror `lua/`; if something is missing there, the answer is to update Hyprland.
 Networking supports both **NetworkManager** (`nmcli`, standard on Fedora / Ubuntu) and **iwd** (`iwctl`, common on minimal Arch). Panacea detects the active daemon automatically — no manual configuration required. Power profiles go through `power-profiles-daemon` over D‑Bus.
 Everything resolves `$HOME` at runtime — no hardcoded paths.
 
+### Language
+
+Choose a system locale in **Settings → Appearance**. Panacea's interface has
+built-in Russian, English and Turkish translations. For any other system
+locale, the Panacea interface uses English while applications use the selected
+locale after the next login. There is no online translation service or API key.
+If you would like another interface language, please open a GitHub issue with
+the language and locale code so it can be added to the built-in translations.
+
 ### Customising and keeping changes across updates
 
 Panacea is designed so your personal tweaks — shell aliases, terminal fonts, window rules, keybindings — survive all updates without conflicts or overwrites:
@@ -238,7 +247,6 @@ Panacea is designed so your personal tweaks — shell aliases, terminal fonts, w
 | **Nano** | `~/.nanorc` (existing file is never overwritten) | ✅ Yes |
 | **Panacea** | `~/.config/panacea/settings.json` (merged with defaults via `jq`) | ✅ Yes |
 | **Clipboard pins and Wi-Fi history** | `clipboard_pins.json` and `last_wifi_ssid` in `~/.config/panacea/` | ✅ Yes |
-| **UI translation cache** | `~/.config/panacea/translations/` | ✅ Yes |
 | **Post-update hook** | `~/.config/panacea/custom/post-update.sh` (executed after update) | ✅ Yes |
 
 As an extra safety net, the updater backs up modified configurations to `~/.config/<name>.bak-update` before applying changes and retains two earlier update snapshots.
@@ -298,7 +306,12 @@ leaves the browser handling what belongs to a browser. Set them by hand with
 
 Shortcuts live in `panacea/settings.json` and compile into
 `hypr/lua/binds_data.lua` from the settings panel; that generated file is
-gitignored, and without it the defaults in `keybindings.lua` apply.
+gitignored, and without it the defaults in `keybindings.lua` apply. Every
+ordinary Hyprland shortcut, including workspace switching and window movement
+for desks 1–10, can be changed in **Super+/**. Mouse, media, and lid bindings
+accept a typed Hyprland combination in the same editor. Keyboard layouts and
+switching options live in **Settings → Devices → Input** and are generated from
+`settings.json`; on Niri, edit the preserved `~/.config/niri/config.kdl`.
 
 ## Credits
 
