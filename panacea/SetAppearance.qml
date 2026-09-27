@@ -1,7 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls
-import Quickshell.Io
 
 // Appearance. Оформление в стиле Nothing OS: минималистичная монохромная
 // палитра, фирменные точечные шрифты, виджеты рабочего стола и системные звуки.
@@ -10,27 +8,6 @@ ColumnLayout {
 
     property var sys
     property bool detailsOpen: false
-    property var localeOptions: [{ id: "en", text: "English" }, { id: "ru", text: "Русский" }]
-
-    Process {
-        command: [page.sys.scriptDir + "/locale.sh", "list"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var options = [];
-                var lines = String(text).trim().split("\n");
-                for (var i = 0; i < lines.length; i++) {
-                    var p = lines[i].split("|");
-                    if (p.length !== 2 || !p[0].length) continue;
-                    var locale = Qt.locale(p[0]);
-                    var nativeName = locale && locale.name !== "C" ? locale.nativeLanguageName : "";
-                    options.push({ id: p[0], text: nativeName ? nativeName + " · " + p[0] : p[1] });
-                }
-                if (options.length) page.localeOptions = options;
-            }
-        }
-    }
-
     Layout.fillWidth: true
     spacing: 12
 
@@ -41,11 +18,13 @@ ColumnLayout {
 
         SetLabel { sys: page.sys; text: page.sys.tr("Язык") }
 
-        SetPick {
+        SetSelect {
             sys: page.sys
             label: page.sys.tr("Язык системы")
-            options: page.localeOptions
-            searchable: true
+            options: [
+                { id: "en", text: "English" },
+                { id: "ru", text: "Русский" }
+            ]
             value: page.sys.cfg.lang
             onPicked: id => page.sys.setLang(id)
         }
@@ -60,73 +39,6 @@ ColumnLayout {
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
-        }
-
-        Text {
-            Layout.fillWidth: true
-            visible: page.sys.languageCode !== "en" && page.sys.languageCode !== "ru"
-            text: page.sys.translationError.length ? page.sys.tr("Перевод пока недоступен")
-                  : page.sys.translationBusy ? page.sys.tr("Переводим интерфейс…")
-                  : Object.keys(page.sys.translatedStrings).length
-                    ? page.sys.tr("Перевод интерфейса сохранён локально")
-                    : page.sys.tr("Перевод пока недоступен")
-            color: page.sys.translationError.length ? page.sys.colCrit : page.sys.colMuted
-            wrapMode: Text.WordWrap
-            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
-        }
-    }
-
-    SetCard {
-        sys: page.sys
-        visible: page.detailsOpen
-
-        SetLabel { sys: page.sys; text: page.sys.tr("Сервис перевода") }
-        Text {
-            Layout.fillWidth: true
-            visible: page.sys.translationError.length > 0
-            text: page.sys.translationError
-            color: page.sys.colMuted
-            wrapMode: Text.WordWrap
-            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
-        }
-        Text {
-            Layout.fillWidth: true
-            text: page.sys.tr("Пустой адрес использует открытые серверы LibreTranslate. Переводятся только встроенные подписи интерфейса.")
-            color: page.sys.colMuted
-            wrapMode: Text.WordWrap
-            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
-        }
-        TextField {
-            Layout.fillWidth: true
-            placeholderText: page.sys.tr("Адрес сервера перевода (необязательно)")
-            text: page.sys.cfg.translationUrl
-            onEditingFinished: {
-                page.sys.cfg.translationUrl = text.trim();
-                page.sys.translationPending = true;
-                page.sys.saveCfg();
-            }
-            color: page.sys.colFg
-            placeholderTextColor: page.sys.colMuted
-            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
-        }
-        TextField {
-            Layout.fillWidth: true
-            placeholderText: page.sys.tr("Ключ API (если нужен серверу)")
-            text: page.sys.cfg.translationApiKey
-            echoMode: TextInput.Password
-            onEditingFinished: {
-                page.sys.cfg.translationApiKey = text;
-                page.sys.translationPending = true;
-                page.sys.saveCfg();
-            }
-            color: page.sys.colFg
-            placeholderTextColor: page.sys.colMuted
-            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
-        }
-        SetButton {
-            sys: page.sys
-            text: page.sys.tr("Повторить перевод")
-            onClicked: page.sys.refreshTranslation()
         }
     }
 

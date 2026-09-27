@@ -224,18 +224,6 @@ mirror `lua/`; if something is missing there, the answer is to update Hyprland.
 Networking supports both **NetworkManager** (`nmcli`, standard on Fedora / Ubuntu) and **iwd** (`iwctl`, common on minimal Arch). Panacea detects the active daemon automatically — no manual configuration required. Power profiles go through `power-profiles-daemon` over D‑Bus.
 Everything resolves `$HOME` at runtime — no hardcoded paths.
 
-### Language
-
-Choose a system locale in **Settings → Appearance**. English and Russian are
-available immediately. For other languages, Panacea translates its built-in UI
-labels through LibreTranslate and caches the result in
-`~/.config/panacea/translations/`. Only fixed interface labels are sent to the
-translation service; clipboard contents, network names, and window titles are
-excluded. The translation server and optional API key can be changed under
-**Detailed settings**. Public servers may be unavailable or may not support
-every locale; Panacea keeps the English fallback in that case. The system locale
-also changes for applications after the next login.
-
 ### Customising and keeping changes across updates
 
 Panacea is designed so your personal tweaks — shell aliases, terminal fonts, window rules, keybindings — survive all updates without conflicts or overwrites:
