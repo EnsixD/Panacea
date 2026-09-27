@@ -136,8 +136,8 @@ hl.bind("ALT + down",  hl.dsp.window.resize({ x = 0,   y = 30,  relative = true 
 B("emptyWorkspace", mainMod .. " + Space",   hl.dsp.focus({ workspace = "empty" }))
 for i = 1, 10 do
     local key = i % 10
-    hl.bind(mainMod .. " + " .. key,             hl.dsp.focus({ workspace = i}))
-    hl.bind(mainMod .. " + SHIFT + " .. key,     hl.dsp.window.move({ workspace = i }))
+    B("workspace" .. i, mainMod .. " + " .. key, hl.dsp.focus({ workspace = i}))
+    B("moveWorkspace" .. i, mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }))
 end
 B("specialWorkspace", mainMod .. " + S",     hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
@@ -179,4 +179,3 @@ hl.define_submap("capture", function()
     hl.bind("SUPER + SHIFT + Escape",
         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/panacea/scripts/capture.sh off"))
 end)
-

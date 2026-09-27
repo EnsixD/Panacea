@@ -294,7 +294,7 @@ list)
 
             conn = (in_use == "*" || ssid == cur_ssid) ? "yes" : "no"
             quality = int(sig)
-            sec_type = (sec == "" || sec == "--") ? "open" : "psk"
+            sec_type = (sec == "" || sec == "--") ? "open" : (sec ~ /802\.1X|WPA-EAP|WPA2-EAP|WPA3-EAP/) ? "eap" : "psk"
 
             if (!(ssid in seen) || conn == "yes" || quality > best_q[ssid]) {
                 if (!(ssid in seen)) {
@@ -370,10 +370,22 @@ autoconnect)
     ;;
 
 connect)
-    SSID="$2"; PW="$3"
+    SSID="$2"; PW="$3"; USERNAME="$4"; SECURITY="$5"
     [ -z "$SSID" ] && exit 1
     last_file="${XDG_CONFIG_HOME:-$HOME/.config}/panacea/last_wifi_ssid"
     printf '%s' "$SSID" > "$last_file" 2>/dev/null
+    if [ "$SECURITY" = eap ]; then
+        [ -n "$USERNAME" ] && [ -n "$PW" ] || exit 1
+        use_nm || { echo "Enterprise Wi-Fi requires NetworkManager" >&2; exit 1; }
+        # Give the profile a known UUID so SSIDs cannot select another profile.
+        UUID=$(cat /proc/sys/kernel/random/uuid) || exit 1
+        nmcli connection add type wifi ifname "$IFACE" con-name "Panacea: $SSID" ssid "$SSID" connection.uuid "$UUID" 802-11-wireless-security.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2 802-1x.identity "$USERNAME" >/dev/null 2>&1 || exit 1
+        nmcli connection modify "$UUID" 802-1x.password "$PW" >/dev/null 2>&1 || { nmcli connection delete "$UUID" >/dev/null 2>&1; exit 1; }
+        nmcli connection up uuid "$UUID" >/dev/null 2>&1
+        rc=$?
+        [ "$rc" -eq 0 ] || nmcli connection delete "$UUID" >/dev/null 2>&1
+        exit "$rc"
+    fi
     if use_nm; then
         if [ -n "$PW" ]; then
             nmcli dev wifi connect "$SSID" password "$PW" >/dev/null 2>&1
@@ -381,6 +393,9 @@ connect)
         else
             if nmcli connection show "$SSID" >/dev/null 2>&1; then
                 nmcli connection up id "$SSID" >/dev/null 2>&1
+                rc=$?
+            elif nmcli connection show "Panacea: $SSID" >/dev/null 2>&1; then
+                nmcli connection up id "Panacea: $SSID" >/dev/null 2>&1
                 rc=$?
             else
                 nmcli dev wifi connect "$SSID" >/dev/null 2>&1
@@ -416,6 +431,7 @@ forget)
     if use_nm; then
         [ "$2" = "$(current_ssid)" ] && nmcli dev disconnect "$IFACE" >/dev/null 2>&1
         nmcli connection delete id "$2" >/dev/null 2>&1 || true
+        nmcli connection delete id "Panacea: $2" >/dev/null 2>&1 || true
     else
         [ "$2" = "$(current_ssid)" ] && iwctl station "$IFACE" disconnect >/dev/null 2>&1
         iwctl known-networks "$2" forget >/dev/null 2>&1
@@ -423,7 +439,7 @@ forget)
     ;;
 
 *)
-    echo "usage: wifi.sh status|list|scan|toggle|connect SSID [PW]|disconnect|forget SSID" >&2
+    echo "usage: wifi.sh status|list|scan|toggle|connect SSID [PW [USERNAME [eap]]]|disconnect|forget SSID" >&2
     exit 1
     ;;
 esac

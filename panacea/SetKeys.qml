@@ -435,6 +435,20 @@ ColumnLayout {
 
             Head { text: page.sys.tr("Рабочие столы") }
             BindRow { bindId: "emptyWorkspace";   label: page.sys.tr("На пустой стол") }
+            Repeater {
+                model: 10
+                BindRow {
+                    bindId: "workspace" + (index + 1)
+                    label: page.sys.tr("Перейти на стол") + " " + (index + 1)
+                }
+            }
+            Repeater {
+                model: 10
+                BindRow {
+                    bindId: "moveWorkspace" + (index + 1)
+                    label: page.sys.tr("Перенести окно на стол") + " " + (index + 1)
+                }
+            }
             BindRow { bindId: "specialWorkspace"; label: page.sys.tr("Спецстол") }
             BindRow { bindId: "packWorkspaces";   label: page.sys.tr("Собрать столы подряд") }
         }

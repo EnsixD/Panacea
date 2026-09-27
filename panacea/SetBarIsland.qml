@@ -51,6 +51,14 @@ ColumnLayout {
 
         SetToggle {
             sys: page.sys
+            label: page.sys.tr("Нагрузка системы на острове")
+            sub: page.sys.tr("Показывать загрузку и температуру CPU и GPU на свёрнутом острове.")
+            on: page.sys.cfg.systemLoadOnIsland
+            onToggled: value => { page.sys.cfg.systemLoadOnIsland = value; page.sys.saveCfg(); }
+        }
+
+        SetToggle {
+            sys: page.sys
             label: page.sys.tr("Закрывать окна Panacea по Super+Q")
             sub: page.sys.tr("При открытых панелях или настройках Panacea нажатие Super+Q закрывает оверлей. Выключить — Super+Q всегда закрывает активное приложение на фоне.")
             on: page.sys.cfg.closePanaceaFirst

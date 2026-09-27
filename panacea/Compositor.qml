@@ -92,9 +92,28 @@ Singleton {
         comp.isNiri ? comp._niriActiveClass : comp._hyprActiveClass
 
     // ---------------------------------------------------- раскладка клавиатуры
-    // "RU" / "US". Держим строкой, а не индексом: индекс без списка раскладок
+    // Короткая подпись раскладки. Держим строкой, а не индексом: индекс без списка раскладок
     // ничего не значит, а показать нужно именно буквы.
-    property string keyboardLayout: "US"
+    property string keyboardLayoutName: "English (US)"
+    readonly property string keyboardLayout: comp.layoutLabel(comp.keyboardLayoutName)
+    property string keyboardLayoutMap: ""
+    function layoutLabel(name) {
+        var full = String(name || "").trim();
+        if (!full) return "";
+        try {
+            var map = JSON.parse(comp.keyboardLayoutMap || "{}");
+            for (var key in map)
+                if (key.toLowerCase() === full.toLowerCase() && String(map[key]).length)
+                    return String(map[key]).toUpperCase().slice(0, 3);
+        } catch (e) {}
+        var shortCode = full.match(/\(([a-z]{2,3})\)/i);
+        if (shortCode) return shortCode[1].toUpperCase();
+        var codes = { english: "US", russian: "RU", turkish: "TR", german: "DE",
+                      french: "FR", spanish: "ES", ukrainian: "UA" };
+        for (var language in codes)
+            if (full.toLowerCase().indexOf(language) >= 0) return codes[language];
+        return full.slice(0, 2).toUpperCase();
+    }
 
     // ==================================================================
     //                             действия
@@ -269,7 +288,7 @@ Singleton {
         stdout: SplitParser {
             onRead: line => {
                 var s = line.trim();
-                if (s.length) comp.keyboardLayout = /rus/i.test(s) ? "RU" : "US";
+                if (s.length) comp.keyboardLayoutName = s;
             }
         }
     }
@@ -447,7 +466,7 @@ Singleton {
         var n = comp._niriKbNames;
         var i = comp._niriKbIdx;
         if (!n || i < 0 || i >= n.length) return;
-        comp.keyboardLayout = /ru/i.test(String(n[i])) ? "RU" : "US";
+        comp.keyboardLayoutName = String(n[i]);
     }
 
     function _syncNiriFocus() {

@@ -196,6 +196,7 @@ PanelWindow {
             property string weatherUnits: "metric"   // metric | imperial
             // Погода в свёрнутом острове. Выключена по умолчанию.
             property bool   weatherOnIsland: false
+            property bool   systemLoadOnIsland: false
             // Настольные виджеты. Выключены по умолчанию: они рисуются
             // поверх обоев и меняют вид рабочего стола, а такое включают
             // сами, а не обнаруживают после обновления.
@@ -203,6 +204,8 @@ PanelWindow {
             property string widgetClockMode: "analog"
             property string widgetRightMode: "weather"
             property string widgetProgressMode: "day"
+            // JSON string: {"Turkish":"TR","Russian":"RU"}
+            property string keyboardLayoutMap: ""
 
             // Прозрачность терминала. Живёт здесь, а правится в foot.ini:
             // сам foot настройки оболочки не читает.
@@ -241,6 +244,26 @@ PanelWindow {
             property string bind_packWorkspaces: "SUPER + SHIFT + A"
             property string bind_emptyWorkspace: "SUPER + Space"
             property string bind_specialWorkspace: "SUPER + S"
+            property string bind_workspace1: "SUPER + 1"
+            property string bind_workspace2: "SUPER + 2"
+            property string bind_workspace3: "SUPER + 3"
+            property string bind_workspace4: "SUPER + 4"
+            property string bind_workspace5: "SUPER + 5"
+            property string bind_workspace6: "SUPER + 6"
+            property string bind_workspace7: "SUPER + 7"
+            property string bind_workspace8: "SUPER + 8"
+            property string bind_workspace9: "SUPER + 9"
+            property string bind_workspace10: "SUPER + 0"
+            property string bind_moveWorkspace1: "SUPER + SHIFT + 1"
+            property string bind_moveWorkspace2: "SUPER + SHIFT + 2"
+            property string bind_moveWorkspace3: "SUPER + SHIFT + 3"
+            property string bind_moveWorkspace4: "SUPER + SHIFT + 4"
+            property string bind_moveWorkspace5: "SUPER + SHIFT + 5"
+            property string bind_moveWorkspace6: "SUPER + SHIFT + 6"
+            property string bind_moveWorkspace7: "SUPER + SHIFT + 7"
+            property string bind_moveWorkspace8: "SUPER + SHIFT + 8"
+            property string bind_moveWorkspace9: "SUPER + SHIFT + 9"
+            property string bind_moveWorkspace10: "SUPER + SHIFT + 0"
         }
     }
     // Заводские сочетания. Держим одним списком, чтобы «Сбросить»
@@ -276,10 +299,31 @@ PanelWindow {
         packWorkspaces: "SUPER + SHIFT + A",
         emptyWorkspace: "SUPER + Space",
         specialWorkspace: "SUPER + S",
-        lockScreen:     "SUPER + L"
+        lockScreen:     "SUPER + L",
+        workspace1: "SUPER + 1",
+        workspace2: "SUPER + 2",
+        workspace3: "SUPER + 3",
+        workspace4: "SUPER + 4",
+        workspace5: "SUPER + 5",
+        workspace6: "SUPER + 6",
+        workspace7: "SUPER + 7",
+        workspace8: "SUPER + 8",
+        workspace9: "SUPER + 9",
+        workspace10: "SUPER + 0",
+        moveWorkspace1: "SUPER + SHIFT + 1",
+        moveWorkspace2: "SUPER + SHIFT + 2",
+        moveWorkspace3: "SUPER + SHIFT + 3",
+        moveWorkspace4: "SUPER + SHIFT + 4",
+        moveWorkspace5: "SUPER + SHIFT + 5",
+        moveWorkspace6: "SUPER + SHIFT + 6",
+        moveWorkspace7: "SUPER + SHIFT + 7",
+        moveWorkspace8: "SUPER + SHIFT + 8",
+        moveWorkspace9: "SUPER + SHIFT + 9",
+        moveWorkspace10: "SUPER + SHIFT + 0"
     })
 
     readonly property var cfg: cfgFile.adapter
+    Binding { target: Compositor; property: "keyboardLayoutMap"; value: root.cfg.keyboardLayoutMap }
     function saveCfgNow() { cfgFile.writeAdapter(); }
 
     // Заводские значения всего, что правится в окне настроек. Сочетания
@@ -305,7 +349,7 @@ PanelWindow {
         vibrance: 50, mouseSens: 0, mouseRaw: false,
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
         weatherKey: "", weatherCity: "", weatherUnits: "metric",
-        weatherOnIsland: false, featWidgets: false,
+        weatherOnIsland: false, systemLoadOnIsland: false, keyboardLayoutMap: "", featWidgets: false,
         widgetClockMode: "analog", widgetRightMode: "weather", widgetProgressMode: "day",
         termAlpha: 0.90,
         uiSounds: true
@@ -2214,7 +2258,7 @@ PanelWindow {
     // Опрашиваем пока панель раскрыта или включены настольные виджеты.
     // На рабочем столе скрипт вызывается с флагом --fast без задержки сна
     // и nvidia-smi, снимая только RAM и Disk за несколько миллисекунд.
-    readonly property bool loadWanted: root.expanded || root.cfg.featWidgets
+    readonly property bool loadWanted: root.expanded || root.cfg.featWidgets || root.cfg.systemLoadOnIsland
 
     Connections {
         target: root
@@ -2228,7 +2272,7 @@ PanelWindow {
 
     Process {
         id: pLoad
-        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/sysload.sh" + (root.expanded ? "" : " --fast")]
+        command: ["sh", "-c", Quickshell.env("HOME") + "/.config/panacea/scripts/sysload.sh" + ((root.expanded || root.cfg.systemLoadOnIsland) ? "" : " --fast")]
         stdout: StdioCollector {
             onStreamFinished: {
                 // Сборщик копит вывод всех запусков подряд, поэтому берём
@@ -2240,7 +2284,7 @@ PanelWindow {
                     s = String(s || "").trim();
                     return s.length ? (+s) : -1;
                 }
-                if (root.expanded) {
+                if (root.expanded || root.cfg.systemLoadOnIsland) {
                     root.loadCpu = num(a[0]);
                     root.loadMem = num(a[1]);
                     root.loadGpu = num(a[2]);
@@ -3222,7 +3266,7 @@ PanelWindow {
     }
 
     // -------------------------------------------------- раскладка клавиатуры
-    property string kbLayout: Compositor.isNiri ? Compositor.keyboardLayout : "US"
+    property string kbLayout: Compositor.keyboardLayout
     Process {
         id: pKbLayout
         command: ["sh", "-c",
@@ -3232,7 +3276,7 @@ PanelWindow {
             onRead: line => {
                 var s = line.trim();
                 if (!s.length) return;
-                root.kbLayout = /rus/i.test(s) ? "RU" : "US";
+                Compositor.keyboardLayoutName = s;
             }
         }
     }
@@ -3548,11 +3592,13 @@ PanelWindow {
     }
     Timer { id: wifiRescanTimer; interval: 2600; onTriggered: root.refreshWifiList() }
 
-    function connectWifi(ssid, password) {
+    function connectWifi(ssid, password, username, security) {
         root.wifiConnectingSsid = ssid;
         root.wifiBusy = true;
         root.wifiError = "";
-        pWifiConnect.command = password && password.length
+        pWifiConnect.command = security === "eap"
+            ? ["sh", "-c", root.wifiScript + " connect \"$1\" \"$2\" \"$3\" eap", "_", ssid, password, username]
+            : password && password.length
             ? ["sh", "-c", root.wifiScript + " connect \"$1\" \"$2\"", "_", ssid, password]
             : ["sh", "-c", root.wifiScript + " connect \"$1\"", "_", ssid];
         pWifiConnect.running = true;
@@ -5577,6 +5623,14 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 12
 
+                Text {
+                    visible: root.cfg.systemLoadOnIsland && (root.loadCpu >= 0 || root.loadGpu >= 0)
+                    text: (root.loadCpu >= 0 ? "CPU " + root.loadCpu + "%" + (root.loadTempCpu >= 0 ? " " + root.loadTempCpu + "°" : "") : "")
+                        + (root.loadGpu >= 0 ? "  GPU " + root.loadGpu + "%" + (root.loadTempGpu >= 0 ? " " + root.loadTempGpu + "°" : "") : "")
+                    color: root.colFg
+                    font { family: root.fontFam; pixelSize: root.fontSize - 5 }
+                }
+
                 // Кабель вытесняет антенну: связь идёт по нему, и значок
                 // Wi-Fi поверх работающего кабеля только сбивал бы с толку.
                 //
@@ -5618,7 +5672,7 @@ PanelWindow {
                 FlipText {
                     Layout.alignment: Qt.AlignVCenter
                     value: root.kbLayout
-                    textColor: root.kbLayout === "RU" ? root.colFg : root.colMuted
+                    textColor: root.colFg
                     fontFam: root.fontFam
                     pixelSize: root.fontSize - 4
                     bold: true
@@ -5869,8 +5923,16 @@ PanelWindow {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: root.kbLayout
-                    color: root.kbLayout === "RU" ? root.tint("#7FB3FF") : root.colMuted
+                    color: root.colFg
                     font { family: root.fontFam; pixelSize: root.fontSize - 4; bold: true }
+                }
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: root.cfg.systemLoadOnIsland && (root.loadCpu >= 0 || root.loadGpu >= 0)
+                    text: (root.loadCpu >= 0 ? "C" + root.loadCpu + "%" + (root.loadTempCpu >= 0 ? "/" + root.loadTempCpu + "°" : "") : "")
+                          + (root.loadGpu >= 0 ? " G" + root.loadGpu + "%" + (root.loadTempGpu >= 0 ? "/" + root.loadTempGpu + "°" : "") : "")
+                    color: root.colFg
+                    font { family: root.fontFam; pixelSize: root.fontSize - 5 }
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter

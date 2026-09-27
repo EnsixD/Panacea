@@ -10,6 +10,12 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        "Нагрузка системы на острове": "System load on island",
+        "Показывать загрузку и температуру CPU и GPU на свёрнутом острове.": "Show CPU and GPU usage and temperatures on the collapsed island.",
+        "Имя пользователя": "Username",
+        "Корпоративная": "Enterprise",
+        "Перейти на стол": "Switch to workspace",
+        "Перенести окно на стол": "Move window to workspace",
         // уведомление после Super+Shift+S
         "Скриншот": "Screenshot",
         "В буфере обмена": "Copied to the clipboard",
