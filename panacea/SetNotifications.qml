@@ -7,6 +7,7 @@ ColumnLayout {
     id: page
 
     property var sys
+    property bool detailsOpen: false
 
     Layout.fillWidth: true
     spacing: 12
@@ -43,6 +44,7 @@ ColumnLayout {
         SetSlider {
             sys: page.sys
             label: page.sys.tr("Сколько висит важное")
+            visible: page.detailsOpen
             from: 0; to: 60000; step: 1000
             value: page.sys.cfg.notifCritTimeout
             // ноль — карточка не гаснет сама, и это нужно сказать словом
@@ -50,6 +52,12 @@ ColumnLayout {
                        ? page.sys.tr("до ответа")
                        : (page.sys.cfg.notifCritTimeout / 1000).toFixed(0) + " s"
             onMoved: v => { page.sys.cfg.notifCritTimeout = v; page.sys.saveCfg(); }
+        }
+
+        SetButton {
+            sys: page.sys
+            text: page.detailsOpen ? page.sys.tr("Скрыть подробности") : page.sys.tr("Подробные настройки")
+            onClicked: page.detailsOpen = !page.detailsOpen
         }
 
     }

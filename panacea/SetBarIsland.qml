@@ -8,6 +8,7 @@ ColumnLayout {
     id: page
 
     property var sys
+    property bool detailsOpen: false
     readonly property bool notch: page.sys.cfg.notchMode
 
     Layout.fillWidth: true
@@ -19,7 +20,7 @@ ColumnLayout {
 
         SetToggle {
             sys: page.sys
-            label: page.sys.tr("Notch mode")
+            label: page.sys.tr("Режим выреза")
             sub: page.sys.tr("Остров прилегает к кромке экрана и растекается по ней вогнутыми уголками. Выключить — станет отдельной капсулой с отступом от кромки.")
             on: page.notch
             onToggled: value => { page.sys.cfg.notchMode = value; page.sys.saveCfg(); }
@@ -60,6 +61,7 @@ ColumnLayout {
         SetToggle {
             sys: page.sys
             label: page.sys.tr("Закрывать окна Panacea по Super+Q")
+            visible: page.detailsOpen
             sub: page.sys.tr("При открытых панелях или настройках Panacea нажатие Super+Q закрывает оверлей. Выключить — Super+Q всегда закрывает активное приложение на фоне.")
             on: page.sys.cfg.closePanaceaFirst
             onToggled: value => { page.sys.cfg.closePanaceaFirst = value; page.sys.saveCfg(); }
@@ -67,9 +69,10 @@ ColumnLayout {
 
         SetSlider {
             sys: page.sys
+            visible: page.detailsOpen
             enabled: page.notch
             opacity: enabled ? 1 : 0.4
-            label: page.sys.tr("Notch flare")
+            label: page.sys.tr("Выступ выреза")
             from: 0; to: 32; step: 1
             value: page.sys.cfg.notchFlare
             suffix: "px"
@@ -78,9 +81,10 @@ ColumnLayout {
 
         SetSlider {
             sys: page.sys
+            visible: page.detailsOpen
             enabled: !page.notch
             opacity: enabled ? 1 : 0.4
-            label: page.sys.tr("Edge gap")
+            label: page.sys.tr("Отступ от края")
             from: 0; to: 48; step: 1
             value: page.sys.cfg.islandGap
             suffix: "px"
@@ -89,9 +93,10 @@ ColumnLayout {
 
         SetSlider {
             sys: page.sys
+            visible: page.detailsOpen
             enabled: !page.notch
             opacity: enabled ? 1 : 0.4
-            label: page.sys.tr("Capsule radius")
+            label: page.sys.tr("Скругление капсулы")
             from: 0; to: 40; step: 1
             value: page.sys.cfg.islandRadius
             // ноль читается как «скругление по половине высоты», а не как
@@ -102,15 +107,22 @@ ColumnLayout {
         }
     }
 
+    SetButton {
+        sys: page.sys
+        text: page.detailsOpen ? page.sys.tr("Скрыть подробности") : page.sys.tr("Подробные настройки")
+        onClicked: page.detailsOpen = !page.detailsOpen
+    }
+
     // ------------------------------------------------------------- размеры
     SetCard {
         sys: page.sys
+        visible: page.detailsOpen
 
         SetLabel { sys: page.sys; text: page.sys.tr("Размеры") }
 
         SetSlider {
             sys: page.sys
-            label: page.sys.tr("Bar height")
+            label: page.sys.tr("Высота панели")
             from: 24; to: 72; step: 1
             value: page.sys.cfg.pillH
             suffix: "px"
@@ -119,7 +131,7 @@ ColumnLayout {
 
         SetSlider {
             sys: page.sys
-            label: page.sys.tr("Collapsed width")
+            label: page.sys.tr("Ширина свёрнутого острова")
             from: 120; to: 640; step: 4
             value: page.sys.cfg.collapsedW
             suffix: "px"
@@ -128,7 +140,7 @@ ColumnLayout {
 
         SetSlider {
             sys: page.sys
-            label: page.sys.tr("Expanded width")
+            label: page.sys.tr("Ширина раскрытого острова")
             from: 380; to: 900; step: 10
             value: page.sys.cfg.panelW
             suffix: "px"
@@ -137,7 +149,7 @@ ColumnLayout {
 
         SetSlider {
             sys: page.sys
-            label: page.sys.tr("Expanded height")
+            label: page.sys.tr("Высота раскрытого острова")
             from: 260; to: 1000; step: 10
             value: page.sys.cfg.expandedH
             suffix: "px"
@@ -148,6 +160,7 @@ ColumnLayout {
     // ------------------------------------------------------------- поведение
     SetCard {
         sys: page.sys
+        visible: page.detailsOpen
 
         SetLabel { sys: page.sys; text: page.sys.tr("Поведение") }
 

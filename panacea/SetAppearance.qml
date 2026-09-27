@@ -7,7 +7,7 @@ ColumnLayout {
     id: page
 
     property var sys
-
+    property bool detailsOpen: false
     Layout.fillWidth: true
     spacing: 12
 
@@ -57,7 +57,7 @@ ColumnLayout {
         }
 
         SetSelect {
-            visible: page.sys.cfg.featWidgets
+            visible: page.sys.cfg.featWidgets && page.detailsOpen
             sys: page.sys
             label: page.sys.tr("Стиль часов")
             options: [
@@ -69,7 +69,7 @@ ColumnLayout {
         }
 
         SetSelect {
-            visible: page.sys.cfg.featWidgets
+            visible: page.sys.cfg.featWidgets && page.detailsOpen
             sys: page.sys
             label: page.sys.tr("Информационный блок")
             options: [
@@ -81,7 +81,7 @@ ColumnLayout {
         }
 
         SetSelect {
-            visible: page.sys.cfg.featWidgets
+            visible: page.sys.cfg.featWidgets && page.detailsOpen
             sys: page.sys
             label: page.sys.tr("Шкала прогресса")
             options: [
@@ -103,9 +103,16 @@ ColumnLayout {
         }
     }
 
+    SetButton {
+        sys: page.sys
+        text: page.detailsOpen ? page.sys.tr("Скрыть подробности") : page.sys.tr("Подробные настройки")
+        onClicked: page.detailsOpen = !page.detailsOpen
+    }
+
     // ------------------------------------------------------------- оформление
     SetCard {
         sys: page.sys
+        visible: page.detailsOpen
 
         SetLabel { sys: page.sys; text: page.sys.tr("Оформление") }
 
@@ -170,7 +177,7 @@ ColumnLayout {
 
         SetSlider {
             sys: page.sys
-            label: page.sys.tr("Font size")
+            label: page.sys.tr("Размер текста")
             from: 10; to: 24; step: 1
             value: page.sys.cfg.fontSize
             suffix: "px"
@@ -179,7 +186,8 @@ ColumnLayout {
 
         SetSlider {
             sys: page.sys
-            label: page.sys.tr("Icon size")
+            label: page.sys.tr("Размер иконок")
+            visible: page.detailsOpen
             from: 12; to: 28; step: 1
             value: page.sys.cfg.iconSize
             suffix: "px"
@@ -188,7 +196,8 @@ ColumnLayout {
 
         SetPick {
             sys: page.sys
-            label: page.sys.tr("Body font")
+            label: page.sys.tr("Шрифт текста")
+            visible: page.detailsOpen
             options: page.sys.fontList
             value: page.sys.cfg.fontBody || page.sys.cfg.fontFam
             onPicked: id => { page.sys.cfg.fontBody = id; page.sys.saveCfg(); }
@@ -196,7 +205,8 @@ ColumnLayout {
 
         SetPick {
             sys: page.sys
-            label: page.sys.tr("Display font")
+            label: page.sys.tr("Шрифт заголовков")
+            visible: page.detailsOpen
             options: page.sys.fontList
             value: page.sys.cfg.fontDisplay || page.sys.cfg.fontFam
             onPicked: id => { page.sys.cfg.fontDisplay = id; page.sys.saveCfg(); }
@@ -207,6 +217,7 @@ ColumnLayout {
         SetPick {
             sys: page.sys
             label: page.sys.tr("Шрифт значков")
+            visible: page.detailsOpen
             options: page.sys.fontList
             value: page.sys.cfg.fontFam
             onPicked: id => { page.sys.cfg.fontFam = id; page.sys.saveCfg(); }
@@ -236,7 +247,7 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.topMargin: 4
             spacing: 8
-            visible: page.sys.cfg.uiSounds !== false
+            visible: page.sys.cfg.uiSounds !== false && page.detailsOpen
 
             Repeater {
                 model: [

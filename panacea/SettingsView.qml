@@ -23,51 +23,91 @@ Item {
     // в названии нужного слова нет («темы» → Appearance, «wifi» → Control
     // Center).
     readonly property var sections: [
-        { id: "bar",     title: "Bar & Island",   g: 0xF12E1, page: "SetBarIsland.qml",
+        { id: "bar",     title: view.sys.tr("Панель и остров"),   g: 0xF12E1, page: "SetBarIsland.qml",
           sub: view.sys.tr("Как остров стоит на кромке и во что он разворачивается."),
-          keys: "notch island pill bar height width остров вырез капсула" },
-        { id: "media",   title: "Media",          g: 0xF0387, page: "SetMedia.qml",
+          keys: "notch island pill bar height width cpu gpu load temperature остров вырез капсула нагрузка температура" },
+        { id: "media",   title: view.sys.tr("Медиа"),          g: 0xF0387, page: "SetMedia.qml",
           sub: view.sys.tr("Плеер, обложки и то, что видно в свёрнутом острове."),
           keys: "player music cover звук плеер музыка обложка" },
-        { id: "clock",   title: "Clock & Date",   g: 0xF0150, page: "SetClock.qml",
+        { id: "clock",   title: view.sys.tr("Часы и дата"),   g: 0xF0150, page: "SetClock.qml",
           sub: view.sys.tr("Формат времени, часовой пояс и подпись под ним."),
           keys: "clock time date timezone часы дата время пояс регион" },
-        { id: "look",    title: "Appearance",     g: 0xF03D8, page: "SetAppearance.qml",
+        { id: "look",    title: view.sys.tr("Оформление"),     g: 0xF03D8, page: "SetAppearance.qml",
           sub: view.sys.tr("Виджеты, шрифты и оформление системы."),
           keys: "theme nothing font size sounds audio haptics виджеты звуки звук звуковые эффекты тема шрифт цвет" },
-        { id: "weather", title: "Weather",        g: 0xF0590, page: "SetWeather.qml",
+        { id: "weather", title: view.sys.tr("Погода"),        g: 0xF0590, page: "SetWeather.qml",
           sub: view.sys.tr("Ключ, город и шкала для виджета погоды."),
           keys: "weather temperature city openweather api key celsius fahrenheit "
                 + "погода температура город ключ цельсий фаренгейт градусы" },
-        { id: "motion",  title: "Motion",         g: 0xF15B6, page: "SetMotion.qml",
+        { id: "motion",  title: view.sys.tr("Анимация"),         g: 0xF15B6, page: "SetMotion.qml",
           sub: view.sys.tr("Насколько быстро оболочка движется — и движется ли вообще."),
           keys: "animation speed bounce анимация скорость движение" },
-        { id: "launch",  title: "Launcher",       g: 0xF0349, page: "SetLauncher.qml",
+        { id: "launch",  title: view.sys.tr("Лаунчер"),       g: 0xF0349, page: "SetLauncher.qml",
           sub: view.sys.tr("Поиск приложений и то, что он ищет кроме них."),
           keys: "launcher apps search запуск приложения поиск" },
-        { id: "notif",   title: "Notifications",  g: 0xF009A, page: "SetNotifications.qml",
+        { id: "notif",   title: view.sys.tr("Уведомления"),  g: 0xF009A, page: "SetNotifications.qml",
           sub: view.sys.tr("Сколько карточек висит на экране и как долго."),
           keys: "notifications dnd toast уведомления не беспокоить" },
-        { id: "cc",      title: "Control Center", g: 0xF062E, page: "SetControlCenter.qml",
+        { id: "cc",      title: view.sys.tr("Быстрые настройки"), g: 0xF062E, page: "SetControlCenter.qml",
           sub: view.sys.tr("Раскладка быстрых настроек — плитки переставляются мышью."),
           keys: "quick settings tiles layout wifi bluetooth плитки быстрые" },
-        { id: "lock",    title: "Lock Screen",    g: 0xF033E, page: "SetLock.qml",
+        { id: "lock",    title: view.sys.tr("Экран блокировки"),    g: 0xF033E, page: "SetLock.qml",
           sub: view.sys.tr("Экран блокировки: что на нём видно и когда он появляется."),
           keys: "lock screen blur idle блокировка экран размытие" },
-        { id: "display", title: "Display",        g: 0xF0379, page: "SetDisplay.qml",
+        { id: "display", title: view.sys.tr("Экран"),        g: 0xF0379, page: "SetDisplay.qml",
           sub: view.sys.tr("Разрешение, частота и масштаб подключённых экранов."),
           keys: "display monitor resolution refresh scale layout placement detect island "
                 + "экран монитор разрешение герцовка раскладка расположение остров" },
-        { id: "input",   title: "Mouse",           g: 0xF037D, page: "SetInput.qml",
+        { id: "input",   title: view.sys.tr("Мышь"),           g: 0xF037D, page: "SetInput.qml",
           sub: view.sys.tr("Скорость указателя и разгон."),
           keys: "mouse pointer cursor sensitivity speed accel acceleration raw input flat "
                 + "мышь указатель курсор скорость сенса чувствительность разгон прямой ввод" },
-        { id: "system",  title: "System",         g: 0xF0493, page: "SetSystem.qml",
+        { id: "system",  title: view.sys.tr("Система"),         g: 0xF0493, page: "SetSystem.qml",
           sub: view.sys.tr("Из чего собрана машина и чем она сейчас занята."),
           keys: "about system cpu ram temperature система озу температура процессы" }
     ]
 
+    // Each navigation entry contains a few related pages. Page ids stay stable
+    // so links from notifications and IPC still open the intended page.
+    readonly property var groups: [
+        { id: "island", title: view.sys.tr("Остров"), g: 0xF12E1, pages: ["bar", "media", "clock"] },
+        { id: "appearance", title: view.sys.tr("Оформление"), g: 0xF03D8, pages: ["look", "weather", "motion"] },
+        { id: "controls", title: view.sys.tr("Управление"), g: 0xF062E, pages: ["cc", "launch", "notif"] },
+        { id: "devices", title: view.sys.tr("Устройства"), g: 0xF0379, pages: ["display", "input"] },
+        { id: "security", title: view.sys.tr("Безопасность"), g: 0xF033E, pages: ["lock"] },
+        { id: "system", title: view.sys.tr("Система"), g: 0xF0493, pages: ["system"] }
+    ]
+
+    function groupForPage(pageId) {
+        for (var i = 0; i < groups.length; i++)
+            if (groups[i].pages.indexOf(pageId) >= 0) return groups[i];
+        return groups[0];
+    }
+    function pagesForGroup(group) {
+        var result = [];
+        for (var i = 0; i < group.pages.length; i++)
+            for (var j = 0; j < sections.length; j++)
+                if (sections[j].id === group.pages[i]) result.push({ index: j, title: sections[j].title });
+        return result;
+    }
+    function groupMatches(group) {
+        if (!view.query.length) return true;
+        if (group.title.toLowerCase().indexOf(view.query.toLowerCase()) >= 0) return true;
+        var pages = pagesForGroup(group);
+        for (var i = 0; i < pages.length; i++)
+            if (view.matches(sections[pages[i].index])) return true;
+        return false;
+    }
+    function goGroup(group) {
+        var pages = pagesForGroup(group);
+        for (var i = 0; i < pages.length; i++)
+            if (view.matches(sections[pages[i].index])) { view.go(pages[i].index); return; }
+        if (pages.length) view.go(pages[0].index);
+    }
+
     readonly property var section: sections[Math.max(0, Math.min(sections.length - 1, tab))]
+    readonly property var activeGroup: groupForPage(section.id)
+    readonly property var groupPages: pagesForGroup(activeGroup)
 
     // Раздел могли попросить по имени — например уведомление об обновлении
     // ведёт прямо в System. Имя ищем здесь: список разделов живёт тут же, и
@@ -125,8 +165,8 @@ Item {
             // только отъедал место у самих настроек.
             readonly property real navW: {
                 var m = 0;
-                for (var i = 0; i < view.sections.length; i++)
-                    m = Math.max(m, navMetric.advanceWidth(view.sections[i].title));
+                for (var i = 0; i < view.groups.length; i++)
+                    m = Math.max(m, navMetric.advanceWidth(view.groups[i].title));
                 // 7 отступ + 28 значок + 10 зазор + текст + 14 запас.
                 // Метрики шрифта по семейству дают чуть меньше, чем меряет
                 // сам Text (начертание подбирается позже), поэтому к тексту
@@ -207,7 +247,7 @@ Item {
                 Layout.fillHeight: true
                 clip: true
                 spacing: 2
-                model: view.sections
+                model: view.groups
                 boundsBehavior: Flickable.StopAtBounds
                 ScrollBar.vertical: SetScroll { sys: view.sys }
 
@@ -226,8 +266,8 @@ Item {
                     id: navItem
                     required property int index
                     required property var modelData
-                    readonly property bool active: view.tab === navItem.index
-                    readonly property bool shown: view.matches(navItem.modelData)
+                    readonly property bool active: view.activeGroup.id === navItem.modelData.id
+                    readonly property bool shown: view.groupMatches(navItem.modelData)
 
                     width: nav.width
                     height: shown ? 42 : 0
@@ -279,7 +319,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: view.go(navItem.index)
+                        onClicked: view.goGroup(navItem.modelData)
                     }
                 }
             }
@@ -331,6 +371,39 @@ Item {
                     }
                 }
 
+                Item { Layout.fillWidth: true }
+            }
+
+            // Page choices stay close to the content instead of filling the
+            // sidebar with one navigation item per small settings page.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Repeater {
+                    model: view.groupPages
+                    Rectangle {
+                        id: pageTab
+                        required property var modelData
+                        readonly property bool selected: view.tab === modelData.index
+                        Layout.preferredWidth: Math.max(96, pageTabLabel.implicitWidth + 24)
+                        Layout.preferredHeight: 32
+                        radius: 10
+                        color: selected ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
+                                        : Qt.rgba(view.sys.colFg.r, view.sys.colFg.g, view.sys.colFg.b, 0.06)
+                        Text {
+                            id: pageTabLabel
+                            anchors.centerIn: parent
+                            text: pageTab.modelData.title
+                            color: pageTab.selected ? view.sys.colFg : view.sys.colMuted
+                            font { family: view.sys.fontBody; pixelSize: view.sys.fontSize - 2 }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: view.go(pageTab.modelData.index)
+                        }
+                    }
+                }
                 Item { Layout.fillWidth: true }
             }
 
