@@ -30,6 +30,11 @@ ColumnLayout {
                   ? String(page.bindDraft[id]) : String(page.sys.cfg["bind_" + id] || "");
         return page.prettyCombo(raw);
     }
+    function bindRaw(id) {
+        bindRev;
+        return page.bindDraft[id] !== undefined
+               ? String(page.bindDraft[id]) : String(page.sys.cfg["bind_" + id] || "");
+    }
 
     // Hyprland знает клавиши по именам (slash, comma, period…), а человеку
     // привычнее сам знак. Показываем знак, в настройках лежит имя.
@@ -305,17 +310,23 @@ ColumnLayout {
             }
 
             TextField {
+                id: manualCombo
                 visible: brow.manual
                 anchors.fill: parent
                 anchors.leftMargin: 8
                 anchors.rightMargin: 8
                 verticalAlignment: TextInput.AlignVCenter
-                text: brow.combo
+                text: page.bindRaw(brow.bindId)
                 color: page.sys.colFg
                 selectByMouse: true
                 background: null
                 font { family: page.sys.fontFam; pixelSize: page.sys.fontSize - 4 }
-                onEditingFinished: if (text.trim() !== brow.combo) page.setBind(brow.bindId, text.trim())
+                onEditingFinished: if (text.trim() !== page.bindRaw(brow.bindId)) page.setBind(brow.bindId, text.trim())
+            }
+
+            Connections {
+                target: page
+                function onBindRevChanged() { if (brow.manual) manualCombo.text = page.bindRaw(brow.bindId); }
             }
 
             // точка-отметка: сочетание изменено, но ещё не применено
