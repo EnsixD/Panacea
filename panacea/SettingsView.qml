@@ -58,10 +58,10 @@ Item {
           sub: view.sys.tr("Разрешение, частота и масштаб подключённых экранов."),
           keys: "display monitor resolution refresh scale layout placement detect island "
                 + "экран монитор разрешение герцовка раскладка расположение остров" },
-        { id: "input",   title: view.sys.tr("Мышь"),           g: 0xF037D, page: "SetInput.qml",
+        { id: "input",   title: view.sys.tr("Ввод"),           g: 0xF037D, page: "SetInput.qml",
           sub: view.sys.tr("Скорость указателя и разгон."),
-          keys: "mouse pointer cursor sensitivity speed accel acceleration raw input flat "
-                + "мышь указатель курсор скорость сенса чувствительность разгон прямой ввод" },
+          keys: "mouse keyboard layouts xkb pointer cursor sensitivity speed accel acceleration raw input flat "
+                + "мышь клавиатура раскладки указатель курсор скорость сенса чувствительность разгон ввод" },
         { id: "system",  title: view.sys.tr("Система"),         g: 0xF0493, page: "SetSystem.qml",
           sub: view.sys.tr("Из чего собрана машина и чем она сейчас занята."),
           keys: "about system cpu ram temperature система озу температура процессы" }

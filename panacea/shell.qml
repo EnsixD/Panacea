@@ -162,6 +162,9 @@ PanelWindow {
             // и то же расстояние по экрану. То, ради чего в играх выключают
             // «повышенную точность установки указателя».
             property bool   mouseRaw: false
+            property string keyboardLayouts: "us,ru"
+            property string keyboardVariants: ","
+            property string keyboardOptions: "grp:alt_shift_toggle"
 
             // Включённые функции. При установке дотфайлов целиком доступно всё
             // (по умолчанию true); установщик острова выключает то, что человек
@@ -412,6 +415,7 @@ PanelWindow {
         ccLayout: "", filesWindow: false, filesHidden: true, filesMode: "list",
         vaultCapture: true,
         vibrance: 50, mouseSens: 0, mouseRaw: false,
+        keyboardLayouts: "us,ru", keyboardVariants: ",", keyboardOptions: "grp:alt_shift_toggle",
         recFps: 60, recDir: "~/Videos", recSysAudio: false, recMic: false, recMicDevice: "",
         weatherKey: "", weatherCity: "", weatherUnits: "metric",
         weatherOnIsland: false, systemLoadOnIsland: false, keyboardLayoutMap: "", featWidgets: false,
@@ -531,6 +535,41 @@ PanelWindow {
     // Через hyprctl eval по той же причине, что и настройки мониторов:
     // keyword не-legacy парсер молча отвергает, выходя с нулевым кодом.
     Process { id: pInput; property string args: ""; command: ["sh", "-c", pInput.args] }
+    Process {
+        id: pGenInput
+        command: [root.scriptDir + "/geninput.sh"]
+        stderr: StdioCollector {
+            onStreamFinished: {
+                var message = String(text).trim();
+                if (message.length) root.keyboardInputError = message;
+            }
+        }
+    }
+    property bool keyboardInputPending: false
+    property string keyboardInputError: ""
+    function applyKeyboardLayouts(layouts, variants, options) {
+        var l = String(layouts).replace(/\s+/g, "");
+        var v = String(variants).replace(/\s+/g, "");
+        var o = String(options).replace(/\s+/g, "");
+        if (!/^[A-Za-z0-9_,+-]+$/.test(l) || l[0] === "," || l[l.length - 1] === "," || l.indexOf(",,") >= 0
+                || !/^[A-Za-z0-9_,+-]*$/.test(v) || !/^[A-Za-z0-9_,:+-]*$/.test(o)) {
+            root.keyboardInputError = root.tr("Некорректные коды раскладок или параметры переключения");
+            return false;
+        }
+        var count = l.split(",").length;
+        if (/^,*$/.test(v)) v = Array(count).join(",");
+        if (v.split(",").length !== count) {
+            root.keyboardInputError = root.tr("Число вариантов должно совпадать с числом раскладок");
+            return false;
+        }
+        root.keyboardInputError = "";
+        root.cfg.keyboardLayouts = l;
+        root.cfg.keyboardVariants = v;
+        root.cfg.keyboardOptions = o;
+        root.keyboardInputPending = true;
+        root.saveCfg();
+        return true;
+    }
     function applyInput() {
         var lua = "hl.config({ input = { sensitivity = "
                 + Number(root.cfg.mouseSens).toFixed(3)
@@ -612,8 +651,8 @@ PanelWindow {
 
     function saveCfg() { cfgFile.writeAdapter(); }
 
-    // Перевод. Ключ — русский текст, поэтому исходники остаются читаемыми,
-    // а словарь нужен только для английского; сами строки — в Translations.qml.
+    // Russian is the source text. English and Turkish are bundled in Translations.qml;
+    // all other system locales fall back to English until a translation is added.
     readonly property Translations i18n: Translations {}
 
     readonly property string localeId: String(cfg.lang || "en")
@@ -815,9 +854,9 @@ PanelWindow {
     }
 
     function setLang(code) {
+        if (root.cfg.lang === code) return;
         // Оболочка переключается сразу, не дожидаясь пароля: её словарь
         // системного языка не касается, и ждать здесь нечего.
-        if (root.cfg.lang === code) return;
         root.cfg.lang = code;
         root.saveCfg();
 
@@ -1291,7 +1330,14 @@ PanelWindow {
     }
     Connections {
         target: cfgFile
-        function onSaved() { root.runGenBinds(); }
+        function onSaved() {
+            root.runGenBinds();
+            if (root.keyboardInputPending) {
+                root.keyboardInputPending = false;
+                pGenInput.running = false;
+                pGenInput.running = true;
+            }
+        }
     }
 
     // ---------------------------------------------------------------- палитра

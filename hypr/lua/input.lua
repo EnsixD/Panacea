@@ -1,10 +1,13 @@
+local input_ok, input_data = pcall(require, "lua.input_data")
+if not input_ok or type(input_data) ~= "table" then input_data = {} end
+
 hl.config({
     input = {
-        kb_layout  = "us,ru",
-        kb_variant = ",",
+        kb_layout  = input_data.layouts or "us,ru",
+        kb_variant = input_data.variants or ",",
         kb_model   = "",
         -- Alt+Shift переключает раскладку
-        kb_options = "grp:alt_shift_toggle",
+        kb_options = input_data.options or "grp:alt_shift_toggle",
         kb_rules   = "",
         follow_mouse = 1,
         sensitivity = 0,

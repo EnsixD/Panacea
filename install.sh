@@ -665,6 +665,8 @@ KEEP_FILES=(
     "panacea/clipboard_pins.json"
     "panacea/last_wifi_ssid"
     "hypr/lua/binds_data.lua"
+    "hypr/lua/input_data.lua"
+    "hypr/input_data.conf"
     # Настройки экрана: разрешение, частота, масштаб. binds_data.lua здесь уже
     # есть, а эти его собратья — нет, и после обновления масштаб панели молча
     # возвращался к 100%. monitors_data.lua читает компоновщик на старте (путь
@@ -712,7 +714,6 @@ KEEP_FILES=(
     "voxtype/config.toml"
 )
 KEEP_DIRS=(
-    "panacea/translations"
     "hypr/wallpaper"
     "hypr/custom"
     "niri/custom"
@@ -911,6 +912,11 @@ install_configs() {
         "$CONF/panacea/scripts/genmonitors.sh" >/dev/null 2>&1
         [ -f "$CONF/hypr/lua/monitors_data.lua" ] \
             && ok "screen mode written into the compositor config"
+    fi
+
+    if [ -x "$CONF/panacea/scripts/geninput.sh" ] && [ -f "$CONF/panacea/settings.json" ]; then
+        "$CONF/panacea/scripts/geninput.sh" >/dev/null 2>&1 \
+            && ok "keyboard layouts written into the compositor config"
     fi
 
     # Конфиг voxtype (голос → текст): кладём наш. Правый
@@ -1159,14 +1165,15 @@ install_sddm() {
     # Alt+Shift нечего было переключать — на экране входа мог висеть индикатор
     # раскладки, который никогда не менялся.
     #
-    # Значения читаем из hypr/lua/input.lua, чтобы не завести им вторую
-    # копию, которая разойдётся с первой.
-    if command -v localectl >/dev/null 2>&1 && [ -f "$SRC/hypr/lua/input.lua" ]; then
-        local kbl kbo
-        kbl="$(sed -n 's/.*kb_layout *= *"\([^"]*\)".*/\1/p' "$SRC/hypr/lua/input.lua" | head -1)"
-        kbo="$(sed -n 's/.*kb_options *= *"\([^"]*\)".*/\1/p' "$SRC/hypr/lua/input.lua" | head -1)"
+    # The same saved settings drive the compositor and the login screen.
+    if command -v localectl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
+       && [ -f "$CONF/panacea/settings.json" ]; then
+        local kbl kbv kbo
+        kbl="$(jq -r '.keyboardLayouts // "us,ru"' "$CONF/panacea/settings.json")"
+        kbv="$(jq -r '.keyboardVariants // ","' "$CONF/panacea/settings.json")"
+        kbo="$(jq -r '.keyboardOptions // "grp:alt_shift_toggle"' "$CONF/panacea/settings.json")"
         if [ -n "$kbl" ]; then
-            $SUDO localectl set-x11-keymap "$kbl" "" "" "$kbo" 2>/dev/null \
+            $SUDO localectl set-x11-keymap "$kbl" "" "$kbv" "$kbo" 2>/dev/null \
                 && ok "login screen keyboard: $kbl${kbo:+ ($kbo)}" \
                 || warn "could not set the login screen keyboard layout"
         fi

@@ -36,6 +36,8 @@ KEEP=(
     "$CONF/panacea/clipboard_pins.json"
     "$CONF/panacea/last_wifi_ssid"
     "$CONF/hypr/lua/binds_data.lua"
+    "$CONF/hypr/lua/input_data.lua"
+    "$CONF/hypr/input_data.conf"
     # Настройки экрана: разрешение, частота, масштаб. Без них после обновления
     # масштаб панели молча возвращался к 100%. monitors_data.lua читает
     # компоновщик на старте (путь Lua), monitors.conf — запасной для Hyprland
@@ -71,7 +73,6 @@ KEEP=(
     "$HOME/.nanorc"
 )
 KEEP_DIRS=(
-    "$CONF/panacea/translations"
     "$CONF/hypr/wallpaper"
     "$CONF/hypr/custom"
     "$CONF/niri/custom"

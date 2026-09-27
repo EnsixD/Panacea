@@ -1,12 +1,13 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 
 // Мышь. Скоростью указателя и разгоном распоряжается libinput через
 // компоновщик, а не оболочка, — поэтому здесь только две ручки, зато те
 // самые, за которыми обычно лезут в конфиг руками.
 //
-// Клавиатура сюда не входит намеренно: раскладки и повтор живут в системных
-// настройках Hyprland, а сочетания — в своём окне по Super+/.
+// Keyboard layouts are stored in settings.json and generated into Hyprland's
+// configuration so they survive shell updates.
 ColumnLayout {
     id: page
 
@@ -14,6 +15,69 @@ ColumnLayout {
 
     Layout.fillWidth: true
     spacing: 12
+
+    SetCard {
+        sys: page.sys
+        visible: Compositor.isHyprland
+
+        SetLabel { sys: page.sys; text: page.sys.tr("Раскладки клавиатуры") }
+        Text {
+            Layout.fillWidth: true
+            text: page.sys.tr("Коды XKB через запятую, например us,tr. Сочетания клавиш меняются отдельно по Super+/.")
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+        }
+        TextField {
+            id: layoutsField
+            Layout.fillWidth: true
+            placeholderText: "us,tr"
+            text: page.sys.cfg.keyboardLayouts
+            color: page.sys.colFg
+            placeholderTextColor: page.sys.colMuted
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+        }
+        TextField {
+            id: variantsField
+            Layout.fillWidth: true
+            placeholderText: page.sys.tr("Варианты (пустые — по умолчанию)")
+            text: page.sys.cfg.keyboardVariants
+            color: page.sys.colFg
+            placeholderTextColor: page.sys.colMuted
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+        }
+        TextField {
+            id: optionsField
+            Layout.fillWidth: true
+            placeholderText: "grp:alt_shift_toggle"
+            text: page.sys.cfg.keyboardOptions
+            color: page.sys.colFg
+            placeholderTextColor: page.sys.colMuted
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+        }
+        Text {
+            Layout.fillWidth: true
+            visible: page.sys.keyboardInputError.length > 0
+            text: page.sys.keyboardInputError
+            color: page.sys.colCrit
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+        }
+        SetButton {
+            sys: page.sys
+            text: page.sys.tr("Применить раскладки")
+            onClicked: page.sys.applyKeyboardLayouts(layoutsField.text, variantsField.text, optionsField.text)
+        }
+    }
+
+    Text {
+        Layout.fillWidth: true
+        visible: Compositor.isNiri
+        text: page.sys.tr("В Niri раскладки задаются в ~/.config/niri/config.kdl; этот файл сохраняется при обновлении.")
+        color: page.sys.colMuted
+        wrapMode: Text.WordWrap
+        font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+    }
 
     SetCard {
         sys: page.sys
