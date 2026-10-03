@@ -131,6 +131,7 @@ spawn-sh-at-startup "command -v voxtype >/dev/null 2>&1 && voxtype daemon"
 binds {
     // --- Оболочка Panacea (совпадают с Hyprland-сочетаниями) ---
     Mod+A { spawn-sh "qs -c ~/.config/panacea ipc call pill launcher"; }
+    Mod+G { spawn-sh "qs -c ~/.config/panacea ipc call pill launchpad"; }
     Mod+Z { spawn-sh "qs -c ~/.config/panacea ipc call pill controls"; }
     Mod+V { spawn-sh "qs -c ~/.config/panacea ipc call pill clipboard"; }
     Mod+E { spawn-sh "qs -c ~/.config/panacea ipc call pill files"; }

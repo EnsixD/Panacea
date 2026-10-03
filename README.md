@@ -57,6 +57,7 @@ one geometry, one palette and one animation timeline.
 | Wallpapers | `Super + Shift + T` | Full‑screen carousel with parallax previews, stills and live video |
 | Workspaces | `Super + Tab` | Live previews of every workspace, switch from the grid |
 | Launcher | `Super + A` | App search + calculator, recents first; also the agent panel and the other systems on the disk |
+| Launchpad | `Super + G` | Every app as a full-screen grid over the blurred desktop; drop an app on another to make a folder, right-click for the same actions. Layout lives in `~/.local/share/panacea/launchpad.json` |
 | Clipboard | `Super + V` | Smart clipboard: automatic detection of HEX colors (swatch preview & RGB/HSL copy), URLs (open in browser), files/images (thumbnails), and pinned snippets |
 | Files | `Super + E` | Bookmarks, disks, sorting, trash, context menu, drag between windows |
 | Media | opens a file | Images, GIFs, video — trim and crop |

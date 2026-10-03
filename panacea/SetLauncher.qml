@@ -22,6 +22,14 @@ ColumnLayout {
             on: page.sys.cfg.featLauncher
             onToggled: v => { page.sys.cfg.featLauncher = v; page.sys.saveCfg(); }
         }
+
+        SetToggle {
+            sys: page.sys
+            label: page.sys.tr("Launchpad")
+            sub: page.sys.tr("Все приложения сеткой на весь экран, с папками. Приложение на приложение — новая папка.")
+            on: page.sys.cfg.featLaunchpad
+            onToggled: v => { page.sys.cfg.featLaunchpad = v; page.sys.saveCfg(); }
+        }
     }
 
     SetCard {

@@ -177,6 +177,8 @@ PanelWindow {
             property string aiUrl: ""
             property string aiKey: ""
             property string aiModel: ""
+            // Launchpad: все приложения сеткой на весь экран, с папками
+            property bool   featLaunchpad: true
             property bool   featPlayer: true
             property bool   featWifi: true
             property bool   featBluetooth: true
@@ -221,6 +223,7 @@ PanelWindow {
 
             // сочетания; пересобираются в lua/binds_data.lua
             property string bind_pillLauncher: "SUPER + A"
+            property string bind_launchpad: "SUPER + G"
             property string bind_pillControls: "SUPER + Z"
             property string bind_pillSettings: "SUPER + I"
             property string bind_pillShortcuts: "SUPER + slash"
@@ -311,6 +314,7 @@ PanelWindow {
     // возвращал ровно те значения, что заданы по умолчанию.
     readonly property var defaultBinds: ({
         pillLauncher: "SUPER + A",
+        launchpad:    "SUPER + G",
         pillControls: "SUPER + Z",
         pillSettings: "SUPER + I",
         pillShortcuts: "SUPER + slash",
@@ -1686,6 +1690,32 @@ PanelWindow {
     }
     function toggleOverview() {
         if (root.overviewOpen) closeOverview(); else openOverview();
+    }
+
+    // ------------------------------------------------------------ Launchpad
+    // Сетка всех приложений на весь экран (LaunchpadView). Живёт своим слоем,
+    // как обзор столов: в пилюлю сетка на сорок иконок не помещается.
+    // Слой создаётся при первом открытии и дальше остаётся: второе открытие
+    // мгновенное, а раскладка и иконки уже загружены.
+    property bool launchpadOpen: false
+    property bool launchpadWarm: false
+    function openLaunchpad() {
+        if (!cfg.featLaunchpad) return;
+        if (root.expanded) root.collapse();
+        if (root.overviewOpen) root.closeOverview();
+        root.launchpadWarm = true;
+        root.launchpadOpen = true;
+    }
+    function closeLaunchpad() { root.launchpadOpen = false; }
+    // Слой собираем заранее, через несколько секунд после старта: тогда
+    // и первое открытие мгновенное, и иконки успевают найтись в фоне.
+    Timer {
+        interval: 4000
+        running: root.cfg.featLaunchpad && !root.launchpadWarm
+        onTriggered: root.launchpadWarm = true
+    }
+    function toggleLaunchpad() {
+        if (root.launchpadOpen) closeLaunchpad(); else openLaunchpad();
     }
 
     // ------------------------------------------------------------- клавиши
@@ -4301,6 +4331,7 @@ PanelWindow {
         }
         function launcher(): void { root.toggleLauncher(); }
         function overview(): void { root.toggleOverview(); }
+        function launchpad(): void { root.toggleLaunchpad(); }
         // Всегда плитки Wi-Fi/Bluetooth, даже когда играет музыка
         function controls(): void { root.togglePage("main"); }
         function wifi(): void {
@@ -4339,9 +4370,10 @@ PanelWindow {
         function weatherClose(): void { root.weatherDetailsOpen = false; }
         function smartClose(): string {
             if (!root.cfg.closePanaceaFirst) return "disabled";
-            var anyOpen = root.expanded || root.overviewOpen || root.wallsOpen || root.keysWindowOpen || root.whatsNewOpen || root.weatherDetailsOpen;
+            var anyOpen = root.expanded || root.launchpadOpen || root.overviewOpen || root.wallsOpen || root.keysWindowOpen || root.whatsNewOpen || root.weatherDetailsOpen;
             if (anyOpen) {
                 if (root.weatherDetailsOpen) root.weatherDetailsOpen = false;
+                else if (root.launchpadOpen) root.closeLaunchpad();
                 else if (root.overviewOpen) root.closeOverview();
                 else if (root.wallsOpen) root.closeWalls();
                 else if (root.keysWindowOpen) root.closeKeysWindow();
@@ -6573,6 +6605,44 @@ LazyLoader {
         OverviewView {
             anchors.fill: parent
             sys: root
+        }
+    }
+}
+
+// Launchpad — полноэкранный слой с сеткой приложений поверх размытого
+// рабочего стола. Окно остаётся видимым, пока сетка не догаснет: иначе она
+// пропадала бы рывком, без анимации закрытия.
+// Грузим синхронно, не activeAsync: при асинхронной сборке повторители
+// внутри сетки так и не создавали свои плитки — слой открывался пустым.
+LazyLoader {
+    active: root.launchpadWarm
+
+    PanelWindow {
+        anchors { top: true; bottom: true; left: true; right: true }
+        screen: root.screen
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.namespace: "panacea-launchpad"
+        WlrLayershell.keyboardFocus: root.launchpadOpen ? WlrKeyboardFocus.Exclusive
+                                                        : WlrKeyboardFocus.None
+        // Окно держим поднятым всё время, а закрытое делаем прозрачным и
+        // неосязаемым (пустая маска ввода). Прятать его дороже: при каждом
+        // показе Qt заново собирал сцену и грузил текстуры всех иконок —
+        // это и были те ~200 мс до появления сетки.
+        // Исключение — приложение на весь экран: прозрачный слой поверх
+        // него мешал бы композитору отдавать кадр прямо на экран (игры,
+        // видео). Там окно снимаем, и открытие просто чуть медленнее.
+        visible: !root.fullscreenActive || root.launchpadOpen || launchpad.fade > 0.01
+        mask: (root.launchpadOpen || launchpad.fade > 0.01) ? null : launchpadNoInput
+        Region { id: launchpadNoInput }
+
+        LaunchpadView {
+            id: launchpad
+            anchors.fill: parent
+            sys: root
+            open: root.launchpadOpen
+            outputScreen: root.screen
         }
     }
 }

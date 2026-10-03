@@ -432,6 +432,7 @@ ColumnLayout {
 
             Head { text: page.sys.tr("Пилюля") }
             BindRow { bindId: "pillLauncher";  label: page.sys.tr("Лаунчер приложений") }
+            BindRow { bindId: "launchpad";     label: page.sys.tr("Launchpad (сетка приложений)") }
             BindRow { bindId: "overview";      label: page.sys.tr("Обзор столов") }
             BindRow { bindId: "pillControls";  label: page.sys.tr("Wi-Fi, Bluetooth, питание") }
             BindRow { bindId: "pillSettings";  label: page.sys.tr("Эти настройки") }

@@ -44,7 +44,7 @@ Item {
           keys: "animation speed bounce анимация скорость движение" },
         { id: "launch",  title: view.sys.tr("Лаунчер"),       g: 0xF0349, page: "SetLauncher.qml",
           sub: view.sys.tr("Поиск приложений и то, что он ищет кроме них."),
-          keys: "launcher apps search запуск приложения поиск" },
+          keys: "launcher launchpad grid folders apps search запуск приложения поиск сетка папки" },
         { id: "notif",   title: view.sys.tr("Уведомления"),  g: 0xF009A, page: "SetNotifications.qml",
           sub: view.sys.tr("Сколько карточек висит на экране и как долго."),
           keys: "notifications dnd toast уведомления не беспокоить" },

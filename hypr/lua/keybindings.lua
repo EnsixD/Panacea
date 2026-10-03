@@ -22,6 +22,7 @@ local QS = "qs -c " .. os.getenv("HOME") .. "/.config/panacea ipc call pill "
 
 -- ---------------------------------------------------------------- пилюля
 B("pillLauncher", mainMod .. " + A",             hl.dsp.exec_cmd(QS .. "launcher"))
+B("launchpad",    mainMod .. " + G",             hl.dsp.exec_cmd(QS .. "launchpad"))
 B("overview",     mainMod .. " + Tab",           hl.dsp.exec_cmd(QS .. "overview"))
 B("pillControls", mainMod .. " + Z",             hl.dsp.exec_cmd(QS .. "controls"))
 B("pillSettings", mainMod .. " + I",             hl.dsp.exec_cmd(QS .. "settings"))
