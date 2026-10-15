@@ -1,0 +1,1862 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Lincy - Native CLI VPN Client for Arch Linux & Linux systems
+# Virtual TUN Interface: lincytun0 | Core: sing-box | Subscriptions: RAW / JSON
+# ==============================================================================
+
+set -e
+
+# --- Configuration Paths ---
+VERSION="1.0.0"
+CONFIG_DIR="/etc/lincy"
+STATE_FILE="${CONFIG_DIR}/state.json"
+SERVERS_FILE="${CONFIG_DIR}/servers.json"
+RUNTIME_CONFIG="${CONFIG_DIR}/config.json"
+SERVICE_FILE="/etc/systemd/system/lincy.service"
+BIN_TARGET="/usr/local/bin/lincy"
+ALT_BIN_TARGET="/usr/bin/lincy"
+TUN_INTERFACE="lincytun0"
+ARCH=$(uname -m)
+DEFAULT_UA="Lincy/${VERSION} (Arch Linux; Linux ${ARCH})"
+
+# --- Colors ---
+C_RESET="\033[0m"
+C_BOLD="\033[1m"
+C_CYAN="\033[96m"
+C_GREEN="\033[92m"
+C_YELLOW="\033[93m"
+C_RED="\033[91m"
+C_BLUE="\033[94m"
+C_DIM="\033[2m"
+
+# --- Helper Functions ---
+log_info() { echo -e "${C_BLUE}[INFO]${C_RESET} $1"; }
+log_ok()   { echo -e "${C_GREEN}[✓]${C_RESET} $1"; }
+log_warn() { echo -e "${C_YELLOW}[WARN]${C_RESET} $1"; }
+log_err()  { echo -e "${C_RED}[ERROR]${C_RESET} $1" >&2; }
+
+require_root() {
+    if [[ $EUID -ne 0 ]]; then
+        log_err "Эту команду необходимо запускать с правами root: sudo lincy <команда>"
+        exit 1
+    fi
+}
+
+# --- Distro & Device Information ---
+get_distro_name() {
+    if [[ -f /etc/os-release ]]; then
+        local pretty=$(grep -E '^PRETTY_NAME=' /etc/os-release | cut -d= -f2- | tr -d '"' | tr -d '\r\n')
+        if [[ -n "$pretty" ]]; then
+            echo "$pretty"
+            return
+        fi
+        local name=$(grep -E '^NAME=' /etc/os-release | cut -d= -f2- | tr -d '"' | tr -d '\r\n')
+        if [[ -n "$name" ]]; then
+            echo "$name"
+            return
+        fi
+    fi
+    echo "Linux"
+}
+
+get_device_model() {
+    local model=""
+    if [[ -f /sys/class/dmi/id/product_name ]]; then
+        model=$(cat /sys/class/dmi/id/product_name 2>/dev/null | tr -d '\r\n')
+    fi
+    if [[ -z "$model" || "$model" == "System Product Name" || "$model" == "None" || "$model" == "To be filled by O.E.M." ]]; then
+        if [[ -f /sys/class/dmi/id/board_name ]]; then
+            model=$(cat /sys/class/dmi/id/board_name 2>/dev/null | tr -d '\r\n')
+        fi
+    fi
+    local host=$(hostname 2>/dev/null || uname -n)
+    if [[ -n "$model" && "$model" != "System Product Name" && "$model" != "None" && "$model" != "To be filled by O.E.M." ]]; then
+        echo "${model} (${host})"
+    else
+        echo "${host}"
+    fi
+}
+
+get_user_agent() {
+    local distro=$(get_distro_name)
+    local device=$(get_device_model)
+    local arch=$(uname -m)
+    echo "Lincy/${VERSION} (${distro}; ${device}; Linux ${arch})"
+}
+
+# --- Hardware ID (HWID) Generator ---
+get_hwid() {
+    local seed=""
+    if [[ -f /etc/machine-id ]]; then
+        seed+=$(cat /etc/machine-id 2>/dev/null | tr -d '\r\n')
+    elif [[ -f /var/lib/dbus/machine-id ]]; then
+        seed+=$(cat /var/lib/dbus/machine-id 2>/dev/null | tr -d '\r\n')
+    fi
+    if [[ -f /sys/class/dmi/id/product_uuid ]]; then
+        seed+=":"$(cat /sys/class/dmi/id/product_uuid 2>/dev/null | tr -d '\r\n')
+    fi
+    for mac_file in /sys/class/net/*/address; do
+        if [[ "$mac_file" != *"/lo/"* && -f "$mac_file" ]]; then
+            local mac=$(cat "$mac_file" 2>/dev/null | tr -d '\r\n')
+            if [[ -n "$mac" && "$mac" != "00:00:00:00:00:00" ]]; then
+                seed+=":${mac}"
+                break
+            fi
+        fi
+    done
+    if [[ -z "$seed" ]]; then
+        seed="arch-linux-seed-$(uname -n)"
+    fi
+    seed+=":lincy-linux-hwid"
+    echo -n "$seed" | sha256sum | awk '{print $1}'
+}
+
+# --- State Management ---
+init_dirs() {
+    mkdir -p "${CONFIG_DIR}"
+    chmod 755 "${CONFIG_DIR}"
+}
+
+get_state_val() {
+    local key="$1"
+    local default_val="$2"
+    if [[ -f "${STATE_FILE}" ]]; then
+        local val=$(jq -r ".${key} // empty" "${STATE_FILE}" 2>/dev/null)
+        if [[ -n "$val" ]]; then
+            echo "$val"
+            return
+        fi
+    fi
+    echo "$default_val"
+}
+
+set_state_val() {
+    local key="$1"
+    local val="$2"
+    init_dirs
+    if [[ ! -f "${STATE_FILE}" ]]; then
+        echo "{}" > "${STATE_FILE}"
+    fi
+    local tmp=$(mktemp)
+    jq --arg k "$key" --arg v "$val" '.[$k] = $v' "${STATE_FILE}" > "$tmp" && mv "$tmp" "${STATE_FILE}"
+    chmod 644 "${STATE_FILE}" 2>/dev/null || true
+}
+
+# --- Sing-box Config Generator in Pure jq ---
+# --- Определяем, доступен ли IPv6 в системе ---
+host_has_ipv6() {
+    [[ -d /proc/sys/net/ipv6 ]] || return 1
+    local dis
+    dis=$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null || echo 1)
+    [[ "$dis" == "0" ]] || return 1
+    ip -6 addr show scope global 2>/dev/null | grep -q "inet6" || return 1
+    return 0
+}
+
+# --- Detect local (upstream) DNS server for direct queries ---
+detect_direct_dns() {
+    local dns=""
+    if [[ -f /etc/resolv.conf ]]; then
+        dns=$(grep -E '^[[:space:]]*nameserver' /etc/resolv.conf 2>/dev/null \
+              | awk '{print $2}' \
+              | grep -vE '^(127\.|::1|0\.0\.0\.0)' \
+              | head -n 1)
+    fi
+    # Если в resolv.conf только локальный заглушечный DNS или роутер из серой сети
+    # (роутеры долго кэшируют старые IP серверов), используем надёжный прямой DNS:
+    if [[ -z "$dns" || "$dns" =~ ^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.) ]]; then
+        dns="77.88.8.8"
+    fi
+    echo "$dns"
+}
+
+# --- Sing-box version helpers ---
+singbox_bin_path() {
+    command -v sing-box 2>/dev/null || echo "/usr/local/bin/sing-box"
+}
+
+singbox_version() {
+    local bin
+    bin=$(singbox_bin_path)
+    [[ -x "$bin" ]] || { echo "0.0.0"; return; }
+    "$bin" version 2>/dev/null | head -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || echo "0.0.0"
+}
+
+# Возвращает 0, если ядро старое (< 1.12) и требует legacy-синтаксиса конфига
+singbox_is_legacy() {
+    local v
+    v=$(singbox_version)
+    [[ "$v" == "0.0.0" ]] && return 1
+    local lowest
+    lowest=$(printf '%s\n%s\n' "$v" "1.12.0" | sort -V | head -n 1)
+    [[ "$lowest" == "$v" && "$v" != "1.12.0" ]]
+}
+
+# --- Sing-box Config Generator in Pure jq ---
+generate_config() {
+    local server_json="$1"
+    init_dirs
+
+    # Удаляем старый конфиг перед созданием нового
+    rm -f "${RUNTIME_CONFIG}"
+
+    local stack
+    stack=$(get_state_val "tun_stack" "gvisor")
+    local direct_dns
+    direct_dns=$(detect_direct_dns)
+
+    local has_ipv6="false"
+    if host_has_ipv6; then
+        has_ipv6="true"
+    else
+        log_warn "IPv6 отключён в системе — туннель поднимается только с IPv4."
+    fi
+
+    local tmp_cfg
+    tmp_cfg=$(mktemp)
+
+    if ! python3 - "$stack" "$direct_dns" "${TUN_INTERFACE}" "$has_ipv6" "${CONFIG_DIR}" > "$tmp_cfg" << 'PYEOF'
+import sys, json, os
+
+stack = sys.argv[1]
+direct_dns = sys.argv[2]
+tun_name = sys.argv[3]
+has_ipv6 = (sys.argv[4].lower() == "true")
+config_dir = sys.argv[5]
+
+server_data = sys.stdin.read()
+s = json.loads(server_data) if server_data.strip() else {}
+
+ob = None
+if s.get('raw_json'):
+    outbounds = s['raw_json'].get('outbounds', [])
+    for o in outbounds:
+        if o.get('tag') in ('proxy', 'default'):
+            ob = o
+            break
+    if not ob and outbounds:
+        ob = outbounds[0]
+
+ss = ob.get('streamSettings', {}) if ob else {}
+net = ss.get('network') if ss else s.get('network', 'tcp')
+if not net: net = 'tcp'
+sec = ss.get('security') if ss else s.get('security', 'none')
+if not sec: sec = 'none'
+
+if ob:
+    settings = ob.get('settings', {})
+    vnext = settings.get('vnext', [{}])[0]
+    host = settings.get('address') or vnext.get('address') or s.get('server', '')
+    port = int(settings.get('port') or vnext.get('port') or s.get('server_port', 443))
+    users = vnext.get('users', [{}])[0]
+    uuid = settings.get('id') or users.get('id') or s.get('uuid', '')
+    flow_raw = settings.get('flow') or users.get('flow') or s.get('flow', '')
+else:
+    host = s.get('server', '')
+    port = int(s.get('server_port', 443))
+    uuid = s.get('uuid', '')
+    flow_raw = s.get('flow', '')
+
+flow = flow_raw if net == 'tcp' else ''
+
+reality_settings = ss.get('realitySettings', {}) if ss else {}
+tls_settings = ss.get('tlsSettings', {}) if ss else {}
+sni = reality_settings.get('serverName') or (reality_settings.get('serverNames') or [''])[0] or tls_settings.get('serverName') or s.get('sni', '')
+fp = reality_settings.get('fingerprint') or tls_settings.get('fingerprint') or s.get('fp', 'firefox')
+pbk = reality_settings.get('publicKey') or s.get('pbk', '')
+sid = reality_settings.get('shortId') or (reality_settings.get('shortIds') or [''])[0] or s.get('sid', '')
+grpc_name = ss.get('grpcSettings', {}).get('serviceName') or s.get('service_name', '')
+ws_path = ss.get('wsSettings', {}).get('path') or s.get('ws_path', '/')
+ws_headers = ss.get('wsSettings', {}).get('headers', {}) if ss else ({'Host': s['ws_host']} if s.get('ws_host') else {})
+
+transport_type = 'httpupgrade' if net in ('xhttp', 'httpupgrade') else net
+
+proxy = {
+    'type': 'vless',
+    'tag': 'proxy',
+    'server': host or '127.0.0.1',
+    'server_port': port,
+    'uuid': uuid or '00000000-0000-0000-0000-000000000000',
+    'packet_encoding': 'xudp',
+    'domain_resolver': 'direct-dns'
+}
+if flow:
+    proxy['flow'] = flow
+if sec in ('reality', 'tls'):
+    tls_cfg = {
+        'enabled': True,
+        'server_name': sni or 'www.mozilla.org',
+        'utls': {'enabled': True, 'fingerprint': fp or 'firefox'}
+    }
+    if sec == 'reality' and pbk:
+        r_cfg = {'enabled': True, 'public_key': pbk}
+        if sid: r_cfg['short_id'] = sid
+        tls_cfg['reality'] = r_cfg
+    proxy['tls'] = tls_cfg
+
+if net == 'ws':
+    proxy['transport'] = {'type': 'ws', 'path': ws_path, 'headers': ws_headers}
+elif transport_type in ('httpupgrade', 'http'):
+    proxy['transport'] = {'type': transport_type, 'path': ws_path}
+elif net == 'grpc':
+    proxy['transport'] = {'type': 'grpc', 'service_name': grpc_name}
+
+# Direct sites & VK Music domains
+direct_suffixes = set()
+rpath = os.path.join(config_dir, 'routing.json')
+if os.path.exists(rpath):
+    try:
+        with open(rpath) as rf:
+            rdata = json.load(rf)
+            for item in rdata.get('DirectSites', []):
+                if item.startswith('domain:'):
+                    d = item[7:].strip()
+                    if d: direct_suffixes.add(d)
+    except Exception:
+        pass
+
+vk_domains = [
+    'vk.com', 'vk.me', 'vkuser.net', 'vkuseraudio.net', 'vk-cdn.me', 'vkcdn.ru',
+    'vk-portal.net', 'vkuservideo.net', 'vkplay.ru', 'vk.link', 'userapi.com',
+    'mycdn.me', 'ok.ru', 'odnoklassniki.ru', 'mail.ru', 'imgsmail.ru'
+]
+for d in vk_domains: direct_suffixes.add(d)
+for tld in ['.ru', '.xn--p1ai', '.su', '.by', '.kz']: direct_suffixes.add(tld)
+
+# Kill Switch: domains that MUST go to proxy and NEVER leak to direct
+google_killswitch_domains = [
+    'google.com', 'googleapis.com', 'gstatic.com', 'googleusercontent.com', 'ggpht.com',
+    'youtube.com', 'googlevideo.com', 'youtu.be', 'ytimg.com',
+    'openai.com', 'chatgpt.com', 'oaistatic.com', 'oaiusercontent.com',
+    'anthropic.com', 'claude.ai',
+    'antigravity.google', 'gemini.google.com'
+]
+
+# VK CDN & media IP CIDRs
+vk_cidrs = [
+    '87.240.128.0/18', '93.186.224.0/20', '95.142.192.0/20',
+    '95.213.0.0/18', '185.32.248.0/22', '185.89.12.0/22'
+]
+
+cfg = {
+    'log': {'level': 'warn', 'timestamp': True},
+    'dns': {
+        'servers': [
+            {'tag': 'remote-dns', 'type': 'udp', 'server': '1.1.1.1', 'server_port': 53, 'detour': 'proxy'},
+            {'tag': 'direct-dns', 'type': 'udp', 'server': direct_dns, 'server_port': 53, 'detour': 'direct'}
+        ],
+        'rules': [
+            {'domain_suffix': sorted(list(direct_suffixes)), 'server': 'direct-dns'},
+            {'domain_suffix': google_killswitch_domains, 'server': 'remote-dns'}
+        ],
+        'strategy': 'ipv4_only',
+        'independent_cache': True,
+        'final': 'remote-dns'
+    },
+    'inbounds': [
+        {
+            'type': 'tun',
+            'tag': 'tun-in',
+            'interface_name': tun_name,
+            'address': ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'] if has_ipv6 else ['172.19.0.1/30'],
+            'mtu': 1420,
+            'auto_route': True,
+            'strict_route': True,
+            'stack': stack
+        }
+    ],
+    'outbounds': [
+        proxy,
+        {'type': 'direct', 'tag': 'direct', 'domain_resolver': 'direct-dns'},
+        {'type': 'block', 'tag': 'block'}
+    ],
+    'route': {
+        'default_domain_resolver': 'direct-dns',
+        'rules': [
+            {'action': 'sniff'},
+            {'protocol': 'dns', 'action': 'hijack-dns'},
+            {'port': 53, 'action': 'hijack-dns'},
+            {'ip_is_private': True, 'outbound': 'direct'},
+            # Killswitch rule 1: strictly proxy Google / AI traffic
+            {'domain_suffix': google_killswitch_domains, 'outbound': 'proxy'},
+            # Direct routing: VK, Russian domains & VK IP ranges
+            {'domain_suffix': sorted(list(direct_suffixes)), 'outbound': 'direct'},
+            {'ip_cidr': vk_cidrs, 'outbound': 'direct'},
+            # Killswitch rule 2: block any Google / AI traffic from leaking
+            {'domain_suffix': google_killswitch_domains, 'outbound': 'block'}
+        ],
+        'final': 'proxy',
+        'auto_detect_interface': True
+    }
+}
+
+print(json.dumps(cfg, indent=2))
+PYEOF
+    then
+        rm -f "$tmp_cfg"
+        log_err "Не удалось сформировать конфигурацию sing-box (проверьте данные сервера)."
+        return 1
+    fi <<< "$server_json"
+
+    if [[ ! -s "$tmp_cfg" ]]; then
+        rm -f "$tmp_cfg"
+        log_err "Конфигурация sing-box оказалась пустой."
+        return 1
+    fi
+
+    mv -f "$tmp_cfg" "${RUNTIME_CONFIG}"
+    chmod 600 "${RUNTIME_CONFIG}"
+
+    # Валидация конфига ядром до запуска службы
+    local bin
+    bin=$(singbox_bin_path)
+    if [[ -x "$bin" ]]; then
+        local check_out
+        if ! check_out=$("$bin" check -c "${RUNTIME_CONFIG}" 2>&1); then
+            log_err "Ядро sing-box отвергло конфигурацию:"
+            echo -e "${C_DIM}${check_out}${C_RESET}"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# --- Service Unit Generator ---
+ensure_systemd_service() {
+    local singbox_bin modprobe_bin
+    singbox_bin=$(singbox_bin_path)
+    modprobe_bin=$(command -v modprobe 2>/dev/null || echo "/usr/bin/modprobe")
+    cat <<EOF > "${SERVICE_FILE}"
+[Unit]
+Description=Lincy VPN Tunnel Service (${TUN_INTERFACE})
+After=network.target network-online.target nss-lookup.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${CONFIG_DIR}
+Environment="ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true"
+Environment="ENABLE_DEPRECATED_SPECIAL_OUTBOUNDS=true"
+Environment="ENABLE_DEPRECATED_TUN_ADDRESS_X=true"
+Environment="ENABLE_DEPRECATED_INBOUND_FIELDS=true"
+Environment="ENABLE_DEPRECATED_DIRECT_DIAL_FIELDS=true"
+Environment="ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true"
+ExecStartPre=-${modprobe_bin} tun
+ExecStartPre=${singbox_bin} check -c ${RUNTIME_CONFIG}
+ExecStart=${singbox_bin} run -c ${RUNTIME_CONFIG}
+Restart=on-failure
+RestartSec=3s
+LimitNOFILE=65535
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE CAP_SYS_ADMIN
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+}
+
+# --- Network adapter detection & repair ---
+list_physical_ifaces() {
+    local i
+    for i in /sys/class/net/*; do
+        i=$(basename "$i")
+        case "$i" in
+            lo|"${TUN_INTERFACE}"|docker*|br-*|veth*|virbr*|tun*|tap*|wg*|zt*) continue ;;
+        esac
+        echo "$i"
+    done
+}
+
+iface_is_up() {
+    local i="$1"
+    [[ -r "/sys/class/net/${i}/operstate" ]] || return 1
+    local st
+    st=$(cat "/sys/class/net/${i}/operstate" 2>/dev/null)
+    [[ "$st" == "up" || "$st" == "unknown" ]] && ip link show "$i" 2>/dev/null | head -n 1 | grep -q "state UP\|,UP"
+}
+
+iface_has_ip() {
+    ip -4 addr show dev "$1" scope global 2>/dev/null | grep -q "inet "
+}
+
+# Возвращает имя основного физического интерфейса (или пусто)
+detect_uplink_iface() {
+    local i
+    for i in $(list_physical_ifaces); do
+        if iface_is_up "$i" && iface_has_ip "$i"; then
+            echo "$i"
+            return 0
+        fi
+    done
+    for i in $(list_physical_ifaces); do
+        if iface_is_up "$i"; then
+            echo "$i"
+            return 0
+        fi
+    done
+    return 1
+}
+
+try_repair_iface() {
+    local i="$1"
+    log_warn "Интерфейс ${C_BOLD}${i}${C_RESET} находится в состоянии DOWN. Пробую поднять..."
+
+    if command -v rfkill &>/dev/null; then
+        rfkill unblock all 2>/dev/null || true
+    fi
+
+    ip link set dev "$i" up 2>/dev/null || true
+    sleep 1
+
+    if ! iface_is_up "$i"; then
+        if command -v nmcli &>/dev/null && systemctl is-active --quiet NetworkManager 2>/dev/null; then
+            log_info "Пробую поднять через NetworkManager..."
+            nmcli device connect "$i" &>/dev/null || nmcli device set "$i" managed yes &>/dev/null || true
+            sleep 2
+        elif command -v networkctl &>/dev/null && systemctl is-active --quiet systemd-networkd 2>/dev/null; then
+            log_info "Пробую поднять через systemd-networkd..."
+            networkctl up "$i" &>/dev/null || true
+            systemctl restart systemd-networkd &>/dev/null || true
+            sleep 2
+        fi
+    fi
+
+    # Ждём получения адреса (DHCP)
+    local t=0
+    while (( t < 12 )); do
+        if iface_is_up "$i" && iface_has_ip "$i"; then
+            log_ok "Интерфейс ${i} поднят, адрес получен: $(ip -4 -o addr show dev "$i" scope global | awk '{print $4}' | head -n1)"
+            return 0
+        fi
+        sleep 1
+        t=$((t + 1))
+    done
+
+    if iface_is_up "$i" && ! iface_has_ip "$i"; then
+        log_warn "Интерфейс ${i} поднят, но не получил IP-адрес."
+        if command -v dhcpcd &>/dev/null; then
+            log_info "Запрашиваю адрес через dhcpcd..."
+            dhcpcd -n "$i" &>/dev/null || dhcpcd "$i" &>/dev/null || true
+            sleep 3
+        elif command -v dhclient &>/dev/null; then
+            log_info "Запрашиваю адрес через dhclient..."
+            dhclient "$i" &>/dev/null || true
+            sleep 3
+        fi
+        iface_has_ip "$i" && { log_ok "Адрес получен."; return 0; }
+    fi
+
+    return 1
+}
+
+# Полная проверка физической сети. 0 — всё ок, 1 — сети нет
+check_network_adapter() {
+    local quiet="${1:-0}"
+    local ifaces
+    ifaces=$(list_physical_ifaces)
+
+    if [[ -z "$ifaces" ]]; then
+        log_err "В системе не найдено ни одного физического сетевого адаптера."
+        return 1
+    fi
+
+    local up_iface=""
+    up_iface=$(detect_uplink_iface || true)
+
+    if [[ -z "$up_iface" ]]; then
+        log_err "Все сетевые адаптеры выключены (DOWN):"
+        local i
+        for i in $ifaces; do
+            echo -e "    ${C_DIM}- ${i}: $(cat "/sys/class/net/${i}/operstate" 2>/dev/null || echo unknown)${C_RESET}"
+        done
+        for i in $ifaces; do
+            if try_repair_iface "$i"; then
+                up_iface="$i"
+                break
+            fi
+        done
+        if [[ -z "$up_iface" ]]; then
+            log_err "Не удалось автоматически восстановить сетевое подключение."
+            log_err "Проверьте вручную: ip link | nmcli device status | systemctl status NetworkManager"
+            return 1
+        fi
+    elif ! iface_has_ip "$up_iface"; then
+        log_warn "Интерфейс ${up_iface} поднят, но без IPv4-адреса."
+        try_repair_iface "$up_iface" || {
+            log_err "Интерфейс ${up_iface} так и не получил IP-адрес."
+            return 1
+        }
+    fi
+
+    # Проверяем наличие маршрута по умолчанию мимо туннеля
+    local def_route
+    def_route=$(ip route show default 2>/dev/null | grep -v "${TUN_INTERFACE}" | head -n 1)
+    if [[ -z "$def_route" ]]; then
+        log_warn "Отсутствует маршрут по умолчанию для физического интерфейса ${up_iface}."
+        local gw
+        gw=$(ip -4 route show dev "$up_iface" 2>/dev/null | awk '/proto/ {print $1}' | head -n 1)
+        if command -v nmcli &>/dev/null; then
+            nmcli device reapply "$up_iface" &>/dev/null || true
+            sleep 2
+        fi
+        def_route=$(ip route show default 2>/dev/null | grep -v "${TUN_INTERFACE}" | head -n 1)
+        [[ -z "$def_route" ]] && log_warn "Маршрут по умолчанию не восстановлен — туннель может не подняться."
+    fi
+
+    if [[ "$quiet" != "1" ]]; then
+        log_ok "Сетевой адаптер: ${C_BOLD}${up_iface}${C_RESET} ($(ip -4 -o addr show dev "$up_iface" scope global 2>/dev/null | awk '{print $4}' | head -n1 || echo "без IP"))"
+    fi
+
+    set_state_val "uplink_iface" "$up_iface"
+    return 0
+}
+
+# --- TUN device prerequisites ---
+ensure_tun_device() {
+    if [[ ! -c /dev/net/tun ]]; then
+        log_warn "Устройство /dev/net/tun отсутствует. Загружаю модуль ядра tun..."
+        modprobe tun 2>/dev/null || true
+        sleep 1
+    fi
+    if [[ ! -c /dev/net/tun ]]; then
+        mkdir -p /dev/net
+        mknod /dev/net/tun c 10 200 2>/dev/null || true
+        chmod 600 /dev/net/tun 2>/dev/null || true
+    fi
+    if [[ ! -c /dev/net/tun ]]; then
+        log_err "Ядро не предоставляет /dev/net/tun. Туннель невозможен без поддержки TUN."
+        return 1
+    fi
+
+    if ! command -v nft &>/dev/null && ! command -v iptables &>/dev/null; then
+        log_warn "Не найдены nftables/iptables — автоматическая маршрутизация может не работать."
+        log_warn "Установите: sudo pacman -S nftables"
+    fi
+    return 0
+}
+
+# --- Wait until the TUN interface is really up ---
+wait_tun_up() {
+    local timeout="${1:-15}"
+    local t=0
+    while (( t < timeout )); do
+        if ip link show "${TUN_INTERFACE}" &>/dev/null; then
+            if ip link show "${TUN_INTERFACE}" | head -n 1 | grep -q "UP"; then
+                if ip route show table all 2>/dev/null | grep -q "${TUN_INTERFACE}"; then
+                    return 0
+                fi
+            fi
+        fi
+        systemctl is-active --quiet lincy.service || return 2
+        sleep 1
+        t=$((t + 1))
+    done
+    return 1
+}
+
+# --- Real traffic verification through the tunnel ---
+verify_tunnel_traffic() {
+    local ip_out=""
+    echo -ne "  ${C_DIM}проверка трафика...${C_RESET}\r" >&2
+    ip_out=$(curl -4 -s --connect-timeout 3 --max-time 5 "https://api.ipify.org" 2>/dev/null || echo "")
+    ip_out=$(echo "$ip_out" | tr -d '\r\n[:space:]')
+    echo -ne "\033[2K\r" >&2
+
+    if [[ "$ip_out" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "$ip_out"
+        return 0
+    fi
+
+    # Разделяем: проблема в DNS или в самом туннеле
+    if curl -4 -s --max-time 3 -o /dev/null "http://1.1.1.1" 2>/dev/null; then
+        log_warn "IP-соединение через туннель есть, но не работает разрешение имён (DNS)."
+    fi
+    return 1
+}
+
+diagnose_tunnel() {
+    echo -e "\n${C_BOLD}${C_YELLOW}Диагностика туннеля:${C_RESET}"
+    if ! systemctl is-active --quiet lincy.service; then
+        echo -e "  ${C_RED}✗${C_RESET} Служба lincy.service не запущена."
+    else
+        echo -e "  ${C_GREEN}✓${C_RESET} Служба lincy.service активна."
+    fi
+    if ip link show "${TUN_INTERFACE}" &>/dev/null; then
+        echo -e "  ${C_GREEN}✓${C_RESET} Интерфейс ${TUN_INTERFACE} создан."
+    else
+        echo -e "  ${C_RED}✗${C_RESET} Интерфейс ${TUN_INTERFACE} отсутствует."
+    fi
+    if ip route show table all 2>/dev/null | grep -q "${TUN_INTERFACE}"; then
+        echo -e "  ${C_GREEN}✓${C_RESET} Маршруты через ${TUN_INTERFACE} установлены."
+    else
+        echo -e "  ${C_RED}✗${C_RESET} Маршруты через ${TUN_INTERFACE} не установлены (auto_route не сработал)."
+    fi
+    local sel_idx s_json host port
+    sel_idx=$(get_state_val "selected_index" "1")
+    if [[ -f "${SERVERS_FILE}" ]]; then
+        s_json=$(jq -c --argjson id "$sel_idx" '.[] | select(.id == $id)' "${SERVERS_FILE}" 2>/dev/null || true)
+        if [[ -n "$s_json" ]]; then
+            host=$(echo "$s_json" | jq -r '.server')
+            port=$(echo "$s_json" | jq -r '.server_port')
+            if timeout 5 bash -c "cat < /dev/null > /dev/tcp/${host}/${port}" 2>/dev/null; then
+                echo -e "  ${C_GREEN}✓${C_RESET} TCP-соединение с ${host}:${port} устанавливается."
+            else
+                echo -e "  ${C_RED}✗${C_RESET} Сервер ${host}:${port} недоступен (блокировка провайдера или сервер выключен)."
+            fi
+        fi
+    fi
+    echo -e "\n${C_DIM}Последние строки лога ядра:${C_RESET}"
+    journalctl -u lincy.service -n 12 --no-pager -o cat 2>/dev/null | sed 's/^/    /'
+    echo -e "\n${C_DIM}Полный лог: sudo lincy log${C_RESET}\n"
+}
+
+# --- Command: install ---
+cmd_install() {
+    require_root
+    echo -e "\n${C_BOLD}${C_CYAN}=== Установка Lincy CLI VPN Client (Arch Linux) ===${C_RESET}\n"
+
+    if command -v pacman &>/dev/null; then
+        log_info "Проверка и установка зависимостей через pacman (jq, curl)..."
+        pacman -Sy --noconfirm jq curl || true
+    elif command -v apt-get &>/dev/null; then
+        log_info "Установка зависимостей через apt (jq, curl)..."
+        apt-get update -qq && apt-get install -y -qq jq curl || true
+    elif command -v dnf &>/dev/null; then
+        dnf install -y jq curl || true
+    fi
+
+    if ! command -v jq &>/dev/null; then
+        log_err "Не удалось найти утилиту jq. Установите jq вручную: sudo pacman -S jq"
+        exit 1
+    fi
+
+    local target_sb_ver="1.13.19"
+    local force_core="${1:-}"
+    local singbox_bin
+    singbox_bin=$(singbox_bin_path)
+    local cur_sb_ver
+    cur_sb_ver=$(singbox_version)
+
+    local need_core=0
+    if [[ -z "$singbox_bin" || ! -x "$singbox_bin" ]]; then
+        need_core=1
+    elif [[ "$cur_sb_ver" != "$target_sb_ver" ]]; then
+        log_warn "Установлена версия sing-box ${cur_sb_ver}. Требуется версия ${target_sb_ver} — обновляю..."
+        need_core=1
+    elif [[ "$force_core" == "--force-core" ]]; then
+        need_core=1
+    else
+        log_ok "Ядро sing-box требуемой версии уже установлено: ${singbox_bin} (v${cur_sb_ver})"
+    fi
+
+    if [[ $need_core -eq 1 ]]; then
+        local sb_arch
+        case "$(uname -m)" in
+            x86_64|amd64)   sb_arch="amd64" ;;
+            aarch64|arm64)  sb_arch="arm64" ;;
+            armv7l|armv7)   sb_arch="armv7" ;;
+            i386|i686)      sb_arch="386" ;;
+            *)              sb_arch="amd64" ;;
+        esac
+
+        log_info "Загрузка ядра sing-box v${target_sb_ver} (linux-${sb_arch})..."
+        local dl_tar="/tmp/sing-box.tar.gz"
+        local url="https://github.com/SagerNet/sing-box/releases/download/v${target_sb_ver}/sing-box-${target_sb_ver}-linux-${sb_arch}.tar.gz"
+        if ! curl -fsSL --max-time 120 -o "$dl_tar" "$url"; then
+            log_err "Не удалось скачать ядро sing-box с ${url}"
+            exit 1
+        fi
+        rm -rf /tmp/sing-box-*/ 2>/dev/null || true
+        tar -xzf "$dl_tar" -C /tmp
+        local extracted
+        extracted=$(find /tmp -maxdepth 2 -type f -name "sing-box" -perm -u+x 2>/dev/null | head -n 1)
+        if [[ -n "$extracted" ]]; then
+            systemctl stop lincy.service 2>/dev/null || true
+            install -m 755 "$extracted" /usr/local/bin/sing-box
+            if [[ -d /usr/bin && -w /usr/bin ]]; then
+                install -m 755 "$extracted" /usr/bin/sing-box
+            fi
+            singbox_bin="/usr/local/bin/sing-box"
+            rm -rf "$dl_tar" /tmp/sing-box-*/
+            log_ok "sing-box v${target_sb_ver} установлен: ${singbox_bin} (версия $(singbox_version))"
+        else
+            log_err "Не удалось распаковать бинарник sing-box."
+            exit 1
+        fi
+    fi
+
+    init_dirs
+    local script_src=$(realpath "$0")
+    if [[ "$script_src" != "$BIN_TARGET" ]]; then
+        cp "$script_src" "$BIN_TARGET"
+        chmod 755 "$BIN_TARGET"
+        log_ok "Исполняемый файл установлен в ${BIN_TARGET}"
+    else
+        chmod 755 "$BIN_TARGET"
+        log_ok "Исполняемый файл подтверждён в ${BIN_TARGET}"
+    fi
+
+    if [[ "$ALT_BIN_TARGET" != "$BIN_TARGET" ]]; then
+        ln -sf "$BIN_TARGET" "$ALT_BIN_TARGET" 2>/dev/null || true
+        log_ok "Симлинк создан в ${ALT_BIN_TARGET}"
+    fi
+
+    # 3. Create systemd service
+    ensure_systemd_service
+    log_ok "Системный сервис создан: ${SERVICE_FILE}"
+
+    # 4. Generate HWID
+    local hwid=$(get_hwid)
+    set_state_val "hwid" "$hwid"
+    set_state_val "selected_index" "1"
+    log_ok "Сгенерирован аппаратный HWID устройства: ${C_CYAN}${hwid}${C_RESET}"
+
+    echo -e "\n${C_BOLD}${C_GREEN}Установка Lincy успешно завершена!${C_RESET}"
+    echo -e "Команда доступна из любого места системы:"
+    echo -e "  ${C_CYAN}sudo lincy login <ваша_ссылка_на_подписку>${C_RESET}\n"
+}
+
+# Значения в ссылке приходят percent-encoded: путь WebSocket выглядит как
+# %2F13696%2Fabc, а без декодирования ядро подключается на "/" и трафик молча
+# не идёт.
+urldecode() {
+    local d="${1//+/ }"
+    printf '%b' "${d//%/\\x}" 2>/dev/null || echo "$1"
+}
+
+# --- Command: login ---
+cmd_login() {
+    require_root
+    local sub_url="$1"
+    if [[ -z "$sub_url" ]]; then
+        log_err "Укажите URL подписки: sudo lincy login <ссылка_на_подписку>"
+        exit 1
+    fi
+
+    init_dirs
+    local hwid=$(get_state_val "hwid" "$(get_hwid)")
+    set_state_val "hwid" "$hwid"
+    
+    local distro=$(get_distro_name)
+    local device=$(get_device_model)
+    local ua=$(get_user_agent)
+
+    echo -e "\n${C_BOLD}${C_CYAN}Подключение к подписке Lincy...${C_RESET}"
+    log_info "URL:        ${sub_url}"
+    log_info "HWID:       ${hwid}"
+    log_info "Дистрибутив: ${distro}"
+    log_info "Устройство:  ${device}"
+
+    local raw_resp=$(mktemp)
+
+    echo -ne "  ${C_DIM}загрузка подписки...${C_RESET}\r"
+    local http_code
+    http_code=$(curl -sSL -k --connect-timeout 6 --max-time 15 \
+        -H "User-Agent: ${ua}" \
+        -H "X-Hwid: ${hwid}" \
+        -H "x-hwid: ${hwid}" \
+        -H "X-Device-OS: ${distro}" \
+        -H "X-Device-Name: ${device}" \
+        -H "X-Device-Model: ${device}" \
+        -H "Accept: application/json, text/plain, */*" \
+        -w "%{http_code}" \
+        -o "$raw_resp" \
+        "$sub_url" 2>/dev/null || echo "000")
+    echo -ne "\033[2K\r"
+
+    if [[ "$http_code" != "200" ]]; then
+        log_err "Ошибка загрузки подписки (HTTP $http_code). Проверьте ссылку и доступность сервера."
+        if [[ "$http_code" == "404" ]]; then
+            log_warn "404 — сервер не нашёл подписку по этому адресу."
+        fi
+        if [[ -s "$raw_resp" ]]; then
+            echo -e "${C_DIM}Ответ сервера (первые 300 символов):${C_RESET}"
+            head -c 300 "$raw_resp" | sed 's/^/    /'
+            echo
+        fi
+        rm -f "$raw_resp"
+        exit 1
+    fi
+
+    local parsed=0
+    # 1. Try JSON Array
+    if jq -e 'type == "array"' "$raw_resp" >/dev/null 2>&1; then
+        jq '[to_entries[] | {
+            id: (.key + 1),
+            tag: (.value.remarks // "Server #\(.key + 1)"),
+            type: (.value.outbounds[0].protocol // "vless"),
+            server: (.value.outbounds[0].settings.vnext[0].address // .value.outbounds[0].settings.address // ""),
+            server_port: (.value.outbounds[0].settings.vnext[0].port // .value.outbounds[0].settings.port // 443),
+            uuid: (.value.outbounds[0].settings.vnext[0].users[0].id // .value.outbounds[0].settings.id // ""),
+            flow: (.value.outbounds[0].settings.vnext[0].users[0].flow // .value.outbounds[0].settings.flow // ""),
+            network: (.value.outbounds[0].streamSettings.network // "tcp"),
+            security: (.value.outbounds[0].streamSettings.security // "reality"),
+            sni: (.value.outbounds[0].streamSettings.realitySettings.serverNames[0] // .value.outbounds[0].streamSettings.realitySettings.serverName // .value.outbounds[0].streamSettings.tlsSettings.serverName // "www.mozilla.org"),
+            pbk: (.value.outbounds[0].streamSettings.realitySettings.publicKey // ""),
+            sid: (.value.outbounds[0].streamSettings.realitySettings.shortIds[0] // .value.outbounds[0].streamSettings.realitySettings.shortId // ""),
+            fp: (.value.outbounds[0].streamSettings.realitySettings.fingerprint // .value.outbounds[0].streamSettings.tlsSettings.fingerprint // "chrome"),
+            service_name: (.value.outbounds[0].streamSettings.grpcSettings.serviceName // ""),
+            raw_json: .value
+        }]' "$raw_resp" > "${SERVERS_FILE}"
+        parsed=1
+    fi
+
+    # 2. Try Base64 / URI Links fallback
+    if [[ $parsed -eq 0 ]]; then
+        local content=$(cat "$raw_resp")
+        if [[ "$content" != *"vless://"* && "$content" != *"vmess://"* ]]; then
+            content=$(echo "$content" | base64 -d 2>/dev/null || cat "$raw_resp")
+        fi
+
+        local srv_arr="[]"
+        local idx=1
+        while IFS= read -r line; do
+            line=$(echo "$line" | tr -d '\r\n')
+            if [[ "$line" == vless://* ]]; then
+                local uuid=$(echo "$line" | sed -E 's|vless://([^@]+)@.*|\1|')
+                local host_port=$(echo "$line" | sed -E 's|vless://[^@]+@([^/?#]+).*|\1|')
+                local host port
+                if [[ "$host_port" == *:* ]]; then
+                    host="${host_port%:*}"; port="${host_port##*:}"
+                else
+                    host="$host_port"; port="443"
+                fi
+                # Ссылка без порта или с мусором вместо него роняла jq --argjson
+                [[ "$port" =~ ^[0-9]+$ ]] || port="443"
+                local query=$(echo "$line" | sed -E 's|vless://[^?]+\?([^#]+).*|\1|')
+                local tag=$(echo "$line" | sed -E 's|vless://.*#(.*)|\1|')
+                [[ -z "$tag" || "$tag" == "$line" ]] && tag="${host}:${port}"
+                tag=$(printf '%b' "${tag//%/\\x}" 2>/dev/null || echo "$tag")
+                
+                local flow=$(echo "$query" | grep -oP 'flow=\K[^&]+' || echo "")
+                local net=$(echo "$query" | grep -oP 'type=\K[^&]+' || echo "tcp")
+                local sec=$(echo "$query" | grep -oP 'security=\K[^&]+' || echo "none")
+                local sni=$(echo "$query" | grep -oP 'sni=\K[^&]+' || echo "")
+                local fp=$(echo "$query" | grep -oP 'fp=\K[^&]+' || echo "chrome")
+                local pbk=$(echo "$query" | grep -oP 'pbk=\K[^&]+' || echo "")
+                local sid=$(echo "$query" | grep -oP 'sid=\K[^&]+' || echo "")
+                local srv_name=$(echo "$query" | grep -oP 'serviceName=\K[^&]+' || echo "")
+                local ws_path=$(echo "$query" | grep -oP 'path=\K[^&]+' || echo "")
+                local ws_host=$(echo "$query" | grep -oP 'host=\K[^&]+' || echo "")
+                sni=$(urldecode "$sni")
+                srv_name=$(urldecode "$srv_name")
+                ws_path=$(urldecode "$ws_path")
+                ws_host=$(urldecode "$ws_host")
+                [[ -z "$ws_path" ]] && ws_path="/"
+
+                srv_arr=$(echo "$srv_arr" | jq \
+                    --argjson id "$idx" \
+                    --arg tag "$tag" \
+                    --arg type "vless" \
+                    --arg server "$host" \
+                    --argjson port "${port:-443}" \
+                    --arg uuid "$uuid" \
+                    --arg flow "$flow" \
+                    --arg net "$net" \
+                    --arg sec "$sec" \
+                    --arg sni "$sni" \
+                    --arg fp "$fp" \
+                    --arg pbk "$pbk" \
+                    --arg sid "$sid" \
+                    --arg srv "$srv_name" \
+                    --arg wspath "$ws_path" \
+                    --arg wshost "$ws_host" \
+                    '. += [{
+                        id: $id,
+                        tag: $tag,
+                        type: $type,
+                        server: $server,
+                        server_port: $port,
+                        uuid: $uuid,
+                        flow: $flow,
+                        network: $net,
+                        security: $sec,
+                        sni: $sni,
+                        fp: $fp,
+                        pbk: $pbk,
+                        sid: $sid,
+                        service_name: $srv,
+                        ws_path: $wspath,
+                        ws_host: $wshost
+                    }]')
+                idx=$((idx + 1))
+            fi
+        done <<< "$content"
+
+        if [[ $(echo "$srv_arr" | jq 'length') -gt 0 ]]; then
+            echo "$srv_arr" > "${SERVERS_FILE}"
+            parsed=1
+        fi
+    fi
+    rm -f "$raw_resp"
+
+    if [[ $parsed -eq 0 || ! -f "${SERVERS_FILE}" || $(jq 'length' "${SERVERS_FILE}" 2>/dev/null || echo 0) -eq 0 ]]; then
+        log_err "Не удалось извлечь серверы из ответа подписки."
+        exit 1
+    fi
+
+    local total_count=$(jq 'length' "${SERVERS_FILE}")
+    set_state_val "sub_url" "${used_url:-$sub_url}"
+    set_state_val "last_update" "$(date +%s)"
+    set_state_val "selected_index" "1"
+
+    log_ok "Успешно получено серверов: ${total_count}"
+
+    local first_server=$(jq '.[0]' "${SERVERS_FILE}")
+    generate_config "$first_server"
+
+    echo -e "\n${C_BOLD}Список доступных серверов:${C_RESET}"
+    cmd_servers
+    echo -e "\nДля выбора сервера выполните: ${C_CYAN}sudo lincy use <номер>${C_RESET}"
+    echo -e "Для включения VPN выполните:  ${C_CYAN}sudo lincy on${C_RESET}\n"
+}
+
+# --- Server Flag & Tag Formatter ---
+get_country_flag() {
+    local name="$1"
+    [[ -z "$name" ]] && { echo "🌐 "; return; }
+
+    # UTF-8 локаль нужна и для grep -P, и для регистронезависимого сравнения кириллицы.
+    local -x LC_ALL="C.UTF-8" LANG="C.UTF-8" LC_CTYPE="C.UTF-8"
+
+    # Если в названии уже есть флаг (пара Regional Indicator символов) — не дублируем.
+    if printf '%s' "$name" | grep -qP '[\x{1F1E6}-\x{1F1FF}]{2}' 2>/dev/null; then
+        echo ""
+        return
+    fi
+
+    local upper
+    upper=$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')
+
+    local _nocase_was_set=0
+    shopt -q nocasematch && _nocase_was_set=1
+    shopt -s nocasematch
+    _flag_done() {
+        [[ $_nocase_was_set -eq 0 ]] && shopt -u nocasematch
+        unset -f _flag_done
+    }
+
+    # 1) Сначала полные названия (в т.ч. по-русски) — они однозначны.
+    case "$name" in
+        *GERMANY*|*DEUTSCHLAND*|*FRANKFURT*|*ГЕРМАНИ*|*ФРАНКФУРТ*)      echo "🇩🇪 "; _flag_done; return ;;
+        *SWEDEN*|*SVERIGE*|*STOCKHOLM*|*ШВЕЦИ*|*СТОКГОЛЬМ*)             echo "🇸🇪 "; _flag_done; return ;;
+        *NETHERLANDS*|*HOLLAND*|*AMSTERDAM*|*НИДЕРЛАНД*|*АМСТЕРДАМ*)    echo "🇳🇱 "; _flag_done; return ;;
+        *"UNITED STATES"*|*USA*|*AMERICA*|*США*|*АМЕРИК*)               echo "🇺🇸 "; _flag_done; return ;;
+        *FINLAND*|*HELSINKI*|*ФИНЛЯНДИ*|*ХЕЛЬСИНКИ*)                    echo "🇫🇮 "; _flag_done; return ;;
+        *RUSSIA*|*MOSCOW*|*РОССИ*|*МОСКВА*|*ПИТЕР*|*САНКТ*)             echo "🇷🇺 "; _flag_done; return ;;
+        *FRANCE*|*PARIS*|*ФРАНЦИ*|*ПАРИЖ*)                              echo "🇫🇷 "; _flag_done; return ;;
+        *BRITAIN*|*ENGLAND*|*LONDON*|*АНГЛИ*|*ЛОНДОН*|*БРИТАН*)         echo "🇬🇧 "; _flag_done; return ;;
+        *KAZAKHSTAN*|*ALMATY*|*КАЗАХСТАН*|*АЛМАТЫ*)                     echo "🇰🇿 "; _flag_done; return ;;
+        *TURKEY*|*TURKIYE*|*ISTANBUL*|*ТУРЦИ*|*СТАМБУЛ*)                echo "🇹🇷 "; _flag_done; return ;;
+        *POLAND*|*WARSAW*|*ПОЛЬШ*|*ВАРШАВ*)                             echo "🇵🇱 "; _flag_done; return ;;
+        *JAPAN*|*TOKYO*|*ЯПОНИ*|*ТОКИО*)                                echo "🇯🇵 "; _flag_done; return ;;
+        *CANADA*|*КАНАД*)                                               echo "🇨🇦 "; _flag_done; return ;;
+        *SWITZERLAND*|*ZURICH*|*ШВЕЙЦАРИ*|*ЦЮРИХ*)                      echo "🇨🇭 "; _flag_done; return ;;
+        *AUSTRIA*|*VIENNA*|*АВСТРИ*|*ВЕНА*)                             echo "🇦🇹 "; _flag_done; return ;;
+        *SPAIN*|*MADRID*|*ИСПАНИ*|*МАДРИД*)                             echo "🇪🇸 "; _flag_done; return ;;
+        *ITALY*|*MILAN*|*ИТАЛИ*|*МИЛАН*)                                echo "🇮🇹 "; _flag_done; return ;;
+        *UKRAINE*|*KYIV*|*KIEV*|*УКРАИН*|*КИЕВ*)                        echo "🇺🇦 "; _flag_done; return ;;
+        *SINGAPORE*|*СИНГАПУР*)                                         echo "🇸🇬 "; _flag_done; return ;;
+        *LATVIA*|*RIGA*|*ЛАТВИ*|*РИГА*)                                 echo "🇱🇻 "; _flag_done; return ;;
+        *LITHUANIA*|*VILNIUS*|*ЛИТВА*|*ВИЛЬНЮС*)                        echo "🇱🇹 "; _flag_done; return ;;
+        *ESTONIA*|*TALLINN*|*ЭСТОНИ*|*ТАЛЛИН*)                          echo "🇪🇪 "; _flag_done; return ;;
+        *NORWAY*|*OSLO*|*НОРВЕГИ*|*ОСЛО*)                               echo "🇳🇴 "; _flag_done; return ;;
+        *ARMENIA*|*YEREVAN*|*АРМЕНИ*|*ЕРЕВАН*)                          echo "🇦🇲 "; _flag_done; return ;;
+        *GEORGIA*|*TBILISI*|*ГРУЗИ*|*ТБИЛИСИ*)                          echo "🇬🇪 "; _flag_done; return ;;
+        *"HONG KONG"*|*HONGKONG*|*ГОНКОНГ*)                             echo "🇭🇰 "; _flag_done; return ;;
+    esac
+
+    # 2) Затем двухбуквенные коды — только как отдельные "слова",
+    #    иначе SWEDEN ловит DE, а RUSSIA ловит US.
+    local code
+    for code in $(printf '%s' "$upper" | tr -c 'A-Z' ' '); do
+        [[ ${#code} -eq 2 ]] || continue
+        case "$code" in
+            DE) echo "🇩🇪 "; _flag_done; return ;;
+            SE) echo "🇸🇪 "; _flag_done; return ;;
+            NL) echo "🇳🇱 "; _flag_done; return ;;
+            US) echo "🇺🇸 "; _flag_done; return ;;
+            FI) echo "🇫🇮 "; _flag_done; return ;;
+            RU) echo "🇷🇺 "; _flag_done; return ;;
+            FR) echo "🇫🇷 "; _flag_done; return ;;
+            GB|UK) echo "🇬🇧 "; _flag_done; return ;;
+            KZ) echo "🇰🇿 "; _flag_done; return ;;
+            TR) echo "🇹🇷 "; _flag_done; return ;;
+            PL) echo "🇵🇱 "; _flag_done; return ;;
+            JP) echo "🇯🇵 "; _flag_done; return ;;
+            CA) echo "🇨🇦 "; _flag_done; return ;;
+            CH) echo "🇨🇭 "; _flag_done; return ;;
+            AT) echo "🇦🇹 "; _flag_done; return ;;
+            ES) echo "🇪🇸 "; _flag_done; return ;;
+            IT) echo "🇮🇹 "; _flag_done; return ;;
+            UA) echo "🇺🇦 "; _flag_done; return ;;
+            SG) echo "🇸🇬 "; _flag_done; return ;;
+            LV) echo "🇱🇻 "; _flag_done; return ;;
+            LT) echo "🇱🇹 "; _flag_done; return ;;
+            EE) echo "🇪🇪 "; _flag_done; return ;;
+            NO) echo "🇳🇴 "; _flag_done; return ;;
+            AM) echo "🇦🇲 "; _flag_done; return ;;
+            GE) echo "🇬🇪 "; _flag_done; return ;;
+            HK) echo "🇭🇰 "; _flag_done; return ;;
+            AE) echo "🇦🇪 "; _flag_done; return ;;
+            IN) echo "🇮🇳 "; _flag_done; return ;;
+            BR) echo "🇧🇷 "; _flag_done; return ;;
+            CZ) echo "🇨🇿 "; _flag_done; return ;;
+            RO) echo "🇷🇴 "; _flag_done; return ;;
+            MD) echo "🇲🇩 "; _flag_done; return ;;
+            BG) echo "🇧🇬 "; _flag_done; return ;;
+            RS) echo "🇷🇸 "; _flag_done; return ;;
+            HU) echo "🇭🇺 "; _flag_done; return ;;
+            DK) echo "🇩🇰 "; _flag_done; return ;;
+            BE) echo "🇧🇪 "; _flag_done; return ;;
+            IE) echo "🇮🇪 "; _flag_done; return ;;
+            PT) echo "🇵🇹 "; _flag_done; return ;;
+            AU) echo "🇦🇺 "; _flag_done; return ;;
+            KR) echo "🇰🇷 "; _flag_done; return ;;
+        esac
+    done
+
+    _flag_done
+    echo "🌐 "
+}
+
+# --- Command: servers ---
+cmd_servers() {
+    if [[ ! -f "${SERVERS_FILE}" ]]; then
+        log_warn "Список серверов пуст. Выполните: sudo lincy login <ссылка_на_подписку>"
+        return
+    fi
+
+    local sel_idx=$(get_state_val "selected_index" "1")
+    local total=$(jq 'length' "${SERVERS_FILE}" 2>/dev/null || echo 0)
+
+    if [[ "$total" -eq 0 ]]; then
+        log_warn "Список серверов пуст."
+        return
+    fi
+
+    echo -e "\n${C_BOLD}${C_CYAN}  ДОСТУПНЫЕ СЕРВЕРЫ LINCY (${total})${C_RESET}"
+    echo -e "${C_DIM}  ────────────────────────────────────────────────────────────────────────${C_RESET}"
+
+    jq -c '.[]' "${SERVERS_FILE}" | while read -r s; do
+        local sid=$(echo "$s" | jq -r '.id')
+        local tag=$(echo "$s" | jq -r '.tag')
+        local type=$(echo "$s" | jq -r '.type // "vless"' | tr '[:lower:]' '[:upper:]')
+        local net=$(echo "$s" | jq -r '.network // "tcp"' | tr '[:lower:]' '[:upper:]')
+        local sec=$(echo "$s" | jq -r '.security // "none"' | tr '[:lower:]' '[:upper:]')
+        local host=$(echo "$s" | jq -r '.server')
+        local port=$(echo "$s" | jq -r '.server_port')
+        local has_raw=$(echo "$s" | jq -r 'if .raw_json != null then "JSON" else "RAW" end')
+
+        local flag=$(get_country_flag "$tag")
+        local is_sel=0
+        [[ "$sid" == "$sel_idx" ]] && is_sel=1
+
+        # Format tags like client: VLESS / TCP / REALITY / JSON
+        local sub_tags="${type} / ${net} / ${sec} / ${has_raw}"
+
+        if [[ $is_sel -eq 1 ]]; then
+            echo -e "${C_CYAN}▎${C_RESET} ${C_BOLD}${C_GREEN}● [${sid}] ${flag}${tag}${C_RESET}  ${C_GREEN}${C_BOLD}[ВЫБРАН]${C_RESET}"
+            echo -e "${C_CYAN}▎${C_RESET}   ${C_DIM}${sub_tags}${C_RESET}"
+            echo -e "${C_DIM}  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄${C_RESET}"
+        else
+            echo -e "  ${C_DIM}○ [${sid}]${C_RESET} ${C_BOLD}${flag}${tag}${C_RESET}"
+            echo -e "      ${C_DIM}${sub_tags}${C_RESET}"
+            echo -e "${C_DIM}  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄${C_RESET}"
+        fi
+    done
+
+    echo -e "  ${C_DIM}Активен сервер #${sel_idx} из ${total}${C_RESET}\n"
+}
+
+# --- Command: use ---
+cmd_use() {
+    require_root
+    local target_id="$1"
+    if [[ -z "$target_id" || ! "$target_id" =~ ^[0-9]+$ ]]; then
+        log_err "Укажите числовой номер сервера: sudo lincy use <ID>"
+        exit 1
+    fi
+
+    if [[ ! -f "${SERVERS_FILE}" ]]; then
+        log_err "Список серверов пуст. Сначала выполните login."
+        exit 1
+    fi
+
+    local server_json=$(jq -c --argjson id "$target_id" '.[] | select(.id == $id)' "${SERVERS_FILE}")
+    if [[ -z "$server_json" ]]; then
+        local max_id=$(jq 'length' "${SERVERS_FILE}")
+        log_err "Сервер #${target_id} не найден. Доступно: 1..${max_id}"
+        exit 1
+    fi
+
+    local tag=$(echo "$server_json" | jq -r '.tag')
+    set_state_val "selected_index" "$target_id"
+
+    generate_config "$server_json"
+    log_ok "Выбран сервер #${target_id}: ${C_BOLD}${tag}${C_RESET}"
+
+    if [[ -f "${SERVICE_FILE}" ]] && systemctl is-active --quiet lincy.service 2>/dev/null; then
+        log_info "Перезапуск VPN туннеля..."
+        systemctl restart lincy.service
+        sleep 1
+        log_ok "Туннель ${TUN_INTERFACE} переключен на сервер #${target_id}!"
+    else
+        echo -e "Для включения туннеля выполните: ${C_CYAN}sudo lincy on${C_RESET}"
+    fi
+}
+
+# --- Helper: Check real traffic passage through all subscription servers ---
+check_all_servers_traffic() {
+    if [[ ! -f "${SERVERS_FILE}" ]]; then
+        log_err "Список серверов пуст. Выполните: sudo lincy login <ссылка_на_подписку>"
+        return 1
+    fi
+
+    local total
+    total=$(jq 'length' "${SERVERS_FILE}" 2>/dev/null || echo 0)
+    if [[ "$total" -eq 0 ]]; then
+        log_err "Список серверов пуст."
+        return 1
+    fi
+
+    local bin
+    bin=$(singbox_bin_path)
+    if [[ ! -x "$bin" ]]; then
+        log_err "Ядро sing-box не найдено (${bin}). Выполните: sudo lincy install"
+        return 1
+    fi
+
+    echo -e "\n${C_BOLD}${C_CYAN}Автоматическая проверка прохождения трафика по всем серверам...${C_RESET}"
+    echo -e "${C_DIM}Всего серверов: ${total}. Проверяется установление соединения и передача данных (HTTP GET).${C_RESET}\n"
+
+    local direct_dns
+    direct_dns=$(detect_direct_dns)
+    local test_cfg
+    test_cfg=$(mktemp --suffix=.json)
+
+    if ! jq --arg direct_dns "$direct_dns" '
+    {
+      "log": { "level": "panic" },
+      "dns": {
+        "servers": [
+          { "tag": "direct-dns", "type": "udp", "server": $direct_dns, "server_port": 53, "detour": "direct" }
+        ],
+        "strategy": "ipv4_only"
+      },
+      "inbounds": [
+        to_entries[] | {
+          "type": "socks",
+          "tag": ("in-" + (.value.id | tostring)),
+          "listen": "127.0.0.1",
+          "listen_port": (25800 + .value.id)
+        }
+      ],
+      "outbounds": (
+        [
+          to_entries[] | .value as $s |
+          (
+            if $s.raw_json != null then
+              (first($s.raw_json.outbounds[]? | select(.tag == "proxy" or .tag == "default")) // $s.raw_json.outbounds[0])
+            else null end
+          ) as $ob |
+          (if $ob != null then ($ob.streamSettings // {}) else null end) as $ss |
+          (if $ss != null then ($ss.network // "tcp") else ($s.network // "tcp") end) as $net |
+          (if $ss != null then ($ss.security // "none") else ($s.security // "none") end) as $sec |
+          (if $ob != null then ($ob.settings.address // $ob.settings.vnext[0].address // $s.server // "") else ($s.server // "") end) as $host |
+          (if $ob != null then (($ob.settings.port // $ob.settings.vnext[0].port // $s.server_port // 443) | tonumber) else (($s.server_port // 443) | tonumber) end) as $port |
+          (if $ob != null then ($ob.settings.id // $ob.settings.vnext[0].users[0].id // $s.uuid // "") else ($s.uuid // "") end) as $uuid |
+          (if $ob != null then ($ob.settings.flow // $ob.settings.vnext[0].users[0].flow // $s.flow // "") else ($s.flow // "") end) as $flow_raw |
+          (if $ss != null then ($ss.realitySettings.serverName // $ss.realitySettings.serverNames[0] // $ss.tlsSettings.serverName // $s.sni // "") else ($s.sni // "") end) as $sni |
+          (if $ss != null then ($ss.realitySettings.fingerprint // $ss.tlsSettings.fingerprint // $s.fp // "chrome") else ($s.fp // "chrome") end) as $fp |
+          (if $ss != null then ($ss.realitySettings.publicKey // $s.pbk // "") else ($s.pbk // "") end) as $pbk |
+          (if $ss != null then ($ss.realitySettings.shortId // $ss.realitySettings.shortIds[0] // $s.sid // "") else ($s.sid // "") end) as $sid |
+          (if $ss != null then ($ss.grpcSettings.serviceName // $s.service_name // "") else ($s.service_name // "") end) as $grpc_name |
+          (if $ss != null then ($ss.wsSettings.path // $s.ws_path // "/") else ($s.ws_path // "/") end) as $ws_path |
+          (if $ss != null then ($ss.wsSettings.headers // {}) else (if (($s.ws_host // "") != "") then { Host: $s.ws_host } else {} end) end) as $ws_headers |
+          (if $net == "tcp" then $flow_raw else "" end) as $flow |
+          (
+            {
+              "type": "vless",
+              "tag": ("proxy-" + ($s.id | tostring)),
+              "server": (if $host == "" then "127.0.0.1" else $host end),
+              "server_port": $port,
+              "uuid": (if $uuid == "" then "00000000-0000-0000-0000-000000000000" else $uuid end),
+              "packet_encoding": "xudp"
+            }
+            | (if $flow != "" then (.flow = $flow) else . end)
+            | (if ($sec == "reality" or $sec == "tls") then
+                  (.tls = {
+                      "enabled": true,
+                      "server_name": (if $sni == "" then "www.mozilla.org" else $sni end),
+                      "utls": { "enabled": true, "fingerprint": $fp }
+                  })
+               else . end)
+            | (if ($sec == "reality" and $pbk != "") then
+                  (.tls.reality = ({ "enabled": true, "public_key": $pbk }
+                                   | (if $sid != "" then (.short_id = $sid) else . end)))
+               else . end)
+            | (if $net == "grpc" then
+                  (.transport = ({ "type": "grpc" }
+                                 | (if $grpc_name != "" then (.service_name = $grpc_name) else . end)))
+               elif $net == "ws" then
+                  (.transport = { "type": "ws", "path": $ws_path, "headers": $ws_headers })
+               elif ($net == "httpupgrade" or $net == "xhttp") then
+                  (.transport = { "type": "httpupgrade", "path": $ws_path })
+               else . end)
+            | .domain_resolver = "direct-dns"
+          )
+        ] + [ { "type": "direct", "tag": "direct", "domain_resolver": "direct-dns" } ]
+      ),
+      "route": {
+        "rules": [
+          to_entries[] | {
+            "inbound": ("in-" + (.value.id | tostring)),
+            "outbound": ("proxy-" + (.value.id | tostring))
+          }
+        ],
+        "auto_detect_interface": true
+      }
+    }
+    ' "${SERVERS_FILE}" > "$test_cfg"; then
+        rm -f "$test_cfg"
+        log_err "Не удалось сформировать конфигурацию для проверки серверов."
+        return 1
+    fi
+
+    "$bin" run -c "$test_cfg" &>/dev/null &
+    local test_pid=$!
+    sleep 0.5
+
+    if ! kill -0 "$test_pid" 2>/dev/null; then
+        rm -f "$test_cfg"
+        log_err "Не удалось запустить тестовый экземпляр ядра sing-box."
+        return 1
+    fi
+
+    local sel_idx
+    sel_idx=$(get_state_val "selected_index" "1")
+
+    local -a res_id res_tag res_proto res_status res_ms res_ip
+    local working_count=0
+    local first_working_id=""
+    local cur_working=0
+
+    local s_idx=0
+    while IFS= read -r s_line; do
+        s_idx=$((s_idx + 1))
+        local sid=$(echo "$s_line" | jq -r '.id')
+        local tag=$(echo "$s_line" | jq -r '.tag')
+        local type=$(echo "$s_line" | jq -r '.type // "vless"' | tr '[:lower:]' '[:upper:]')
+        local net=$(echo "$s_line" | jq -r '.network // "tcp"' | tr '[:lower:]' '[:upper:]')
+        local sec=$(echo "$s_line" | jq -r '.security // ""' | tr '[:lower:]' '[:upper:]')
+        local proto="${type}+${net}"
+        [[ -n "$sec" && "$sec" != "NONE" ]] && proto="${proto}/${sec}"
+
+        local port=$((25800 + sid))
+        echo -ne "  [${s_idx}/${total}] Проверка: ${tag:0:30} (${proto})...\r"
+
+        local resp
+        resp=$(curl -4 -s -w "\n%{http_code}\n%{time_total}" --connect-timeout 2 --max-time 3 \
+            -x "socks5h://127.0.0.1:${port}" "https://api.ipify.org" 2>/dev/null || echo -e "\n000\n0")
+
+        local ext_ip http_code dur_sec dur_ms
+        ext_ip=$(echo "$resp" | sed -n '1p' | tr -d '\r\n[:space:]')
+        http_code=$(echo "$resp" | sed -n '2p' | tr -d '\r\n[:space:]')
+        dur_sec=$(echo "$resp" | sed -n '3p' | tr -d '\r\n[:space:]')
+        dur_ms=$(awk -v t="$dur_sec" 'BEGIN {printf "%.0f", t*1000}' 2>/dev/null || echo "0")
+
+        res_id+=("$sid")
+        res_tag+=("$tag")
+        res_proto+=("$proto")
+
+        if [[ "$http_code" == "200" && "$ext_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            res_status+=("OK")
+            res_ms+=("$dur_ms")
+            res_ip+=("$ext_ip")
+            working_count=$((working_count + 1))
+            [[ -z "$first_working_id" ]] && first_working_id="$sid"
+            [[ "$sid" == "$sel_idx" ]] && cur_working=1
+        else
+            res_status+=("FAIL")
+            res_ms+=("$dur_ms")
+            res_ip+=("")
+        fi
+    done < <(jq -c '.[]' "${SERVERS_FILE}")
+
+    echo -ne "\033[2K\r"
+    kill "$test_pid" 2>/dev/null || true
+    wait "$test_pid" 2>/dev/null || true
+    rm -f "$test_cfg"
+
+    echo -e "${C_BOLD}══════════════════════════════════════════════════════════════════════════════════════════════════════════════${C_RESET}"
+    printf "${C_BOLD} %-4s │ %-21s │ %-45s │ %s${C_RESET}\n" "ID" "ПРОТОКОЛ" "СЕРВЕР / ЛОКАЦИЯ" "ТРАФИК"
+    echo -e "${C_BOLD}──────────────────────────────────────────────────────────────────────────────────────────────────────────────${C_RESET}"
+
+    local i
+    for ((i=0; i<${#res_id[@]}; i++)); do
+        local sid="${res_id[$i]}"
+        local tag="${res_tag[$i]}"
+        local proto="${res_proto[$i]}"
+        local st="${res_status[$i]}"
+        local ms="${res_ms[$i]}"
+        local ip="${res_ip[$i]}"
+
+        local prefix="  "
+        [[ "$sid" == "$sel_idx" ]] && prefix="* "
+
+        local status_str
+        if [[ "$st" == "OK" ]]; then
+            status_str="${C_GREEN}● Работает${C_RESET} (${ms} ms) [${ip}]"
+        else
+            status_str="${C_RED}○ Не проходит${C_RESET}"
+        fi
+
+        printf " %-4s │ %-21s │ %-45s │ %b\n" \
+            "${prefix}${sid}" "$proto" "$tag" "$status_str"
+    done
+    echo -e "${C_BOLD}══════════════════════════════════════════════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_DIM}(*) — текущий выбранный сервер${C_RESET}\n"
+
+    if [[ $working_count -eq 0 ]]; then
+        log_err "Ни один сервер не пропустил трафик! Проверьте сеть или подписку."
+        return 2
+    fi
+
+    log_ok "Серверов с рабочим трафиком: ${C_BOLD}${working_count} из ${total}${C_RESET}."
+    if [[ $cur_working -eq 1 ]]; then
+        log_ok "Выбранный сервер #${sel_idx} подтвердил прохождение трафика."
+    else
+        log_warn "Выбранный сервер #${sel_idx} не пропускает трафик."
+        if [[ -n "$first_working_id" ]]; then
+            log_info "Автоматически переключаюсь на рабочий сервер #${first_working_id}..."
+            set_state_val "selected_index" "$first_working_id"
+            local new_json
+            new_json=$(jq -c --argjson id "$first_working_id" '.[] | select(.id == $id)' "${SERVERS_FILE}" 2>/dev/null || true)
+            if [[ -n "$new_json" ]]; then
+                generate_config "$new_json"
+            fi
+        fi
+    fi
+    return 0
+}
+
+# --- Command: on ---
+cmd_on() {
+    require_root
+    if [[ ! -f "${SERVERS_FILE}" ]]; then
+        log_err "Подписка не найдена. Сначала выполните: sudo lincy login <ссылка_на_подписку>"
+        exit 1
+    fi
+
+    echo -e "\n${C_BOLD}${C_CYAN}Запуск туннеля Lincy (${TUN_INTERFACE})${C_RESET}\n"
+
+    # 1. Физическая сеть должна работать ДО поднятия туннеля
+    log_info "Проверка сетевого адаптера..."
+    if ! check_network_adapter; then
+        log_err "Туннель не будет запущен: нет рабочего сетевого подключения."
+        exit 1
+    fi
+
+    # 2. Проверка прохождения трафика по всем серверам по очереди и протоколам
+    if ! check_all_servers_traffic; then
+        log_err "Туннель не запущен: серверы не пропускают трафик."
+        exit 1
+    fi
+
+    # 3. Поддержка TUN в ядре
+    ensure_tun_device || exit 1
+
+    # 4. Чистый старт
+    systemctl stop lincy.service 2>/dev/null || true
+    ip link del "${TUN_INTERFACE}" 2>/dev/null || true
+
+    # 4. Генерация и валидация конфига
+    local sel_idx s_json
+    sel_idx=$(get_state_val "selected_index" "1")
+    s_json=$(jq -c --argjson id "$sel_idx" '.[] | select(.id == $id)' "${SERVERS_FILE}" 2>/dev/null || true)
+    [[ -z "$s_json" ]] && s_json=$(jq -c '.[0]' "${SERVERS_FILE}")
+    if [[ -z "$s_json" || "$s_json" == "null" ]]; then
+        log_err "Не удалось получить данные выбранного сервера."
+        exit 1
+    fi
+    if ! generate_config "$s_json"; then
+        log_err "Конфигурация не создана. Туннель не запущен."
+        exit 1
+    fi
+    log_ok "Конфигурация проверена ядром sing-box."
+
+    # 5. Служба
+    ensure_systemd_service
+
+    log_info "Поднятие туннеля..."
+    systemctl start lincy.service || true
+
+    local rc=0
+    wait_tun_up 15 || rc=$?
+    if [[ $rc -eq 2 ]]; then
+        log_err "Служба упала сразу после запуска."
+        diagnose_tunnel
+        exit 1
+    elif [[ $rc -eq 1 ]]; then
+        log_warn "Интерфейс ${TUN_INTERFACE} не поднялся за 15 с. Пробую другой сетевой стек..."
+        local cur_stack
+        cur_stack=$(get_state_val "tun_stack" "gvisor")
+        if [[ "$cur_stack" == "gvisor" ]]; then
+            set_state_val "tun_stack" "system"
+        else
+            set_state_val "tun_stack" "gvisor"
+        fi
+        systemctl stop lincy.service 2>/dev/null || true
+        generate_config "$s_json" && systemctl start lincy.service || true
+        if ! wait_tun_up 15; then
+            log_err "Туннель ${TUN_INTERFACE} так и не поднялся."
+            diagnose_tunnel
+            exit 1
+        fi
+        log_ok "Туннель поднялся на стеке $(get_state_val "tun_stack" "gvisor")."
+    fi
+
+    log_ok "Интерфейс ${C_BOLD}${TUN_INTERFACE}${C_RESET} поднят, маршруты установлены."
+
+    # 6. Проверяем, что трафик реально идёт
+    log_info "Проверка прохождения трафика..."
+    local ext_ip
+    if ext_ip=$(verify_tunnel_traffic); then
+        log_ok "Трафик идёт через туннель. Внешний IP: ${C_BOLD}${ext_ip}${C_RESET}"
+        set_state_val "last_ip" "$ext_ip"
+    else
+        log_err "Туннель поднят, но трафик не проходит."
+        log_warn "Пробую перезапустить ядро один раз..."
+        systemctl restart lincy.service
+        sleep 4
+        if ext_ip=$(verify_tunnel_traffic); then
+            log_ok "После перезапуска трафик пошёл. Внешний IP: ${C_BOLD}${ext_ip}${C_RESET}"
+        else
+            diagnose_tunnel
+            log_warn "Чтобы вернуть интернет без VPN, выполните: ${C_CYAN}sudo lincy off${C_RESET}"
+            exit 1
+        fi
+    fi
+
+    cmd_status
+}
+# --- Command: off ---
+cmd_off() {
+    require_root
+    log_info "Выключение VPN туннеля Lincy (${TUN_INTERFACE})..."
+    systemctl stop lincy.service 2>/dev/null || true
+    sleep 1
+
+    # Подчищаем остатки, если ядро завершилось некорректно
+    ip link del "${TUN_INTERFACE}" 2>/dev/null || true
+    ip rule del table 2022 2>/dev/null || true
+    ip -6 rule del table 2022 2>/dev/null || true
+    resolvectl flush-caches 2>/dev/null || true
+
+    log_ok "VPN туннель выключен."
+
+    local ext_ip
+    ext_ip=$(curl -4 -s --max-time 5 https://api.ipify.org 2>/dev/null || echo "")
+    ext_ip=$(echo "$ext_ip" | tr -d '\r\n[:space:]')
+    if [[ "$ext_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_ok "Прямое соединение восстановлено. Внешний IP: ${ext_ip}"
+    else
+        log_warn "Прямое соединение не отвечает. Проверяю сетевой адаптер..."
+        check_network_adapter || true
+    fi
+}
+
+# --- Command: restart ---
+cmd_restart() {
+    require_root
+    log_info "Перезапуск VPN туннеля Lincy..."
+    check_network_adapter || log_warn "Проблемы с физической сетью — туннель может не подняться."
+    systemctl restart lincy.service
+    if wait_tun_up 15; then
+        log_ok "Туннель ${TUN_INTERFACE} перезапущен."
+        local ext_ip
+        if ext_ip=$(verify_tunnel_traffic); then
+            log_ok "Трафик проходит. Внешний IP: ${C_BOLD}${ext_ip}${C_RESET}"
+        else
+            log_err "Туннель поднят, но трафик не проходит."
+            diagnose_tunnel
+        fi
+    else
+        log_err "Туннель не поднялся после перезапуска."
+        diagnose_tunnel
+    fi
+    cmd_status
+}
+
+# --- Command: doctor (диагностика и авторемонт) ---
+cmd_doctor() {
+    require_root
+    echo -e "\n${C_BOLD}${C_CYAN}=== Диагностика Lincy ===${C_RESET}\n"
+
+    echo -e "${C_BOLD}1. Сетевой адаптер${C_RESET}"
+    if check_network_adapter; then
+        log_ok "Физическая сеть в порядке."
+    else
+        log_err "Физическая сеть неисправна — сначала нужно починить её."
+        return 1
+    fi
+
+    echo -e "\n${C_BOLD}2. Ядро sing-box${C_RESET}"
+    local bin ver
+    bin=$(singbox_bin_path)
+    ver=$(singbox_version)
+    if [[ -x "$bin" ]]; then
+        log_ok "Ядро: ${bin} (версия ${ver})"
+        singbox_is_legacy && log_warn "Версия устарела (<1.12). Обновите: sudo lincy install --force-core"
+    else
+        log_err "Ядро sing-box не найдено. Выполните: sudo lincy install"
+        return 1
+    fi
+
+    echo -e "\n${C_BOLD}3. Поддержка TUN${C_RESET}"
+    ensure_tun_device && log_ok "TUN доступен."
+
+    echo -e "\n${C_BOLD}4. Конфигурация${C_RESET}"
+    if [[ -f "${RUNTIME_CONFIG}" ]]; then
+        if "$bin" check -c "${RUNTIME_CONFIG}" &>/dev/null; then
+            log_ok "Конфиг валиден."
+        else
+            log_warn "Конфиг невалиден — перегенерирую..."
+            local sel_idx s_json
+            sel_idx=$(get_state_val "selected_index" "1")
+            s_json=$(jq -c --argjson id "$sel_idx" '.[] | select(.id == $id)' "${SERVERS_FILE}" 2>/dev/null || jq -c '.[0]' "${SERVERS_FILE}")
+            generate_config "$s_json" && log_ok "Конфиг пересоздан."
+        fi
+    else
+        log_warn "Конфиг отсутствует."
+    fi
+
+    echo -e "\n${C_BOLD}5. Туннель${C_RESET}"
+    diagnose_tunnel
+}
+
+# --- Command: status ---
+cmd_status() {
+    local is_active=0
+    if systemctl is-active --quiet lincy.service 2>/dev/null; then
+        is_active=1
+    fi
+
+    local sel_idx=$(get_state_val "selected_index" "1")
+    local hwid=$(get_state_val "hwid" "$(get_hwid)")
+    local s_tag="Не выбран"
+    local s_host="-"
+    local s_proto="-"
+
+    if [[ -f "${SERVERS_FILE}" ]]; then
+        local s_json=$(jq -c --argjson id "$sel_idx" '.[] | select(.id == $id)' "${SERVERS_FILE}" 2>/dev/null || true)
+        if [[ -n "$s_json" ]]; then
+            s_tag=$(echo "$s_json" | jq -r '.tag // "Unknown"')
+            s_host="$(echo "$s_json" | jq -r '.server'):$(echo "$s_json" | jq -r '.server_port')"
+            s_proto="$(echo "$s_json" | jq -r '.type | ascii_upcase') / $(echo "$s_json" | jq -r '.network')"
+        fi
+    fi
+
+    local distro=$(get_distro_name)
+    local device=$(get_device_model)
+
+    echo -e "\n${C_BOLD}${C_CYAN}=== Состояние Lincy VPN Client ===${C_RESET}\n"
+    if [[ $is_active -eq 1 ]]; then
+        echo -e "Статус службы:        ${C_GREEN}${C_BOLD}● РАБОТАЕТ (Active)${C_RESET}"
+    else
+        echo -e "Статус службы:        ${C_RED}${C_BOLD}○ ВЫКЛЮЧЕН (Inactive)${C_RESET}"
+    fi
+
+    # Состояние физического адаптера
+    local up_iface
+    up_iface=$(detect_uplink_iface || true)
+    if [[ -n "$up_iface" ]]; then
+        local ipaddr
+        ipaddr=$(ip -4 -o addr show dev "$up_iface" scope global 2>/dev/null | awk '{print $4}' | head -n1)
+        echo -e "Сетевой адаптер:      ${C_GREEN}${up_iface} UP${C_RESET} ${C_DIM}${ipaddr}${C_RESET}"
+    else
+        echo -e "Сетевой адаптер:      ${C_RED}${C_BOLD}DOWN — физической сети нет${C_RESET}"
+        echo -e "                      ${C_DIM}Запустите: sudo lincy doctor${C_RESET}"
+    fi
+
+    # Состояние туннеля
+    if ip link show "${TUN_INTERFACE}" &>/dev/null; then
+        if ip route show table all 2>/dev/null | grep -q "${TUN_INTERFACE}"; then
+            echo -e "Интерфейс туннеля:    ${C_GREEN}${TUN_INTERFACE} UP (маршруты активны)${C_RESET}"
+        else
+            echo -e "Интерфейс туннеля:    ${C_YELLOW}${TUN_INTERFACE} есть, но маршруты не установлены${C_RESET}"
+        fi
+    else
+        echo -e "Интерфейс туннеля:    ${C_RED}${TUN_INTERFACE} отсутствует${C_RESET}"
+    fi
+
+    echo -e "Дистрибутив ОС:       ${distro}"
+    echo -e "Устройство / Хост:    ${device}"
+    echo -e "Активный сервер:      ${C_BOLD}#${sel_idx} - ${s_tag}${C_RESET}"
+    echo -e "Узел назначения:      ${s_host}"
+    echo -e "Протокол соединения:  ${s_proto}"
+    echo -e "Аппаратный HWID:      ${hwid}"
+
+    if [[ $is_active -eq 1 ]]; then
+        echo -e "\n${C_BOLD}Проверка соединения:${C_RESET}"
+        local ext_ip
+        ext_ip=$(curl -4 -s --connect-timeout 3 --max-time 5 https://api.ipify.org 2>/dev/null || echo "")
+        ext_ip=$(echo "$ext_ip" | tr -d '\r\n[:space:]')
+        if [[ "$ext_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo -e "  Внешний IP адрес:     ${C_GREEN}${C_BOLD}${ext_ip}${C_RESET}"
+            echo -e "  Прохождение трафика:  ${C_GREEN}${C_BOLD}● Работает${C_RESET}"
+        else
+            echo -e "  Внешний IP адрес:     ${C_RED}не определён${C_RESET}"
+            echo -e "  Прохождение трафика:  ${C_RED}${C_BOLD}○ Трафик не идёт${C_RESET}"
+            echo -e "  ${C_DIM}Диагностика: sudo lincy doctor | Выключить VPN: sudo lincy off${C_RESET}"
+        fi
+    fi
+    echo ""
+}
+
+# --- Helper: Check specific endpoint availability and latency ---
+check_endpoint() {
+    local name="$1"
+    local url="$2"
+    local out code time_sec ms
+    out=$(curl -4 -o /dev/null -s -w "%{http_code} %{time_total}" --max-time 6 "$url" 2>/dev/null || echo "000 0")
+    code=$(echo "$out" | awk '{print $1}')
+    time_sec=$(echo "$out" | awk '{print $2}')
+    ms=$(awk "BEGIN {printf \"%.0f\", $time_sec * 1000}" 2>/dev/null || echo "0")
+
+    if [[ "$code" =~ ^(200|204|301|302|307|308|403|404|405)$ ]] && [[ "$ms" -gt 0 ]]; then
+        printf "  %-22s ${C_GREEN}● Доступен${C_RESET} (${ms} ms)\n" "$name:"
+    else
+        printf "  %-22s ${C_RED}○ Недоступен${C_RESET}\n" "$name:"
+    fi
+}
+
+# --- Command: test ---
+cmd_test() {
+    echo -e "\n${C_BOLD}${C_CYAN}Тестирование соединения Lincy VPN...${C_RESET}\n"
+    local ext_ip
+    ext_ip=$(curl -4 -s --connect-timeout 3 --max-time 5 https://api.ipify.org 2>/dev/null || echo "")
+    ext_ip=$(echo "$ext_ip" | tr -d '\r\n[:space:]')
+    if [[ "$ext_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo -e "  Внешний IP адрес:     ${C_GREEN}${C_BOLD}${ext_ip}${C_RESET}"
+    else
+        echo -e "  Внешний IP адрес:     ${C_RED}Туннель не активен или нет сети${C_RESET}"
+    fi
+
+    if [[ -f "${SERVERS_FILE}" ]]; then
+        check_all_servers_traffic || true
+    fi
+
+    if systemctl is-active --quiet lincy.service 2>/dev/null; then
+        echo -e "\n${C_BOLD}Проверка доступности ключевых сервисов:${C_RESET}"
+        check_endpoint "YouTube" "https://www.youtube.com"
+        check_endpoint "ChatGPT / OpenAI" "https://chatgpt.com"
+        check_endpoint "Google" "https://www.google.com"
+        check_endpoint "GitHub" "https://github.com"
+        check_endpoint "Instagram" "https://www.instagram.com"
+        check_endpoint "Прямой доступ (RU)" "https://ya.ru"
+        echo ""
+    fi
+}
+
+# --- Command: log ---
+cmd_log() {
+    journalctl -u lincy.service -f -n 30 --no-pager
+}
+
+# --- Command: uninstall ---
+cmd_uninstall() {
+    require_root
+    echo -e "\n${C_YELLOW}Удаление Lincy VPN Client...${C_RESET}"
+    systemctl stop lincy.service 2>/dev/null || true
+    systemctl disable lincy.service 2>/dev/null || true
+
+    rm -f "${SERVICE_FILE}" "${BIN_TARGET}" "${ALT_BIN_TARGET}"
+    rm -rf "${CONFIG_DIR}"
+    systemctl daemon-reload 2>/dev/null || true
+
+    log_ok "Lincy успешно и полностью удален из системы."
+}
+
+# --- Help ---
+print_help() {
+    echo -e "
+${C_BOLD}${C_CYAN}Lincy CLI VPN Client v${VERSION} (Native Arch Linux & Linux)${C_RESET}
+
+${C_BOLD}Использование:${C_RESET}
+  sudo lincy <команда> [параметры]
+
+${C_BOLD}Основные команды:${C_RESET}
+  ${C_GREEN}sudo lincy install${C_RESET}            Установить sing-box, службу и добавить lincy в PATH
+  ${C_GREEN}sudo lincy install --force-core${C_RESET} Переустановить/обновить ядро sing-box
+  ${C_GREEN}sudo lincy login <suburl>${C_RESET}     Добавить подписку (RAW, JSON, Base64), отправить HWID и загрузить серверы
+  ${C_GREEN}sudo lincy servers${C_RESET}            Отобразить список серверов и обновить подписку
+  ${C_GREEN}sudo lincy use <ID>${C_RESET}           Выбрать активный сервер по номеру (например: sudo lincy use 1)
+  ${C_GREEN}sudo lincy on${C_RESET}                 Включить VPN туннель (${TUN_INTERFACE})
+  ${C_GREEN}sudo lincy off${C_RESET}                Выключить VPN туннель
+  ${C_GREEN}sudo lincy status${C_RESET}             Показать статус туннеля, внешний IP и проверку сервисов
+  ${C_GREEN}sudo lincy test${C_RESET}               Тест доступности YouTube, ChatGPT, Google, Direct RU
+  ${C_GREEN}sudo lincy restart${C_RESET}            Перезапустить VPN туннель
+  ${C_GREEN}sudo lincy doctor${C_RESET}             Диагностика адаптера, ядра, конфига и туннеля + авторемонт
+  ${C_GREEN}sudo lincy log${C_RESET}                Просмотр логов ядра в реальном времени
+  ${C_GREEN}sudo lincy uninstall${C_RESET}          Полное удаление Lincy из системы
+"
+}
+
+# --- Main Entry Point ---
+main() {
+    local cmd="${1:-}"
+    case "${cmd,,}" in
+        install)
+            cmd_install "${2:-}"
+            ;;
+        login)
+            cmd_login "${2:-}"
+            ;;
+        use|select)
+            cmd_use "${2:-1}"
+            ;;
+        servers|list|ls)
+            cmd_servers
+            ;;
+        on|start|up|connect)
+            cmd_on
+            ;;
+        off|stop|down|disconnect)
+            cmd_off
+            ;;
+        restart)
+            cmd_restart
+            ;;
+        status)
+            cmd_status
+            ;;
+        test|check|ping)
+            cmd_test
+            ;;
+        log|logs)
+            cmd_log
+            ;;
+        doctor|fix|diag)
+            cmd_doctor
+            ;;
+        uninstall)
+            cmd_uninstall
+            ;;
+        -h|--help|help|"")
+            print_help
+            ;;
+        *)
+            log_err "Неизвестная команда '${cmd}'."
+            print_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
