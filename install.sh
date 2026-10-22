@@ -159,7 +159,13 @@ FILE_DEPS=(
     "/usr/lib/qt6/qml/QtQuick/Effects/qmldir|qt6-declarative|rounded image masks"
     "/usr/lib/qt6/qml/QtQuick/Shapes/qmldir|qt6-declarative|island notch corners"
 )
-EXTRA_PKGS=(power-profiles-daemon bluez bluez-utils iwd cava pipewire-audio
+EXTRA_PKGS=(
+            # Питание: TLP экономит батарею заметно лучше power-profiles-daemon
+            # (порог заряда, ASPM, runtime PM, Wi-Fi, звук), а tlp-pd отдаёт
+            # тот же D-Bus API net.hadess.PowerProfiles — переключатель
+            # профилей в быстрых настройках работает без изменений.
+            tlp tlp-pd
+            bluez bluez-utils iwd cava pipewire-audio
             ttf-jetbrains-mono-nerd papirus-icon-theme
             # Эмодзи и всё остальное, чего нет в Nerd Font. Без них система
             # рисует пустые прямоугольники везде, где такие символы
@@ -498,6 +504,14 @@ install_deps_arch() {
     for p in "${uniq[@]}"; do
         if pacman -Si "$p" >/dev/null 2>&1; then repo+=("$p"); else aur+=("$p"); fi
     done
+    # tlp-pd конфликтует с power-profiles-daemon: pacman спросит про замену,
+    # а ответ по умолчанию «нет» сорвёт всю установку. Убираем его заранее.
+    if printf '%s\n' "${repo[@]}" | grep -qx tlp-pd \
+        && pacman -Q power-profiles-daemon >/dev/null 2>&1; then
+        $SUDO systemctl disable --now power-profiles-daemon.service >/dev/null 2>&1 || true
+        $SUDO pacman -Rdd --noconfirm power-profiles-daemon >/dev/null 2>&1 \
+            && ok "power-profiles-daemon replaced by TLP"
+    fi
     if [ ${#repo[@]} -gt 0 ]; then
         printf '  installing from the repos: %s\n' "${repo[*]}"
         $SUDO pacman -S --needed "${repo[@]}" || return 1
@@ -984,7 +998,14 @@ enable_services() {
     command -v systemctl >/dev/null 2>&1 || return 0
     # Bluetooth and power profiles are what the pill talks to; iwd backs Wi-Fi,
     # upower feeds the charge indicator in the pill and the battery page.
-    for svc in bluetooth power-profiles-daemon iwd upower; do
+    # Power profiles come from tlp-pd on Arch, power-profiles-daemon elsewhere.
+    local power_svcs=(power-profiles-daemon)
+    if command -v tlp-pd >/dev/null 2>&1; then
+        power_svcs=(tlp tlp-pd)
+        # TLP сам управляет радиомодулями, systemd-rfkill ему мешает
+        $SUDO systemctl mask systemd-rfkill.service systemd-rfkill.socket >/dev/null 2>&1 || true
+    fi
+    for svc in bluetooth "${power_svcs[@]}" iwd upower; do
         if systemctl list-unit-files "$svc.service" >/dev/null 2>&1; then
             $SUDO systemctl enable --now "$svc.service" >/dev/null 2>&1 \
                 && ok "$svc enabled" || warn "could not enable $svc"
