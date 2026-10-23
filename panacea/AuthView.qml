@@ -17,6 +17,18 @@ Item {
 
     Keys.onEscapePressed: view.cancel()
 
+    // После неверного пароля polkit спрашивает снова, но на время проверки
+    // поле выключено и теряет фокус — повторный ввод уходил в пустоту, и
+    // казалось, что попытка всего одна. Возвращаем фокус на каждый запрос.
+    Connections {
+        target: view.flow
+        ignoreUnknownSignals: true
+        function onIsResponseRequiredChanged() {
+            if (view.flow && view.flow.isResponseRequired) refocus.restart();
+        }
+    }
+    Timer { id: refocus; interval: 30; onTriggered: { pw.forceActiveFocus(); pw.selectAll(); } }
+
     function submit() {
         if (!view.flow) return;
         view.flow.submit(pw.text);
