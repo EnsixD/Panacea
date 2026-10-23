@@ -517,13 +517,27 @@ FocusScope {
     property bool pageAnimOn: true
     Behavior on pagePos {
         enabled: !view.tracking && view.pageAnimOn && !view.sys.noMotion
-        NumberAnimation { duration: 420; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: 460; easing.type: Easing.OutQuart }
+    }
+    // То, что видно на экране, мягко догоняет pagePos каждый кадр. События
+    // тачпада приходят неровными порциями, и лента, привязанная к ним
+    // напрямую, шла рывками; с догонялкой движение ровное, а задержка —
+    // пара кадров, на глаз незаметная.
+    property real shownPos: 0
+    FrameAnimation {
+        running: Math.abs(view.shownPos - view.pagePos) > 0.0004
+        onTriggered: {
+            var k = 1 - Math.exp(-frameTime * 26);
+            var d = view.pagePos - view.shownPos;
+            view.shownPos = Math.abs(d) < 0.0004 ? view.pagePos : view.shownPos + d * k;
+        }
     }
     function goPage(p, instant) {
         p = Math.max(0, Math.min(view.pageCount - 1, Math.round(p)));
         view.pageAnimOn = !instant;
         pages.currentIndex = p;
         view.pagePos = p;
+        if (instant) view.shownPos = p;
         view.pageAnimOn = true;
     }
     // сдвиг ленты на d страниц: за краем — с сопротивлением, как резинка
@@ -853,7 +867,8 @@ FocusScope {
         }
     }
     // конец жеста без явного ScrollEnd: пальцы замерли
-    Timer { id: settleTimer; interval: 110; onTriggered: view.settle() }
+    // (обычно приходит ScrollEnd, и таймер не нужен; это запасной путь)
+    Timer { id: settleTimer; interval: 70; onTriggered: view.settle() }
 
     // ----------------------------------------------------------- содержимое
     Item {
@@ -970,7 +985,7 @@ FocusScope {
 
             Item {
                 id: strip
-                x: -view.pagePos * pages.width
+                x: -view.shownPos * pages.width
                 width: pages.width * view.pageCount
                 height: pages.height
 
@@ -983,9 +998,9 @@ FocusScope {
                         width: pages.width
                         height: pages.height
                         // рисуем только видимые и соседние страницы
-                        visible: Math.abs(page.index - view.pagePos) < 1.5
+                        visible: Math.abs(page.index - view.shownPos) < 1.5
                         // уходящая страница чуть гаснет — глубина без лишнего шума
-                        opacity: 1 - Math.min(1, Math.abs(page.index - view.pagePos)) * 0.45
+                        opacity: 1 - Math.min(1, Math.abs(page.index - view.shownPos)) * 0.45
                         readonly property var items: { view.shown; return view.pageSlice(page.index); }
 
                         Repeater {
@@ -1034,7 +1049,7 @@ FocusScope {
                 delegate: Rectangle {
                     required property int index
                     // текущая точка вытягивается в пилюлю и плавно едет за жестом
-                    readonly property real near: Math.max(0, 1 - Math.abs(index - view.pagePos))
+                    readonly property real near: Math.max(0, 1 - Math.abs(index - view.shownPos))
                     width: 8 + 14 * near; height: 8; radius: 4
                     color: Qt.rgba(1, 1, 1, 0.35 + 0.6 * near)
                     MouseArea {
