@@ -255,7 +255,7 @@ FocusScope {
 
     onQueryChanged: {
         view.sel = view.searching ? 0 : -1;
-        pages.currentIndex = 0;
+        view.goPage(0, true);
     }
 
     // ------------------------------------------------------- правка раскладки
@@ -484,7 +484,7 @@ FocusScope {
         }
         if (dy !== 0) row = Math.max(0, Math.min(view.rows - 1, row + dy));
         view.sel = Math.max(0, Math.min(total - 1, p * view.perPage + row * view.cols + col));
-        pages.currentIndex = Math.floor(view.sel / view.perPage);
+        view.goPage(Math.floor(view.sel / view.perPage));
     }
 
     function enter() {
@@ -504,7 +504,60 @@ FocusScope {
     }
 
     function flip(d) {
-        pages.currentIndex = Math.max(0, Math.min(view.pageCount - 1, pages.currentIndex + d));
+        view.goPage(pages.currentIndex + d);
+    }
+
+    // ------------------------------------------------------------ пейджер
+    // Своя лента вместо ListView. У того прокрутка тачпадом боролась с
+    // «прилипанием» к странице: чтобы перелистнуть, приходилось очень сильно
+    // свайпать. Теперь страница едет за пальцами, а по отпусканию доводится
+    // до ближайшей — с учётом скорости, так что хватает короткого жеста.
+    property real pagePos: 0            // дробная: 1.3 — между 2-й и 3-й
+    property bool tracking: false       // пальцы на тачпаде / мышь тянет
+    property bool pageAnimOn: true
+    Behavior on pagePos {
+        enabled: !view.tracking && view.pageAnimOn && !view.sys.noMotion
+        NumberAnimation { duration: 420; easing.type: Easing.OutCubic }
+    }
+    function goPage(p, instant) {
+        p = Math.max(0, Math.min(view.pageCount - 1, Math.round(p)));
+        view.pageAnimOn = !instant;
+        pages.currentIndex = p;
+        view.pagePos = p;
+        view.pageAnimOn = true;
+    }
+    // сдвиг ленты на d страниц: за краем — с сопротивлением, как резинка
+    function dragBy(d) {
+        var max = view.pageCount - 1;
+        var np = view.pagePos + d;
+        if (np < 0 || np > max) np = view.pagePos + d * 0.3;
+        view.pagePos = Math.max(-0.35, Math.min(max + 0.35, np));
+    }
+    property real trackStart: 0
+    property real trackVel: 0           // страниц в секунду
+    property double trackT: 0
+    function beginTrack() {
+        if (view.tracking) return;
+        view.tracking = true;
+        view.trackStart = Math.round(view.pagePos);
+        view.trackVel = 0;
+        view.trackT = Date.now();
+    }
+    function trackMove(d) {
+        var now = Date.now(), dt = Math.max(1, now - view.trackT) / 1000;
+        view.trackVel = view.trackVel * 0.5 + (d / dt) * 0.5;
+        view.trackT = now;
+        view.dragBy(d);
+    }
+    function settle() {
+        if (!view.tracking) return;
+        view.tracking = false;
+        var moved = view.pagePos - view.trackStart;
+        var target = view.trackStart;
+        // хватает короткого быстрого рывка или сдвига на восьмую часть экрана
+        if (Math.abs(view.trackVel) > 0.9) target += view.trackVel > 0 ? 1 : -1;
+        else if (Math.abs(moved) > 0.12) target += moved > 0 ? 1 : -1;
+        view.goPage(target);
     }
 
     // ------------------------------------------------------ перетаскивание
@@ -663,7 +716,17 @@ FocusScope {
         revealTimer.restart();
         search.forceActiveFocus();
     }
-    Timer { id: revealTimer; interval: 40; onTriggered: view.revealed = true }
+    Timer { id: revealTimer; interval: 40; onTriggered: { view.revealed = true; introAnim.restart(); } }
+
+    // Появление: плитки проявляются волной от левого верхнего угла. Одна
+    // анимация на всех — каждая плитка считает свою задержку сама.
+    property real introT: 1
+    NumberAnimation {
+        id: introAnim
+        target: view; property: "introT"
+        from: 0; to: 1
+        duration: view.sys.noMotion ? 0 : 560
+    }
 
     // ------------------------------------------------------- иконки
     // Поиск иконки в теме с проверкой (iconPath(..., true)) синхронный и
@@ -765,18 +828,32 @@ FocusScope {
         property real acc: 0
         property double last: 0
         function feed(w) {
-            if (view.folder) return;
-            var d = Math.abs(w.angleDelta.x) > Math.abs(w.angleDelta.y) ? -w.angleDelta.x : -w.angleDelta.y;
+            if (view.folder || view.dragging) return;
+            var px = w.pixelDelta, ad = w.angleDelta;
+            var horiz = Math.abs(ad.x) + Math.abs(px.x) > Math.abs(ad.y) + Math.abs(px.y);
+            if (px.x !== 0 || px.y !== 0) {
+                // Тачпад: страница идёт за пальцами. Инерцию после отрыва
+                // пальцев не берём — доводку делает settle().
+                if (w.phase === Qt.ScrollMomentum) return;
+                var d = -(horiz ? px.x : px.y) / Math.max(1, pages.width) * 1.6;
+                view.beginTrack();
+                view.trackMove(d);
+                settleTimer.restart();
+                if (w.phase === Qt.ScrollEnd) { settleTimer.stop(); view.settle(); }
+                return;
+            }
+            // колесо мыши: щелчок — страница
             var now = Date.now();
-            if (now - last < 380) { acc = 0; return; }   // не листать пачкой от инерции тачпада
-            acc += d;
-            if (Math.abs(acc) >= 90) {
+            acc += -(horiz ? ad.x : ad.y);
+            if (Math.abs(acc) >= 60 && now - last > 200) {
                 view.flip(acc > 0 ? 1 : -1);
                 acc = 0;
                 last = now;
             }
         }
     }
+    // конец жеста без явного ScrollEnd: пальцы замерли
+    Timer { id: settleTimer; interval: 110; onTriggered: view.settle() }
 
     // ----------------------------------------------------------- содержимое
     Item {
@@ -855,7 +932,7 @@ FocusScope {
         }
 
         // страницы
-        ListView {
+        Item {
             id: pages
             anchors.top: searchBox.bottom
             anchors.topMargin: 28
@@ -863,50 +940,67 @@ FocusScope {
             anchors.bottomMargin: 18
             anchors.left: parent.left
             anchors.right: parent.right
-            orientation: ListView.Horizontal
-            snapMode: ListView.SnapOneItem
-            highlightRangeMode: ListView.StrictlyEnforceRange
-            // Без диапазона Qt молча игнорирует StrictlyEnforceRange: номер
-            // страницы менялся (и точка внизу вместе с ним), а лента стояла
-            // на месте. Диапазон в одну страницу — currentIndex двигает её.
-            preferredHighlightBegin: 0
-            preferredHighlightEnd: width
-            highlightMoveDuration: view.sys.noMotion ? 0 : 320
-            boundsBehavior: Flickable.StopAtBounds
-            // все страницы держим живыми: иначе плитка, которую тащат,
-            // исчезала вместе со своей страницей при перелистывании
-            cacheBuffer: width * Math.max(1, view.pageCount)
-            interactive: !view.dragging && !view.folder
-            model: view.pageCount
-            clip: false
+            property int currentIndex: 0
 
             // колесо и тачпад листают по странице, а не прокручивают ленту
             WheelHandler {
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                 onWheel: (ev) => wheelPager.feed(ev)
             }
 
-            delegate: Item {
-                id: page
-                required property int index
-                width: pages.width
+            // Мышью страницы тоже тянутся — за пустое место между плитками.
+            // Клик без движения по-прежнему закрывает слой.
+            MouseArea {
+                anchors.fill: parent
+                z: -1
+                enabled: !view.folder && !view.dragging
+                property real px: 0
+                property bool moved: false
+                onPressed: (m) => { px = m.x; moved = false; }
+                onPositionChanged: (m) => {
+                    var dx = m.x - px;
+                    if (!moved && Math.abs(dx) < 8) return;
+                    if (!moved) { moved = true; view.beginTrack(); }
+                    view.trackMove(-dx / Math.max(1, pages.width));
+                    px = m.x;
+                }
+                onReleased: if (moved) view.settle()
+                onClicked: if (!moved) view.sys.closeLaunchpad()
+            }
+
+            Item {
+                id: strip
+                x: -view.pagePos * pages.width
+                width: pages.width * view.pageCount
                 height: pages.height
-                // Страницы живут все (см. cacheBuffer), но рисуем только
-                // текущую и соседние: иначе каждое открытие отрисовывало
-                // все сотни плиток разом.
-                visible: Math.abs(page.index - pages.currentIndex) <= 1
-                readonly property var items: { view.shown; return view.pageSlice(page.index); }
 
                 Repeater {
-                    model: page.items
-                    delegate: Tile {
-                        v: view
-                        required property var modelData
+                    model: view.pageCount
+                    delegate: Item {
+                        id: page
                         required property int index
-                        entry: modelData
-                        globalIndex: page.index * view.perPage + index
-                        x: (pages.width - view.cols * view.cellW) / 2 + (index % view.cols) * view.cellW
-                        y: (pages.height - view.rows * view.cellH) / 2 + Math.floor(index / view.cols) * view.cellH
-                        selected: view.sel === globalIndex && !view.folder
+                        x: page.index * pages.width
+                        width: pages.width
+                        height: pages.height
+                        // рисуем только видимые и соседние страницы
+                        visible: Math.abs(page.index - view.pagePos) < 1.5
+                        // уходящая страница чуть гаснет — глубина без лишнего шума
+                        opacity: 1 - Math.min(1, Math.abs(page.index - view.pagePos)) * 0.45
+                        readonly property var items: { view.shown; return view.pageSlice(page.index); }
+
+                        Repeater {
+                            model: page.items
+                            delegate: Tile {
+                                v: view
+                                required property var modelData
+                                required property int index
+                                entry: modelData
+                                globalIndex: page.index * view.perPage + index
+                                x: (pages.width - view.cols * view.cellW) / 2 + (index % view.cols) * view.cellW
+                                y: (pages.height - view.rows * view.cellH) / 2 + Math.floor(index / view.cols) * view.cellH
+                                selected: view.sel === globalIndex && !view.folder
+                            }
+                        }
                     }
                 }
             }
@@ -939,14 +1033,15 @@ FocusScope {
                 model: view.pageCount
                 delegate: Rectangle {
                     required property int index
-                    width: 8; height: 8; radius: 4
-                    color: Qt.rgba(1, 1, 1, index === pages.currentIndex ? 0.95 : 0.35)
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    // текущая точка вытягивается в пилюлю и плавно едет за жестом
+                    readonly property real near: Math.max(0, 1 - Math.abs(index - view.pagePos))
+                    width: 8 + 14 * near; height: 8; radius: 4
+                    color: Qt.rgba(1, 1, 1, 0.35 + 0.6 * near)
                     MouseArea {
                         anchors.fill: parent
                         anchors.margins: -6
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: pages.currentIndex = parent.index
+                        onClicked: view.goPage(parent.index)
                     }
                 }
             }
@@ -1116,7 +1211,17 @@ FocusScope {
 
         width: tile.v.cellW
         height: tile.v.cellH
-        opacity: isDragged ? 0.25 : 1
+        // своя доля общей анимации появления: чем дальше от угла, тем позже
+        readonly property real intro: {
+            if (tile.inFolder.length || tile.globalIndex < 0) return 1;
+            var i = tile.globalIndex % tile.v.perPage;
+            var r = Math.floor(i / tile.v.cols), c = i % tile.v.cols;
+            var delay = (r + c) / Math.max(1, tile.v.rows + tile.v.cols - 2) * 0.45;
+            var t = Math.max(0, Math.min(1, (tile.v.introT - delay) / 0.55));
+            return 1 - Math.pow(1 - t, 3);
+        }
+        opacity: (isDragged ? 0.25 : 1) * intro
+        scale: 0.82 + 0.18 * intro
 
         Rectangle {
             id: plate
