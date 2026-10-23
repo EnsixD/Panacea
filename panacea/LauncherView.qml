@@ -148,6 +148,14 @@ FocusScope {
     // Отбор и сортировка: сперва совпадения с начала имени, потом остальные.
     readonly property var results: {
         var q = query.trim().toLowerCase();
+        // «?вопрос» — вопрос ИИ, а не поиск приложений
+        if (view.isAsk) return [{
+            builtin: "ai", id: "panacea:ai",
+            glyph: String.fromCodePoint(0xF1719),
+            name: view.sys.tr("Спросить ИИ: ") + view.askText,
+            genericName: view.sys.tr("Ответ появится здесь же"),
+            keys: ""
+        }];
         var all = DesktopEntries.applications ? DesktopEntries.applications.values : [];
         var starts = [], contains = [];
         // Свои строки держим отдельным списком, а не в starts: тот в конце
@@ -189,7 +197,71 @@ FocusScope {
             return starts;
         }
         starts.sort(byName); contains.sort(byName);
-        return pinned.concat(starts, contains);
+        var out = pinned.concat(starts, contains);
+        // Веб-поиск — последней строкой, а если ничего не нашлось, то
+        // единственной: Enter сразу уходит в браузер.
+        out.push({
+            builtin: "web", id: "panacea:web",
+            glyph: String.fromCodePoint(0xF059F),          // md-web
+            name: view.sys.tr("Искать в интернете: ") + query.trim(),
+            genericName: view.engineName(),
+            keys: ""
+        });
+        return out;
+    }
+
+    // ------------------------------------------------------ веб и ИИ
+    readonly property bool isAsk: query.trim().indexOf("?") === 0 && query.trim().length > 1
+    readonly property string askText: query.trim().substring(1).trim()
+    property string aiAnswer: ""
+    property bool   aiBusy: false
+    onIsAskChanged: if (!isAsk) { aiAnswer = ""; }
+
+    readonly property var engines: ({
+        duckduckgo: { n: "DuckDuckGo", u: "https://duckduckgo.com/?q=" },
+        google:     { n: "Google",     u: "https://www.google.com/search?q=" },
+        bing:       { n: "Bing",       u: "https://www.bing.com/search?q=" },
+        brave:      { n: "Brave",      u: "https://search.brave.com/search?q=" },
+        yandex:     { n: "Yandex",     u: "https://yandex.ru/search/?text=" }
+    })
+    function engine() { return view.engines[view.sys.cfg.searchEngine] || view.engines.duckduckgo; }
+    function engineName() { return view.engine().n; }
+    function webSearch() {
+        var q = query.trim();
+        if (!q.length) return;
+        // ссылку открываем как есть, остальное — поиском
+        var url = /^(https?:\/\/|www\.)\S+$/.test(q) ? (q.indexOf("http") === 0 ? q : "https://" + q)
+                : view.engine().u + encodeURIComponent(q);
+        sys.openFileWith(url, "");
+        sys.closeLauncher();
+    }
+    function ask() {
+        if (view.aiBusy || !view.askText.length) return;
+        if (view.aiAnswer.length) {          // второй Enter — копировать ответ
+            pCopyCalc.command = ["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", view.aiAnswer];
+            pCopyCalc.running = true;
+            sys.closeLauncher();
+            return;
+        }
+        view.aiBusy = true;
+        pAi.command = ["sh", view.sys.scriptDir + "/ai.sh", view.askText];
+        pAi.running = true;
+    }
+    Process {
+        id: pAi
+        stdout: StdioCollector {
+            onStreamFinished: {
+                view.aiBusy = false;
+                var t = String(text).trim();
+                if (t.indexOf("ERROR no-key") === 0)
+                    t = view.sys.tr("Нет ключа API — добавьте его в Настройки → Лаунчер");
+                else if (t.indexOf("ERROR refusal") === 0)
+                    t = view.sys.tr("ИИ отказался отвечать на этот вопрос");
+                else if (t.indexOf("ERROR") === 0)
+                    t = view.sys.tr("Ошибка: ") + t.substring(6);
+                view.aiAnswer = t.length ? t : view.sys.tr("Пустой ответ");
+            }
+        }
     }
 
     // ------------------------------------------------------------ калькулятор
@@ -241,6 +313,8 @@ FocusScope {
         // висела бы первой строкой в пустом лаунчере до конца времён. Причём
         // первой строкой, которую легче всего задеть случайным Enter.
         if (app.builtin === "bootos") { bootInto(app); return; }
+        if (app.builtin === "web") { webSearch(); return; }
+        if (app.builtin === "ai") { ask(); return; }
         rememberApp(app);
         app.execute();
         sys.closeLauncher();
@@ -351,6 +425,32 @@ FocusScope {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: view.copyResult()
+            }
+        }
+
+        // ответ ИИ
+        Rectangle {
+            Layout.fillWidth: true
+            visible: view.isAsk && (view.aiBusy || view.aiAnswer.length > 0)
+            Layout.preferredHeight: Math.min(aiText.implicitHeight + 28, 360)
+            radius: 12
+            color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.10)
+            border.color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.35)
+            border.width: 1
+            Flickable {
+                anchors.fill: parent
+                anchors.margins: 14
+                contentHeight: aiText.implicitHeight
+                clip: true
+                Text {
+                    id: aiText
+                    width: parent.width
+                    text: view.aiBusy ? view.sys.tr("Думаю…") : view.aiAnswer
+                    color: view.aiBusy ? view.sys.colMuted : view.sys.colFg
+                    wrapMode: Text.Wrap
+                    textFormat: Text.PlainText
+                    font { family: view.sys.fontFam; pixelSize: 13 }
+                }
             }
         }
 
@@ -481,7 +581,7 @@ FocusScope {
 
         Text {
             Layout.fillWidth: true
-            visible: view.results.length === 0 && view.mathResult.length === 0
+            visible: false
             text: view.sys.tr("Ничего не найдено")
             color: view.sys.colMuted
             horizontalAlignment: Text.AlignHCenter

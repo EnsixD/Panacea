@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 
 // Launcher. Сам поиск приложений плюс то, что живёт рядом с ним отдельными
 // страницами: буфер обмена, менеджер паролей, обзор столов.
@@ -77,6 +78,69 @@ ColumnLayout {
             label: page.sys.tr("Обои")
             on: page.sys.cfg.featThemes
             onToggled: v => { page.sys.cfg.featThemes = v; page.sys.saveCfg(); }
+        }
+    }
+
+    // ------------------------------------------------ веб-поиск и ИИ
+    SetCard {
+        sys: page.sys
+
+        SetLabel { sys: page.sys; text: page.sys.tr("Поиск в интернете и ИИ") }
+        Text {
+            Layout.fillWidth: true
+            text: page.sys.tr("Любой запрос можно отправить в поисковик последней строкой списка. Запрос, начатый с «?», уходит ИИ, и короткий ответ появляется прямо в лаунчере.")
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
+        }
+        SetPick {
+            sys: page.sys
+            label: page.sys.tr("Поисковик")
+            options: [
+                { id: "duckduckgo", text: "DuckDuckGo" },
+                { id: "google", text: "Google" },
+                { id: "bing", text: "Bing" },
+                { id: "brave", text: "Brave" },
+                { id: "yandex", text: "Yandex" }
+            ]
+            value: page.sys.cfg.searchEngine
+            onPicked: id => { page.sys.cfg.searchEngine = id; page.sys.saveCfg(); }
+        }
+
+        component Field: TextField {
+            Layout.fillWidth: true
+            color: page.sys.colFg
+            placeholderTextColor: page.sys.colMuted
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+            leftPadding: 12; rightPadding: 12; topPadding: 9; bottomPadding: 9
+            selectByMouse: true
+            background: Rectangle {
+                radius: 10
+                color: Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+                border.color: parent.activeFocus ? page.sys.colOn : page.sys.colLine
+            }
+        }
+        Text {
+            text: page.sys.tr("Ключ API Anthropic")
+            color: page.sys.colFg
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+        }
+        Field {
+            placeholderText: "sk-ant-…"
+            echoMode: TextInput.Password
+            text: page.sys.cfg.aiKey
+            onEditingFinished: { page.sys.cfg.aiKey = text.trim(); page.sys.saveCfg(); }
+        }
+        Text {
+            text: page.sys.tr("Модель (пусто — claude-opus-5-5)")
+            color: page.sys.colFg
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+        }
+        Field {
+            placeholderText: "claude-opus-5-5"
+            text: page.sys.cfg.aiModel
+            onEditingFinished: { page.sys.cfg.aiModel = text.trim(); page.sys.saveCfg(); }
         }
     }
 }

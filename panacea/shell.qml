@@ -172,6 +172,10 @@ PanelWindow {
             // а служба (демон уведомлений, агент polkit) не регистрируется —
             // чтобы не спорить с уже установленными в системе.
             property bool   featLauncher: true
+            // лаунчер: веб-поиск и короткие ответы ИИ (запрос с «?»)
+            property string searchEngine: "duckduckgo"
+            property string aiKey: ""
+            property string aiModel: ""
             property bool   featPlayer: true
             property bool   featWifi: true
             property bool   featBluetooth: true
