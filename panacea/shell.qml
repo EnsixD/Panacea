@@ -537,7 +537,7 @@ PanelWindow {
     Process { id: pInput; property string args: ""; command: ["sh", "-c", pInput.args] }
     Process {
         id: pGenInput
-        command: [root.scriptDir + "/geninput.sh"]
+        command: ["bash", root.scriptDir + "/geninput.sh"]
         stderr: StdioCollector {
             onStreamFinished: {
                 var message = String(text).trim();
@@ -3519,7 +3519,8 @@ PanelWindow {
         root.wifiToastQuality = quality || root.wifiQuality || 0;
         root.wifiToastDisconnected = isDisconnect || false;
         root.wifiToastShown = true;
-        if (root.expanded) root.collapse();
+        // открытую намеренно страницу (настройки и т.п.) карточка не закрывает
+        if (root.expanded && !root.holdOpen) root.collapse();
         wifiToastTimer.interval = 2500;
         wifiToastTimer.restart();
         root.playSound(isDisconnect ? "disconnect" : "connect");
@@ -4166,7 +4167,8 @@ PanelWindow {
         root.btToastDisconnected = isDisconnect || false;
         root.btToastLowBatt = false;
         root.btToastShown = true;
-        if (root.expanded) root.collapse();
+        // открытую намеренно страницу (настройки и т.п.) карточка не закрывает
+        if (root.expanded && !root.holdOpen) root.collapse();
         btToastTimer.interval = 2500;
         btToastTimer.restart();
         root.playSound(isDisconnect ? "disconnect" : "connect");
@@ -4178,7 +4180,8 @@ PanelWindow {
         root.btToastDisconnected = false;
         root.btToastLowBatt = true;
         root.btToastShown = true;
-        if (root.expanded) root.collapse();
+        // открытую намеренно страницу (настройки и т.п.) карточка не закрывает
+        if (root.expanded && !root.holdOpen) root.collapse();
         btToastTimer.interval = 3500;
         btToastTimer.restart();
         root.playSound("disconnect");
@@ -4213,7 +4216,8 @@ PanelWindow {
     function showAcToast(kind) {
         root.acToastKind = kind || "charge";
         root.acToastShown = true;
-        if (root.expanded) root.collapse();
+        // открытую намеренно страницу (настройки и т.п.) карточка не закрывает
+        if (root.expanded && !root.holdOpen) root.collapse();
         acToastTimer.restart();
         root.playSound(root.acToastKind === "lowbatt" ? "disconnect" : "charge");
     }

@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "shell: Wi-Fi, Bluetooth and power toasts no longer close an open page":
+            "Всплывающие карточки Wi-Fi, Bluetooth и зарядки больше не закрывают открытые настройки или другую закреплённую страницу",
         "settings: readable keyboard layout fields and a working Apply button":
             "Настройки → Ввод: поля раскладок больше не белые с невидимым текстом, а кнопка «Применить раскладки» действительно сохраняет и применяет их (скрипт генерации не был исполняемым)",
         "files: progress window with cancel, auto-copy on drop, safe eject and instant USB detection":
