@@ -21,14 +21,11 @@ py() { python3 "$@"; }
 
 # ---------------------------------------------------------------- прогресс
 # Ни cp, ни mv не умеют сообщать, сколько уже сделано, поэтому смотрим со
-# стороны: раз в четверть секунды меряем, насколько выросли цели. rsync
-# показал бы то же самое сам, но он не входит в base, а тянуть зависимость
-# ради полоски не хочется.
-#
-# Меряем именно цели, а не каталог назначения целиком: назначением может
-# быть домашняя папка, и du по ней каждые 250 мс стоил бы дороже самого
-# копирования.
+# стороны: раз в четверть секунды меряем, насколько выросли цели.
+# Строка: «PROGRESS <проценты> <сделано_байт> <всего_байт>».
 PROGRESS_PID=""
+WORK_PID=""
+CUR_TARGET=""
 
 progress_start() {   # $1 — суммарный размер источников, дальше пути целей
     local total=$1; shift
@@ -39,9 +36,10 @@ progress_start() {   # $1 — суммарный размер источнико
             local cur
             cur=$(du -sbc "${targets[@]}" 2>/dev/null | tail -1 | cut -f1)
             if [ -n "$cur" ]; then
+                [ "$cur" -gt "$total" ] && cur=$total
                 local pct=$(( cur * 100 / total ))
                 [ "$pct" -gt 99 ] && pct=99   # 100 печатает уже сам вызов
-                printf 'PROGRESS %d\n' "$pct"
+                printf 'PROGRESS %d %d %d\n' "$pct" "$cur" "$total"
             fi
             sleep 0.25
         done
@@ -54,9 +52,38 @@ progress_kill() {
     PROGRESS_PID=""
 }
 
-progress_stop() {
+# Отмена: панель шлёт TERM. Без этого cp доработал бы до конца сиротой, а
+# недописанный файл остался бы лежать как целый.
+on_cancel() {
     progress_kill
-    printf 'PROGRESS 100\n'
+    [ -n "$WORK_PID" ] && kill "$WORK_PID" 2>/dev/null && wait "$WORK_PID" 2>/dev/null
+    [ -n "$CUR_TARGET" ] && [ "$OP" = "copy" -o "$CROSS" = 1 ] && rm -rf -- "$CUR_TARGET"
+    printf 'CANCELLED\n'
+    exit 130
+}
+
+# Сброс кэша на носитель. cp заканчивается, когда данные легли в память, а
+# не на флешку: выдернуть её в этот момент — потерять файл. Ждём, пока ядро
+# допишет, и показываем, сколько ещё осталось (Dirty + Writeback).
+dirty_kb() {
+    awk '/^(Dirty|Writeback):/ {s += $2} END {print s+0}' /proc/meminfo
+}
+flush_to_disk() {   # $1 — каталог на целевой ФС
+    printf 'PHASE sync\n'
+    local start; start=$(dirty_kb)
+    sync -f "$1" 2>/dev/null &
+    local sp=$!
+    WORK_PID=$sp
+    while kill -0 "$sp" 2>/dev/null; do
+        local now; now=$(dirty_kb)
+        if [ "$start" -gt 0 ]; then
+            local left=$now; [ "$left" -gt "$start" ] && left=$start
+            printf 'SYNC %d %d\n' $(( (start - left) * 100 / start )) $(( left * 1024 ))
+        fi
+        sleep 0.3
+    done
+    wait "$sp" 2>/dev/null
+    WORK_PID=""
 }
 
 # Имя, свободное в каталоге назначения: не затираем существующее молча,
@@ -261,63 +288,101 @@ EOF
         ;;
 
     copy|move)
-        op="$1"
+        OP="$1"
         DST="${2:?}"
         # Что делать с уже существующими именами:
-        #   keepboth  — рядом, с номером (как было всегда)
+        #   keepboth  — рядом, с номером
         #   overwrite — заменить
         #   skip      — не трогать, оставить как есть
         MODE="${3:-keepboth}"
         shift 3
         DST="${DST/#\~/$HOME}"
         [ "$#" -gt 0 ] || exit 0
+        [ -d "$DST" ] || { printf 'ERROR no-dir\n'; exit 1; }
+        [ -w "$DST" ] || { printf 'ERROR no-write\n'; exit 1; }
 
+        dst_dev=$(stat -c %d "$DST" 2>/dev/null)
         srcs=(); targets=()
         for src; do
             src="${src/#\~/$HOME}"
+            src="${src%/}"
             [ -e "$src" ] || continue
             name="$(basename "$src")"
+            # папку в саму себя не кладём: cp ушёл бы в бесконечную рекурсию
+            case "$DST/" in "$src/"*) printf 'ERROR into-self\n'; continue ;; esac
             case "$MODE" in
                 overwrite) target="$DST/$name" ;;
                 skip)
-                    # Уже есть — просто пропускаем этот файл, остальные едут.
                     [ -e "$DST/$name" ] && [ "$src" != "$DST/$name" ] && continue
                     target="$DST/$name"
                     ;;
                 *) target="$(uniq_target "$DST" "$name")" ;;
             esac
+            [ "$src" = "$target" ] && continue
             srcs+=("$src")
             targets+=("$target")
         done
-        [ "${#srcs[@]}" -gt 0 ] || exit 0
+        [ "${#srcs[@]}" -gt 0 ] || { printf 'PROGRESS 100 0 0\n'; exit 0; }
 
-        # Оболочку могут убить вместе с панелью, и без этого счётчик остался бы
-        # сиротой: крутиться вечно, раз в четверть секунды обходя каталог.
-        trap progress_kill EXIT INT TERM
+        trap on_cancel INT TERM
+        trap progress_kill EXIT
 
-        total=$(du -sbc "${srcs[@]}" 2>/dev/null | tail -1 | cut -f1)
-        progress_start "${total:-0}" "${targets[@]}"
+        # Перенос в пределах одного раздела — это переименование: мгновенно и
+        # места не требует. Считать и проверять объём надо только для копий.
+        CROSS=0
+        for s1 in "${srcs[@]}"; do
+            [ "$(stat -c %d "$s1" 2>/dev/null)" = "$dst_dev" ] || CROSS=1
+        done
+        need_bytes=0
+        if [ "$OP" = "copy" ] || [ "$CROSS" = 1 ]; then
+            total=$(du -sbc "${srcs[@]}" 2>/dev/null | tail -1 | cut -f1)
+            avail=$(df -B1 --output=avail "$DST" 2>/dev/null | tail -1 | tr -d ' ')
+            if [ -n "$avail" ] && [ "${total:-0}" -gt "$avail" ]; then
+                printf 'ERROR no-space %s %s\n' "$total" "$avail"
+                exit 1
+            fi
+            # FAT32 не держит файлы больше 4 ГиБ — cp упал бы на середине
+            fstype=$(stat -f -c %T "$DST" 2>/dev/null)
+            if [ "$fstype" = "msdos" ] || [ "$fstype" = "vfat" ]; then
+                big=$(find "${srcs[@]}" -type f -size +4194303k -print -quit 2>/dev/null)
+                [ -n "$big" ] && { printf 'ERROR fat-4g %s\n' "$(basename "$big")"; exit 1; }
+            fi
+            need_bytes=${total:-0}
+            printf 'PROGRESS 0 0 %d\n' "$need_bytes"
+            progress_start "$need_bytes" "${targets[@]}"
+        fi
 
+        failed=0
         for i in "${!srcs[@]}"; do
-            # При замене цель сносим заранее, а не полагаемся на -f.
-            #
-            # И cp, и mv, встретив на месте цели КАТАЛОГ, кладут источник
-            # ВНУТРЬ него: вместо замены папки «Фото» получалась бы
-            # «Фото/Фото». Для файлов -f сработал бы, для каталогов — нет,
-            # поэтому убираем цель сами и в обоих случаях.
-            if [ "$MODE" = "overwrite" ] && [ -e "${targets[$i]}" ] \
-               && [ "${srcs[$i]}" != "${targets[$i]}" ]; then
+            printf 'FILE %s\n' "$(basename "${srcs[$i]}")"
+            if [ "$MODE" = "overwrite" ] && [ -e "${targets[$i]}" ]; then
                 rm -rf -- "${targets[$i]}"
             fi
-
-            if [ "$op" = "copy" ]; then
-                cp -r --no-clobber "${srcs[$i]}" "${targets[$i]}"
+            CUR_TARGET="${targets[$i]}"
+            # Фоном и через wait: так TERM прерывает работу сразу, а не после
+            # того, как cp закончит очередной гигабайт.
+            if [ "$OP" = "copy" ]; then
+                cp -r --no-clobber --preserve=mode,timestamps -- "${srcs[$i]}" "${targets[$i]}" 2>"/tmp/panacea-fileop.$$" &
             else
-                mv -n "${srcs[$i]}" "${targets[$i]}"
+                mv -n -- "${srcs[$i]}" "${targets[$i]}" 2>"/tmp/panacea-fileop.$$" &
             fi
+            WORK_PID=$!
+            if ! wait "$WORK_PID"; then
+                failed=1
+                printf 'ERROR fail %s\n' "$(head -1 "/tmp/panacea-fileop.$$" | tr '\n' ' ')"
+            fi
+            WORK_PID=""
+            CUR_TARGET=""
         done
+        rm -f "/tmp/panacea-fileop.$$"
+        progress_kill
 
-        progress_stop
+        # дописать на носитель, а уж потом говорить «готово»
+        if [ "$need_bytes" -gt 0 ]; then
+            flush_to_disk "$DST"
+        fi
+        printf 'PROGRESS 100 %d %d\n' "$need_bytes" "$need_bytes"
+        exit $failed
         ;;
 
     copypath)
@@ -481,24 +546,54 @@ unmountdisk)
     ;;
 
 ejectdisk)
+    # Безопасное извлечение: дописать кэш, размонтировать ВСЕ разделы
+    # устройства и обесточить его. Ошибку печатаем: если носитель занят,
+    # человек должен об этом узнать, а не выдёргивать флешку наугад.
     target="$2"
     [ -n "$target" ] || exit 1
-    if [ -b "$target" ]; then
-        dev="$target"
-    else
-        dev=$(findmnt -n -o SOURCE "$target" 2>/dev/null)
-    fi
+    if [ -b "$target" ]; then dev="$target"
+    else dev=$(findmnt -n -o SOURCE --target "$target" 2>/dev/null | head -1); fi
     if [ -n "$dev" ] && [ -b "$dev" ]; then
-        udisksctl unmount -b "$dev" 2>/dev/null || gio mount -u "$dev" 2>/dev/null
+        sync
         parent=$(lsblk -no PKNAME "$dev" 2>/dev/null | head -1)
-        if [ -n "$parent" ]; then
-            udisksctl power-off -b "/dev/$parent" 2>/dev/null
-        else
-            udisksctl power-off -b "$dev" 2>/dev/null
-        fi
-    elif [ -n "$target" ]; then
-        gio mount -e "$target" 2>/dev/null || gio mount -u "$target" 2>/dev/null
+        whole="/dev/${parent:-$(basename "$dev")}"
+        for part in $(lsblk -lnpo NAME,MOUNTPOINT "$whole" 2>/dev/null | awk 'NF>1 {print $1}'); do
+            if ! err=$(udisksctl unmount -b "$part" 2>&1); then
+                if ! umount "$part" 2>/dev/null; then
+                    busy=$(fuser -m "$part" 2>/dev/null | wc -w)
+                    printf 'ERROR busy %s\n' "${busy:-0}"
+                    exit 1
+                fi
+            fi
+        done
+        udisksctl power-off -b "$whole" >/dev/null 2>&1
+        printf 'OK\n'
+    else
+        gio mount -e "$target" 2>/dev/null || gio mount -u "$target" 2>/dev/null \
+            || { printf 'ERROR fail\n'; exit 1; }
+        printf 'OK\n'
     fi
+    ;;
+
+automount)
+    # Свежевоткнутые носители монтируем сами: udiskie есть не везде, а без
+    # монтирования раздел «Съёмные» показывает флешку, но открыть её нельзя.
+    python3 - <<'PY'
+import json, subprocess
+out = subprocess.run(["lsblk", "-J", "-o", "PATH,TYPE,FSTYPE,MOUNTPOINT,RM,HOTPLUG,TRAN"],
+                     capture_output=True, text=True).stdout
+skip = {"", "swap", "crypto_LUKS", "LVM2_member", "linux_raid_member", None}
+def walk(nodes, parent=None):
+    for n in nodes:
+        rem = lambda d: bool(d) and (d.get("rm") or d.get("hotplug")
+                                     or (d.get("tran") or "") in ("usb", "mmc"))
+        if (n.get("type") in ("part", "disk") and n.get("fstype") not in skip
+                and not n.get("mountpoint") and (rem(n) or rem(parent))):
+            subprocess.run(["udisksctl", "mount", "-b", n["path"], "--no-user-interaction"],
+                           capture_output=True)
+        walk(n.get("children", []), n if parent is None else parent)
+walk(json.loads(out or "{}").get("blockdevices", []))
+PY
     ;;
 
     emptytrash)

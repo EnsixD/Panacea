@@ -52,9 +52,9 @@ Item {
     property string openWithFile: ""
 
     // буфер обмена проводника
-    property var    clipPaths: []
-    property string clipPath: clipPaths.length ? clipPaths[0] : ""
-    property string clipMode: ""        // "copy" | "cut"
+    // Буфер общий для всех окон проводника — живёт в оболочке
+    readonly property var    clipPaths: view.sys.filesClipPaths
+    readonly property string clipMode: view.sys.filesClipMode
 
     // мультивыделение файлов
     property var    selectedPaths: []
@@ -165,7 +165,7 @@ Item {
                 view.startOp(next.args, next.note);
                 return;
             }
-            view.reload();
+            view.refresh();
             view.countTrash();
             // Соседние окна проводника про наши правки не знают: после
             // переноса файл исчезает здесь, но у них в списке ещё висит.
@@ -183,7 +183,8 @@ Item {
         ignoreUnknownSignals: true
         function onFilesChanged() {
             if (view.selfChange || pAction.running) return;
-            view.reload();
+            view.refresh();
+            view.countTrash();
         }
     }
 
@@ -255,20 +256,59 @@ Item {
     Process {
         id: pEject
         property string targetItem: ""
-        command: ["sh", "-c", view.scripts + " ejectdisk " + JSON.stringify(targetItem)]
+        property string targetLabel: ""
+        command: ["sh", "-c", view.scripts + " ejectdisk \"$1\"", "_", targetItem]
         stdout: StdioCollector {
             onStreamFinished: {
+                var t = String(text).trim();
                 view.reloadDisks();
-                if (pEject.targetItem.length > 0 && view.dir.startsWith(pEject.targetItem)) {
-                    view.go(view.sys.home);
+                if (t.indexOf("ERROR busy") >= 0) {
+                    view.say(view.sys.tr("Носитель занят — закройте открытые с него файлы"));
+                    return;
                 }
+                if (t.indexOf("ERROR") >= 0) {
+                    view.say(view.sys.tr("Не удалось извлечь носитель"));
+                    return;
+                }
+                view.say(view.sys.tr("Можно извлечь: ") + pEject.targetLabel);
+                if (pEject.targetItem.length > 0 && view.dir.indexOf(pEject.targetItem) === 0)
+                    view.go(Quickshell.env("HOME"));
             }
         }
     }
-    function ejectDisk(dev, path) {
+    function ejectDisk(dev, path, label) {
+        closeMenu();
+        // запись ещё идёт — извлекать нельзя, иначе файл не сохранится
+        if (view.sys.fileOpActive) {
+            view.say(view.sys.tr("Дождитесь окончания копирования"));
+            return;
+        }
         pEject.targetItem = path && path.length > 0 ? path : dev;
+        pEject.targetLabel = label || "";
+        view.say(view.sys.tr("Извлечение…"));
         pEject.running = false;
         pEject.running = true;
+    }
+    function unmountDisk(path) {
+        closeMenu();
+        run(["sh", "-c", view.scripts + " unmountdisk \"$1\"", "_", path],
+            view.sys.tr("Отключено"));
+        if (view.dir.indexOf(path) === 0) view.go(Quickshell.env("HOME"));
+        diskRefresh.restart();
+    }
+    Timer { id: diskRefresh; interval: 600; onTriggered: view.reloadDisks() }
+
+    // меню носителя
+    property string menuDiskDev: ""
+    property string menuDiskPath: ""
+    property string menuDiskLabel: ""
+    property bool   menuDiskRemovable: false
+    function openDiskMenu(row, removable, x, y) {
+        view.menuDiskDev = row.dDev;
+        view.menuDiskPath = row.dPath || "";
+        view.menuDiskLabel = row.dLabel;
+        view.menuDiskRemovable = removable;
+        view.openMenu("", false, x, y, "disk");
     }
 
     function syncDisks(model, rows) {
@@ -290,12 +330,19 @@ Item {
     }
     function reloadDisks() { pDisks.running = false; pDisks.running = true; }
     // Воткнули флешку или подключили телефон — раздел появится сам.
+    // Основной сигнал — udev из оболочки (флешка видна сразу), а редкий
+    // опрос нужен для занятого места и телефонов по MTP.
     Timer {
-        interval: 2000
+        interval: 6000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: view.reloadDisks()
+    }
+    Connections {
+        target: view.sys
+        ignoreUnknownSignals: true
+        function onDisksChanged() { view.reloadDisks(); }
     }
 
     function human(b) {
@@ -318,11 +365,33 @@ Item {
         pPlaces.running = true;
     }
 
+    // reload() — переход в папку: список уезжает и приезжает заново.
+    // refresh() — та же папка, но файлы поменялись: перечитываем молча,
+    // сохраняя прокрутку, курсор и выделение. Раньше любое копирование
+    // дёргало анимацию и сбрасывало список наверх.
+    property bool   silentReload: false
+    property string keepName: ""
+    property real   keepY: 0
+    property string focusName: ""        // что выделить после перечитывания
+
     function reload() {
+        view.silentReload = false;
         rawEntries.clear();
         entries.clear();
         view.listOpacity = 0;
         view.listShift = 22 * view.navDir;
+        view._list();
+    }
+    function refresh() {
+        if (pList.running) return;
+        view.silentReload = true;
+        view.keepName = (view.current >= 0 && view.current < entries.count)
+                        ? entries.get(view.current).eName : "";
+        view.keepY = view.mode === "grid" ? grid.contentY : list.contentY;
+        rawEntries.clear();
+        view._list();
+    }
+    function _list() {
         pList.command = ["sh", "-c", view.scripts + " list \"$1\" \"$2\"", "_", view.dir,
                          view.sys.cfg.filesHidden ? "hidden" : ""];
         pList.running = false;
@@ -331,8 +400,10 @@ Item {
     }
 
     function applyFilter() {
+        var silent = view.silentReload;
+        view.silentReload = false;
+        var keep = silent ? view.keepName : "";
         entries.clear();
-        // содержимое готово — вернуть на место
         view.listOpacity = 1;
         view.listShift = 0;
         var f = view.filter.toLowerCase();
@@ -345,7 +416,28 @@ Item {
         }
         rows.sort(view.compare);
         for (var j = 0; j < rows.length; j++) entries.append(rows[j]);
-        view.current = 0;
+
+        var want = view.focusName.length ? view.focusName : keep;
+        var idx = 0;
+        if (want.length) {
+            for (var k = 0; k < rows.length; k++) if (rows[k].eName === want) { idx = k; break; }
+        }
+        if (silent) {
+            // выделение: выбрасываем то, чего больше нет
+            var names = {};
+            for (var n = 0; n < rows.length; n++) names[view.fullPath(rows[n].eName)] = true;
+            var sel = view.selectedPaths.filter(function (x) { return names[x]; });
+            if (sel.length !== view.selectedPaths.length) view.selectedPaths = sel;
+            var fl = view.mode === "grid" ? grid : list;
+            fl.contentY = Math.max(0, Math.min(view.keepY, fl.contentHeight - fl.height));
+        } else {
+            view.clearSelection();
+        }
+        view.current = idx;
+        if (view.focusName.length) {
+            view.selectSingle(view.fullPath(view.focusName), idx);
+            view.focusName = "";
+        }
     }
 
     // Сравнение двух строк списка. Каталоги держим отдельной группой, если
@@ -445,10 +537,8 @@ Item {
         if (view.current < 0 || view.current >= entries.count) return;
         var e = entries.get(view.current);
         var full = (view.dir === "/" ? "" : view.dir) + "/" + e.eName;
-        view.status = view.sys.tr("В корзину: ") + e.eName;
-        statusClear.restart();
-        pAction.command = ["sh", "-c", view.scripts + " trash \"$1\"", "_", full];
-        pAction.running = true;
+        run(["sh", "-c", view.scripts + " trash \"$1\"", "_", full],
+            view.sys.tr("В корзину: ") + e.eName);
     }
     Timer { id: statusClear; interval: 2600; onTriggered: view.status = "" }
 
@@ -657,12 +747,11 @@ Item {
     }
 
     function doCopy(path) {
-        var targets = (view.selectedCount > 1 && (path === "" || view.isSelected(path)))
+        var targets = (view.selectedCount > 0 && (path === "" || view.isSelected(path)))
                     ? view.selectedPaths.slice()
                     : (path ? [path] : []);
         if (!targets.length) return;
-        view.clipPaths = targets;
-        view.clipMode = "copy";
+        view.sys.setFilesClip(targets, "copy");
         closeMenu();
         if (targets.length === 1) {
             view.say(view.sys.tr("Скопировано: ") + view.baseName(targets[0]));
@@ -671,12 +760,11 @@ Item {
         }
     }
     function doCut(path) {
-        var targets = (view.selectedCount > 1 && (path === "" || view.isSelected(path)))
+        var targets = (view.selectedCount > 0 && (path === "" || view.isSelected(path)))
                     ? view.selectedPaths.slice()
                     : (path ? [path] : []);
         if (!targets.length) return;
-        view.clipPaths = targets;
-        view.clipMode = "cut";
+        view.sys.setFilesClip(targets, "cut");
         closeMenu();
         if (targets.length === 1) {
             view.say(view.sys.tr("Вырезано: ") + view.baseName(targets[0]));
@@ -686,19 +774,14 @@ Item {
     }
     function doPaste() {
         if (!view.clipPaths.length) return;
-        var op = view.clipMode === "cut" ? "move" : "copy";
         closeMenu();
-        var label = view.clipPaths.length === 1 ? view.baseName(view.clipPaths[0])
-                                               : (view.clipPaths.length + " " + view.sys.tr("файлов"));
-        var note = (view.clipMode === "cut" ? view.sys.tr("Перемещено: ")
-                                            : view.sys.tr("Вставлено: ")) + label;
-        var cmd = ["sh", "-c", view.scripts + " " + op + " \"$1\" \"keepboth\" \"${@:2}\"", "_", view.dir];
-        cmd = cmd.concat(view.clipPaths);
-        runLong(cmd, note, label);
-        if (view.clipMode === "cut") { view.clipPaths = []; view.clipMode = ""; }
+        var move = view.clipMode === "cut";
+        view.dropX = 0; view.dropY = 0;
+        view.transfer(view.clipPaths.slice(), view.dir, move);
+        if (move) view.sys.setFilesClip([], "");
     }
     function doCopyPath(path) {
-        var targets = (view.selectedCount > 1 && (path === "" || view.isSelected(path)))
+        var targets = (view.selectedCount > 0 && (path === "" || view.isSelected(path)))
                     ? view.selectedPaths.slice()
                     : (path ? [path] : []);
         if (!targets.length) return;
@@ -708,7 +791,7 @@ Item {
             view.sys.tr("Путь скопирован"));
     }
     function doTrash(path) {
-        var targets = (view.selectedCount > 1 && (path === "" || view.isSelected(path)))
+        var targets = (view.selectedCount > 0 && (path === "" || view.isSelected(path)))
                     ? view.selectedPaths.slice()
                     : (path ? [path] : []);
         if (!targets.length) return;
@@ -774,6 +857,7 @@ Item {
         view.dialogMode = "";
         view.forceActiveFocus();
         if (!name.length) return;
+        view.focusName = name;
         if (mode === "rename")
             run(["sh", "-c", view.scripts + " rename \"$1\" \"$2\"", "_", view.menuPath, name],
                 view.sys.tr("Переименовано"));
@@ -839,7 +923,7 @@ Item {
         }
         if (event.modifiers & Qt.ControlModifier) {
             if (event.key === Qt.Key_A) { view.selectAll(); event.accepted = true; return; }
-            var p = view.currentPath();
+            var p = view.selectedCount > 0 ? "" : view.currentPath();
             if (event.key === Qt.Key_C) { view.doCopy(p); event.accepted = true; return; }
             if (event.key === Qt.Key_X) { view.doCut(p); event.accepted = true; return; }
             if (event.key === Qt.Key_V) { view.doPaste(); event.accepted = true; return; }
@@ -1021,7 +1105,7 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.ejectDisk(disk.model.dDev, disk.model.dPath)
+                                onClicked: view.ejectDisk(disk.model.dDev, disk.model.dPath, disk.model.dLabel)
                             }
                         }
                         Text {
@@ -1070,7 +1154,13 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: mouse => {
+                        if (mouse.button === Qt.RightButton) {
+                            var mp = mapToItem(view, mouse.x, mouse.y);
+                            view.openDiskMenu(disk.model, sec.removable, mp.x, mp.y);
+                            return;
+                        }
                         if (disk.mounted) {
                             view.go(disk.model.dPath);
                         } else {
@@ -1456,7 +1546,7 @@ Item {
                             onClicked: {
                                 view.sys.cfg.filesHidden = !view.sys.cfg.filesHidden;
                                 view.sys.saveCfg();
-                                view.reload();
+                                view.refresh();
                             }
                         }
                     }
@@ -1724,7 +1814,8 @@ Item {
                                 var p = view.fullPath(row.model.eName);
                                 if (!view.isSelected(p)) view.selectSingle(p, row.index);
                                 // панель сворачивается, файл остаётся на курсоре
-                                view.sys.startFileDrag(p, view.windowMode);
+                                view.sys.startFileDrag(view.selectedPaths.length ? view.selectedPaths.slice() : [p],
+                                                      view.windowMode);
                             }
 
                             onClicked: mouse => {
@@ -1851,7 +1942,7 @@ Item {
                         onClicked: mouse => {
                             if (mouse.button === Qt.RightButton) {
                                 var p = mapToItem(view, mouse.x, mouse.y);
-                                view.openMenu(view.dir, true, p.x, p.y);
+                                view.openMenu("", true, p.x, p.y);
                             } else if (mouse.button === Qt.LeftButton) {
                                 if (gridRubberBand.width <= 5 && gridRubberBand.height <= 5) {
                                     view.clearSelection();
@@ -1951,7 +2042,8 @@ Item {
                                 dragging = true;
                                 var p = view.fullPath(tile.model.eName);
                                 if (!view.isSelected(p)) view.selectSingle(p, tile.index);
-                                view.sys.startFileDrag(p, view.windowMode);
+                                view.sys.startFileDrag(view.selectedPaths.length ? view.selectedPaths.slice() : [p],
+                                                      view.windowMode);
                             }
 
                             onClicked: mouse => {
@@ -2180,30 +2272,13 @@ Item {
         return view.dropDir.length ? view.dropDir : view.dir;
     }
 
-    // То из перетаскиваемого, что действительно куда-то поедет.
-    //
-    // Файл, отпущенный там же, где он и лежал, никуда не переносится: копия
-    // рядом с оригиналом — это не то, что человек имел в виду, отпустив кнопку
-    // в паре сантиметров от места, где нажал. И папку внутрь себя самой класть
-    // тоже незачем.
-    function movablePaths() {
-        var dest = view.dropTargetDir();
-        var all = view.pathsOf(view.dropUrls), out = [];
-        for (var i = 0; i < all.length; i++) {
-            var p = String(all[i]).replace(/\/+$/, "");
-            if (p === dest) continue;               // папка сама в себя
-            if (view.dirOf(p) === dest) continue;   // уже здесь
-            out.push(all[i]);
-        }
-        return out;
-    }
-
     function dropCancel() {
         view.dropMenu = false;
         view.dropAsk = false;
         view.dropUrls = [];
         view.dropDir = "";
         view.dropConflicts = [];
+        view.pendPaths = [];
     }
 
     // Первый вопрос: переместить или скопировать. Второй — что делать с
@@ -2217,63 +2292,71 @@ Item {
                     return x.length > 0;
                 });
                 if (names.length === 0) { view.dropRun("keepboth"); return; }
+                if (view.dropX <= 6 && view.dropY <= 6) {
+                    view.dropX = (view.width - 236) / 2;
+                    view.dropY = view.height / 3;
+                }
                 view.dropConflicts = names;
                 view.dropAsk = true;
             }
         }
     }
 
-    function dropPick(move) {
-        var paths = view.movablePaths();
-        if (paths.length === 0) { view.dropCancel(); return; }
+    // Единый путь для вставки и бросания: проверить совпадения имён,
+    // при необходимости спросить, и отдать операцию оболочке.
+    property var  pendPaths: []
+    property string pendDest: ""
+    function transfer(paths, dest, move) {
+        var out = [];
+        for (var i = 0; i < paths.length; i++) {
+            var p = String(paths[i]).replace(/\/+$/, "");
+            if (p === dest) continue;                          // папка сама в себя
+            if (move && view.dirOf(p) === dest) continue;      // переносить некуда
+            if (dest.indexOf(p + "/") === 0) {                 // внутрь себя
+                view.say(view.sys.tr("Нельзя положить папку внутрь самой себя"));
+                continue;
+            }
+            out.push(p);
+        }
+        if (!out.length) return;
+        view.pendPaths = out;
+        view.pendDest = dest;
         view.dropMove = move;
-        view.dropMenu = false;
         pConflicts.running = false;
-        pConflicts.command = ["sh", "-c", view.scripts + ' conflicts "$@"',
-                              "_", view.dropTargetDir()].concat(paths);
+        pConflicts.command = ["sh", "-c", view.scripts + ' conflicts "$@"', "_", dest].concat(out);
         pConflicts.running = true;
     }
 
     function dropRun(mode) {
-        var paths = view.movablePaths();
-        if (paths.length === 0) { view.dropCancel(); return; }
-        // Все файлы одним вызовом: скрипт сам обходит список и считает по
-        // нему общий прогресс. Имена уходят отдельными аргументами, поэтому
-        // пробелы и кавычки внутри них ничего не ломают.
+        var paths = view.pendPaths;
+        view.dropAsk = false;
+        view.dropConflicts = [];
+        if (!paths.length) return;
         var op = view.dropMove ? "move" : "copy";
-        var dest = view.dropTargetDir();
-        var args = ["sh", "-c", view.scripts + " " + op + ' "$@"',
-                    "_", dest, mode].concat(paths);
-        view.runLong(args, undefined,
-                     paths.length === 1 ? view.baseName(paths[0])
+        var label = (view.dropMove ? view.sys.tr("Перемещение: ") : view.sys.tr("Копирование: "))
+                  + (paths.length === 1 ? view.baseName(paths[0])
                                         : view.sys.tr("Файлов: ") + paths.length);
-        view.dropCancel();
-        // перечитывать список тут не надо: pAction сделает это сам, когда
-        // закончит. Две перезагрузки подряд запускали анимацию списка дважды,
-        // и появление файла дёргалось.
+        var args = ["sh", "-c", view.scripts + " " + op + ' "$@"', "_", view.pendDest, mode].concat(paths);
+        view.runLong(args, undefined, label);
+        view.pendPaths = [];
     }
 
-    // Общий приём: если отпустили не над папкой — кладём в открытый каталог.
-    // Лежит под строками списка, поэтому их собственные области получают
-    // событие первыми.
+    // Бросили файлы. Правило простое и предсказуемое:
+    //   из другого окна или другой папки — КОПИЯ;
+    //   внутри этого же окна на подпапку — ПЕРЕНОС.
+    // Спрашиваем только про совпавшие имена.
     function takeDrop(drop, targetDir, px, py) {
         if (!drop.hasUrls || drop.urls.length === 0) return;
         drop.accept(Qt.CopyAction);
-        view.dropUrls = drop.urls;
-        view.dropDir = targetDir;
-
-        // Отпустили там же, откуда взяли, — переносить нечего, и спрашивать не
-        // о чем: любой ответ ничего бы не изменил. Меню в этом случае было
-        // чистой помехой — оно появлялось на каждый промах мимо цели и его
-        // приходилось закрывать.
-        if (view.movablePaths().length === 0) {
-            view.dropCancel();
-            return;
-        }
-
-        view.dropX = Math.max(6, Math.min(px, view.width - 192));
-        view.dropY = Math.max(6, Math.min(py, view.height - 84));
-        view.dropMenu = true;
+        var paths = view.pathsOf(drop.urls);
+        var dest = targetDir.length ? targetDir : view.dir;
+        var local = true;
+        for (var i = 0; i < paths.length; i++)
+            if (view.dirOf(paths[i]) !== view.dir) { local = false; break; }
+        if (local && dest === view.dir) return;     // отпустили там же, где взяли
+        view.dropX = Math.max(6, Math.min(px, view.width - 240));
+        view.dropY = Math.max(6, Math.min(py, view.height - 150));
+        view.transfer(paths, dest, local);
     }
 
     DropArea {
@@ -2300,71 +2383,6 @@ Item {
         border.color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.55)
         border.width: 2
         radius: 14
-    }
-
-    // что делать с перенесённым — спрашиваем, а не угадываем по модификатору
-    MouseArea {
-        z: 92
-        anchors.fill: parent
-        visible: view.dropMenu
-        onClicked: view.dropCancel()
-    }
-    Rectangle {
-        z: 93
-        visible: view.dropMenu
-        x: view.dropX
-        y: view.dropY
-        width: 186
-        height: dropCol.implicitHeight + 12
-        radius: 12
-        color: Qt.rgba(0.06, 0.06, 0.07, 0.99)
-        border.color: view.sys.colLine
-        border.width: 1
-
-        ColumnLayout {
-            id: dropCol
-            anchors.fill: parent
-            anchors.margins: 6
-            spacing: 2
-
-            Repeater {
-                model: [
-                    { t: view.sys.tr("Скопировать сюда"), g: 0xF018F, mv: false },
-                    { t: view.sys.tr("Переместить сюда"), g: 0xF0552, mv: true }
-                ]
-                Rectangle {
-                    id: dropItem
-                    required property var modelData
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 32
-                    radius: 9
-                    color: dropItemMa.containsMouse ? view.sys.colHover : "transparent"
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        spacing: 9
-                        Text {
-                            text: String.fromCodePoint(dropItem.modelData.g)
-                            color: view.sys.colMuted
-                            font { family: view.sys.fontFam; pixelSize: 14 }
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: dropItem.modelData.t
-                            color: view.sys.colFg
-                            font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
-                        }
-                    }
-                    MouseArea {
-                        id: dropItemMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: view.dropPick(dropItem.modelData.mv)
-                    }
-                }
-            }
-        }
     }
 
     // ------------------------------- совпавшие имена: что с ними делать
@@ -2485,6 +2503,39 @@ Item {
             anchors.margins: 6
             spacing: 1
 
+            // ---- меню носителя
+            MenuItem {
+                visible: view.menuKind === "disk"
+                glyph: String.fromCodePoint(0xF0770)
+                label: view.menuDiskPath.length ? view.sys.tr("Открыть") : view.sys.tr("Подключить")
+                onChosen: {
+                    view.closeMenu();
+                    if (view.menuDiskPath.length) view.go(view.menuDiskPath);
+                    else view.mountDisk(view.menuDiskDev);
+                }
+            }
+            MenuItem {
+                visible: view.menuKind === "disk" && view.menuDiskPath.length > 0
+                glyph: String.fromCodePoint(0xF0219)
+                label: view.sys.tr("Копировать путь")
+                onChosen: { view.menuPath = view.menuDiskPath; view.doCopyPath(view.menuDiskPath); }
+            }
+            MenuItem {
+                visible: view.menuKind === "disk" && view.menuDiskPath.length > 0
+                         && view.menuDiskPath !== "/" && view.menuDiskDev !== "mtp"
+                         && view.menuDiskDev !== "gvfs"
+                glyph: String.fromCodePoint(0xF0384)
+                label: view.sys.tr("Отключить (размонтировать)")
+                onChosen: view.unmountDisk(view.menuDiskPath)
+            }
+            MenuItem {
+                visible: view.menuKind === "disk" && view.menuDiskRemovable
+                glyph: "⏏"
+                label: view.sys.tr("Извлечь безопасно")
+                danger: true
+                onChosen: view.ejectDisk(view.menuDiskDev, view.menuDiskPath, view.menuDiskLabel)
+            }
+
             // ---- меню для файла или папки
             MenuItem {
                 visible: view.menuPath.length > 0 && view.selectedCount <= 1
@@ -2520,7 +2571,7 @@ Item {
             }
 
             Rectangle {
-                visible: view.menuPath.length > 0 || view.selectedCount > 0
+                visible: view.menuKind !== "disk" && view.menuKind !== "trash" && (view.menuPath.length > 0 || view.selectedCount > 0)
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
                 Layout.topMargin: 3
@@ -2529,21 +2580,21 @@ Item {
             }
 
             MenuItem {
-                visible: view.menuPath.length > 0 || view.selectedCount > 0
+                visible: view.menuKind !== "disk" && view.menuKind !== "trash" && (view.menuPath.length > 0 || view.selectedCount > 0)
                 glyph: String.fromCodePoint(0xF018F)
                 label: view.selectedCount > 1 ? (view.sys.tr("Копировать (") + view.selectedCount + ")")
                                              : view.sys.tr("Копировать")
                 onChosen: view.doCopy(view.menuPath)
             }
             MenuItem {
-                visible: view.menuPath.length > 0 || view.selectedCount > 0
+                visible: view.menuKind !== "disk" && view.menuKind !== "trash" && (view.menuPath.length > 0 || view.selectedCount > 0)
                 glyph: String.fromCodePoint(0xF0190)
                 label: view.selectedCount > 1 ? (view.sys.tr("Вырезать (") + view.selectedCount + ")")
                                              : view.sys.tr("Вырезать")
                 onChosen: view.doCut(view.menuPath)
             }
             MenuItem {
-                visible: view.menuKind !== "trash"
+                visible: view.menuKind !== "trash" && view.menuKind !== "disk"
                 glyph: String.fromCodePoint(0xF0192)
                 label: view.clipPaths.length > 1 ? (view.sys.tr("Вставить (") + view.clipPaths.length + ")")
                                                 : view.sys.tr("Вставить")
@@ -2557,7 +2608,7 @@ Item {
                 onChosen: view.startRename(view.menuPath)
             }
             MenuItem {
-                visible: view.menuPath.length > 0 || view.selectedCount > 0
+                visible: view.menuKind !== "disk" && view.menuKind !== "trash" && (view.menuPath.length > 0 || view.selectedCount > 0)
                 glyph: String.fromCodePoint(0xF0219)
                 label: view.sys.tr("Копировать путь")
                 onChosen: view.doCopyPath(view.menuPath)
@@ -2570,7 +2621,7 @@ Item {
             }
 
             Rectangle {
-                visible: view.menuKind !== "trash"
+                visible: view.menuKind !== "trash" && view.menuKind !== "disk"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
                 Layout.topMargin: 3
@@ -2580,16 +2631,16 @@ Item {
 
             // ---- меню самой папки
             MenuItem {
-                visible: view.menuKind !== "trash"
+                visible: view.menuKind !== "trash" && view.menuKind !== "disk"
                 glyph: String.fromCodePoint(0xF0257)
                 label: view.sys.tr("Создать папку")
                 onChosen: view.startMkdir()
             }
             MenuItem {
-                visible: view.menuKind !== "trash"
+                visible: view.menuKind !== "trash" && view.menuKind !== "disk"
                 glyph: String.fromCodePoint(0xF0450)
                 label: view.sys.tr("Обновить")
-                onChosen: { view.closeMenu(); view.reload(); }
+                onChosen: { view.closeMenu(); view.refresh(); }
             }
             // ---- меню закладки «Корзина»
             MenuItem {
@@ -2601,7 +2652,7 @@ Item {
                 onChosen: view.emptyTrash()
             }
             MenuItem {
-                visible: view.menuPath.length > 0 || view.selectedCount > 0
+                visible: view.menuKind !== "disk" && view.menuKind !== "trash" && (view.menuPath.length > 0 || view.selectedCount > 0)
                 glyph: String.fromCodePoint(0xF0A79)
                 label: view.selectedCount > 1 ? (view.sys.tr("В корзину (") + view.selectedCount + ")")
                                              : view.sys.tr("В корзину")

@@ -1643,7 +1643,7 @@ PanelWindow {
         Drag.supportedActions: Qt.CopyAction | Qt.MoveAction
         Drag.proposedAction: Qt.CopyAction
         Drag.mimeData: ({ "text/uri-list": fileDrag.uri,
-                          "text/plain": fileDrag.uri.replace("file://", "") })
+                          "text/plain": decodeURI(fileDrag.uri.replace(/file:\/\//g, "")) })
     }
     Timer {
         id: fileDragStart
@@ -1834,7 +1834,8 @@ PanelWindow {
     // fromWindow — тащат из отдельного окна проводника: пилюлю трогать не надо
     // и ждать её уезда тоже, перетаскивание начинается сразу.
     function startFileDrag(path, fromWindow) {
-        fileDrag.uri = "file://" + path;
+        var list = Array.isArray(path) ? path : [path];
+        fileDrag.uri = list.map(function (p) { return "file://" + encodeURI(p); }).join("\r\n");
         if (fromWindow) { fileDrag.Drag.active = true; return; }
         root.collapse();
         fileDragStart.restart();
@@ -3774,9 +3775,22 @@ PanelWindow {
     // копирование на середине. Теперь оно доживает до конца само, а остров
     // показывает, сколько осталось.
     property var fileOpQueue: []
+    // Состояние текущей операции — его рисует окно прогресса.
+    property bool   fileOpActive: false
+    property string fileOpLabel: ""
+    property string fileOpFile: ""
+    property string fileOpPhase: ""      // "" | "sync"
+    property real   fileOpDone: 0
+    property real   fileOpTotal: 0
+    property int    fileOpPct: 0
+    property real   fileOpSpeed: 0       // байт/с, сглаженная
+    property real   fileOpSyncLeft: 0
+    property string fileOpError: ""
+    property bool   fileOpCancelled: false
+    property real   _fileOpT: 0
+    property real   _fileOpD: 0
 
-    // Вторая операция, начатая пока идёт первая, раньше затирала бы команду
-    // работающего процесса и молча пропадала.
+    // Вторая операция, начатая пока идёт первая, встаёт в очередь.
     function runFileOp(args, label) {
         if (pFileOp.running) {
             var q = root.fileOpQueue.slice();
@@ -3784,35 +3798,142 @@ PanelWindow {
             root.fileOpQueue = q;
             return;
         }
+        root._startFileOp(args, label);
+    }
+    function _startFileOp(args, label) {
+        root.fileOpLabel = label || "";
+        root.fileOpFile = "";
+        root.fileOpPhase = "";
+        root.fileOpDone = 0;
+        root.fileOpTotal = 0;
+        root.fileOpPct = 0;
+        root.fileOpSpeed = 0;
+        root.fileOpSyncLeft = 0;
+        root.fileOpError = "";
+        root.fileOpCancelled = false;
+        root._fileOpT = Date.now();
+        root._fileOpD = 0;
+        root.fileOpActive = true;
         root.beginBusy(label, "󰆏", 0);
-        pFileOp.command = args;
+        // exec — чтобы TERM при отмене получил сам скрипт, а не обёртка sh
+        var a = args.slice();
+        if (a[0] === "sh" && a[1] === "-c" && String(a[2]).indexOf("exec ") !== 0)
+            a[2] = "exec " + a[2];
+        pFileOp.command = a;
         pFileOp.running = true;
+    }
+    function cancelFileOp() {
+        root.fileOpQueue = [];
+        if (pFileOp.running) pFileOp.signal(15);
+    }
+    function dismissFileOp() { root.fileOpError = ""; }
+
+    function fileOpErrorText(code, rest) {
+        switch (code) {
+            case "no-space": return root.tr("Недостаточно места на носителе");
+            case "no-write": return root.tr("Нет прав на запись в эту папку");
+            case "no-dir":   return root.tr("Папка назначения не найдена");
+            case "into-self":return root.tr("Нельзя положить папку внутрь самой себя");
+            case "fat-4g":   return root.tr("Файл больше 4 ГБ не помещается на FAT32: ") + rest;
+            case "busy":     return root.tr("Носитель занят — закройте открытые с него файлы");
+        }
+        return root.tr("Ошибка: ") + rest;
     }
 
     Process {
         id: pFileOp
         stdout: SplitParser {
             onRead: line => {
-                var m = /^PROGRESS (\d+)$/.exec(String(line).trim());
-                if (m) root.busyProgress = parseInt(m[1], 10);
+                var t = String(line).trim();
+                var m = /^PROGRESS (\d+)(?: (\d+) (\d+))?$/.exec(t);
+                if (m) {
+                    root.fileOpPct = parseInt(m[1], 10);
+                    root.busyProgress = root.fileOpPct;
+                    if (m[2] !== undefined) {
+                        var d = parseFloat(m[2]), now = Date.now();
+                        root.fileOpTotal = parseFloat(m[3]);
+                        var dt = (now - root._fileOpT) / 1000;
+                        if (dt >= 0.5) {
+                            var inst = Math.max(0, (d - root._fileOpD) / dt);
+                            root.fileOpSpeed = root.fileOpSpeed > 0
+                                ? root.fileOpSpeed * 0.7 + inst * 0.3 : inst;
+                            root._fileOpT = now;
+                            root._fileOpD = d;
+                        }
+                        root.fileOpDone = d;
+                    }
+                    return;
+                }
+                if (t.indexOf("FILE ") === 0) { root.fileOpFile = t.substring(5); return; }
+                if (t === "PHASE sync") { root.fileOpPhase = "sync"; return; }
+                m = /^SYNC (\d+) (\d+)$/.exec(t);
+                if (m) { root.fileOpSyncLeft = parseFloat(m[2]); return; }
+                if (t === "CANCELLED") { root.fileOpCancelled = true; return; }
+                if (t.indexOf("ERROR ") === 0) {
+                    var parts = t.substring(6).split(" ");
+                    root.fileOpError = root.fileOpErrorText(parts[0], parts.slice(1).join(" "));
+                }
             }
         }
         onRunningChanged: {
             if (running) return;
-            // все открытые проводники перечитывают списки: файл появился
-            // (или исчез) не у того окна, что затеяло операцию
+            // все открытые проводники перечитывают списки
             root.filesChanged();
-            if (root.fileOpQueue.length > 0) {
+            if (root.fileOpQueue.length > 0 && !root.fileOpError.length) {
                 var q = root.fileOpQueue.slice();
                 var next = q.shift();
                 root.fileOpQueue = q;
-                root.beginBusy(next.label, "󰆏", 0);
-                pFileOp.command = next.args;
-                pFileOp.running = true;
+                root._startFileOp(next.args, next.label);
                 return;
             }
+            root.fileOpActive = false;
             root.endBusy();
         }
+    }
+
+    // ------------------------------------------- общий буфер проводника
+    // Один на все окна: скопировали в одном, вставили в другом.
+    property var    filesClipPaths: []
+    property string filesClipMode: ""     // "copy" | "cut"
+    function setFilesClip(paths, mode) {
+        root.filesClipPaths = paths;
+        root.filesClipMode = mode;
+        // и в системный буфер — чтобы вставить можно было и в другие программы
+        var uris = paths.map(function (p) { return "file://" + encodeURI(p); }).join("\r\n");
+        pClipOut.command = ["sh", "-c", "printf '%s' \"$1\" | wl-copy --type text/uri-list", "_", uris];
+        pClipOut.running = false;
+        pClipOut.running = true;
+    }
+    Process { id: pClipOut }
+
+    // ------------------------------------------------- носители: USB
+    // Вместо опроса раз в пару секунд слушаем udev: флешка появляется в
+    // проводнике сразу, как только ядро её увидело, и сразу монтируется.
+    signal disksChanged()
+    Process {
+        id: pUdev
+        running: true
+        command: ["udevadm", "monitor", "--udev", "--subsystem-match=block"]
+        stdout: SplitParser {
+            onRead: line => {
+                var t = String(line);
+                if (t.indexOf(" add ") >= 0 || t.indexOf(" change ") >= 0) udevMount.restart();
+                if (t.indexOf("UDEV") === 0) udevKick.restart();
+            }
+        }
+        onRunningChanged: if (!running) udevRestart.start()
+    }
+    Timer { id: udevRestart; interval: 3000; onTriggered: pUdev.running = true }
+    Timer { id: udevKick; interval: 250; onTriggered: root.disksChanged() }
+    Timer {
+        id: udevMount
+        interval: 700
+        onTriggered: { pAutomount.running = false; pAutomount.running = true; }
+    }
+    Process {
+        id: pAutomount
+        command: ["sh", "-c", root.scriptDir + "/files.sh automount"]
+        onRunningChanged: if (!running) root.disksChanged()
     }
 
     Process {
@@ -6561,6 +6682,188 @@ PanelWindow {
     }
 }
 
+
+// Окно прогресса копирования и переноса. Отдельный слой, а не часть
+// проводника: операция переживает закрытие проводника, и следить за ней
+// надо откуда угодно. Экран не блокирует — висит внизу по центру.
+PanelWindow {
+    id: fileOpWin
+    screen: root.screen
+    // короткие операции не мигают окном: показываемся через 400 мс
+    property bool shown: false
+    visible: shown || fileOpCard.opacity > 0.01
+    anchors.bottom: true
+    margins.bottom: 40
+    implicitWidth: 440
+    implicitHeight: fileOpCard.implicitHeight + 4
+    exclusiveZone: 0
+    color: "transparent"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.namespace: "panacea-fileop"
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+    Timer {
+        id: fileOpShowT
+        interval: 400
+        onTriggered: if (root.fileOpActive) fileOpWin.shown = true
+    }
+    Timer {
+        id: fileOpHideT
+        interval: 1200
+        onTriggered: if (!root.fileOpActive && !root.fileOpError.length) fileOpWin.shown = false
+    }
+    Connections {
+        target: root
+        function onFileOpActiveChanged() {
+            if (root.fileOpActive) { fileOpHideT.stop(); fileOpShowT.restart(); }
+            else if (root.fileOpError.length) fileOpWin.shown = true;
+            else fileOpHideT.restart();
+        }
+    }
+
+    function hsize(b) {
+        if (!b || b <= 0) return "0 B";
+        var u = ["B", "KB", "MB", "GB", "TB"], i = 0;
+        while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+        return (i < 2 ? Math.round(b) : b.toFixed(1)) + " " + u[i];
+    }
+    function eta() {
+        if (root.fileOpSpeed <= 0 || root.fileOpTotal <= 0) return "";
+        var s = Math.round((root.fileOpTotal - root.fileOpDone) / root.fileOpSpeed);
+        if (s < 1) return "";
+        var m = Math.floor(s / 60);
+        return "~" + (m > 0 ? m + " " + root.tr("мин") + " " : "") + (s % 60) + " " + root.tr("с");
+    }
+
+    Rectangle {
+        id: fileOpCard
+        anchors.fill: parent
+        anchors.margins: 2
+        implicitHeight: fileOpCol.implicitHeight + 32
+        radius: 20
+        color: Qt.rgba(0.05, 0.05, 0.06, 0.97)
+        border.color: root.fileOpError.length ? root.colCrit : root.colLine
+        border.width: 1
+        opacity: fileOpWin.shown ? 1 : 0
+        scale: fileOpWin.shown ? 1 : 0.96
+        Behavior on opacity { NumberAnimation { duration: 160 } }
+        Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+
+        ColumnLayout {
+            id: fileOpCol
+            anchors.fill: parent
+            anchors.margins: 16
+            spacing: 8
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                Text {
+                    text: root.fileOpError.length ? "󰀦"
+                        : root.fileOpPhase === "sync" ? "󰆓"
+                        : (!root.fileOpActive ? "󰄬" : "󰆏")
+                    color: root.fileOpError.length ? root.colCrit : root.colOn
+                    font { family: root.fontFam; pixelSize: 18 }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.fileOpError.length ? root.tr("Операция не выполнена")
+                            : root.fileOpCancelled ? root.tr("Отменено")
+                            : !root.fileOpActive ? root.tr("Готово")
+                            : root.fileOpPhase === "sync" ? root.tr("Запись на носитель…")
+                            : root.fileOpLabel
+                        color: root.colFg
+                        elide: Text.ElideMiddle
+                        font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.fileOpError.length ? root.fileOpError
+                            : root.fileOpPhase === "sync"
+                              ? root.tr("Не извлекайте носитель. Осталось: ") + fileOpWin.hsize(root.fileOpSyncLeft)
+                            : root.fileOpTotal > 0
+                              ? fileOpWin.hsize(root.fileOpDone) + " / " + fileOpWin.hsize(root.fileOpTotal)
+                                + (root.fileOpSpeed > 0 ? "  ·  " + fileOpWin.hsize(root.fileOpSpeed) + "/s" : "")
+                                + "  " + fileOpWin.eta()
+                            : root.fileOpFile
+                        color: root.fileOpError.length ? root.colCrit : root.colMuted
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                        font { family: root.fontFam; pixelSize: root.fontSize - 4 }
+                    }
+                }
+                Rectangle {
+                    Layout.preferredWidth: fileOpBtnTxt.implicitWidth + 24
+                    Layout.preferredHeight: 30
+                    radius: 15
+                    visible: root.fileOpActive || root.fileOpError.length > 0
+                    color: fileOpBtnMa.containsMouse ? Qt.rgba(0.94, 0.27, 0.27, 0.22) : Qt.rgba(1, 1, 1, 0.07)
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Text {
+                        id: fileOpBtnTxt
+                        anchors.centerIn: parent
+                        text: root.fileOpActive ? root.tr("Отмена") : root.tr("Закрыть")
+                        color: root.colFg
+                        font { family: root.fontFam; pixelSize: root.fontSize - 4 }
+                    }
+                    MouseArea {
+                        id: fileOpBtnMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (root.fileOpActive) root.cancelFileOp();
+                            else { root.dismissFileOp(); fileOpWin.shown = false; }
+                        }
+                    }
+                }
+            }
+
+            // полоса: при записи на носитель она «бежит», а не стоит на 99%
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 5
+                radius: 3
+                visible: !root.fileOpError.length
+                color: Qt.rgba(1, 1, 1, 0.10)
+                clip: true
+                Rectangle {
+                    visible: root.fileOpPhase !== "sync"
+                    width: parent.width * Math.max(0, Math.min(1, root.fileOpPct / 100))
+                    height: parent.height
+                    radius: 3
+                    color: root.colOn
+                    Behavior on width { NumberAnimation { duration: 240 } }
+                }
+                Rectangle {
+                    id: syncBar
+                    visible: root.fileOpPhase === "sync" && root.fileOpActive
+                    width: parent.width * 0.3
+                    height: parent.height
+                    radius: 3
+                    color: root.colOn
+                    NumberAnimation on x {
+                        running: syncBar.visible
+                        loops: Animation.Infinite
+                        from: -syncBar.width; to: syncBar.parent.width
+                        duration: 1100
+                    }
+                }
+            }
+
+            Text {
+                visible: root.fileOpActive && root.fileOpQueue.length > 0
+                text: root.tr("В очереди: ") + root.fileOpQueue.length
+                color: root.colMuted
+                font { family: root.fontFam; pixelSize: root.fontSize - 5 }
+            }
+        }
+    }
+}
 
 // Проводник отдельным окном. Живёт на уровне ShellRoot, а не внутри
 // пилюли: окно не может быть ребёнком другого окна.
