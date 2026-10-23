@@ -2847,7 +2847,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: String.fromCodePoint(0xF012C)
-                    color: "#ffffff"
+                    color: view.sys.fgOn(parent.color)
                     font { family: view.sys.fontFam; pixelSize: 15 }
                 }
                 MouseArea {

@@ -2331,8 +2331,9 @@ Item {
                                ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.10)
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Text {
-                            anchors.centerIn: parent; text: "󰁕"
-                            color: "#ffffff"
+                            anchors.centerIn: parent
+                            text: String.fromCodePoint(0xF0054)   // стрелка вправо
+                            color: view.sys.fgOn(parent.color)
                             font { family: view.sys.fontFam; pixelSize: 13 }
                         }
                         MouseArea {
