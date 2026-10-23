@@ -174,6 +174,7 @@ PanelWindow {
             property bool   featLauncher: true
             // лаунчер: веб-поиск и короткие ответы ИИ (запрос с «?»)
             property string searchEngine: "duckduckgo"
+            property string aiUrl: ""
             property string aiKey: ""
             property string aiModel: ""
             property bool   featPlayer: true

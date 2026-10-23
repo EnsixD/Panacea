@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "launcher: AI answers through any OpenAI-compatible provider, off until configured":
+            "Лаунчер: ИИ больше не привязан к одному сервису — подходит любой OpenAI-совместимый (OpenAI, OpenRouter, Groq, локальная Ollama). По умолчанию выключен: пока в настройках не указан адрес, «?» ищет как обычно",
         "wifi: visible arrow on the connect button with a white accent":
             "Wi-Fi: на кнопке подключения после ввода пароля снова видна стрелка — на белом акценте (тема Nothing) она сливалась с кнопкой; то же исправлено в диалоге имени в проводнике",
         "wifi: detect captive portals and offer the sign-in page":

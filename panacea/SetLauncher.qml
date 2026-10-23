@@ -88,7 +88,7 @@ ColumnLayout {
         SetLabel { sys: page.sys; text: page.sys.tr("Поиск в интернете и ИИ") }
         Text {
             Layout.fillWidth: true
-            text: page.sys.tr("Любой запрос можно отправить в поисковик последней строкой списка. Запрос, начатый с «?», уходит ИИ, и короткий ответ появляется прямо в лаунчере.")
+            text: page.sys.tr("Любой запрос можно отправить в поисковик последней строкой списка. Если подключить ИИ, запрос с «?» в начале уйдёт ему, и короткий ответ появится прямо в лаунчере.")
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
@@ -122,25 +122,27 @@ ColumnLayout {
             }
         }
         Text {
-            text: page.sys.tr("Ключ API Anthropic")
-            color: page.sys.colFg
-            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+            Layout.fillWidth: true
+            text: page.sys.tr("ИИ подключается по желанию: подойдёт любой OpenAI-совместимый сервис — OpenAI, OpenRouter, Groq или локальная Ollama (http://localhost:11434/v1). Пока адрес пуст, «?» в лаунчере ищет как обычно.")
+            color: page.sys.colMuted
+            wrapMode: Text.WordWrap
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
         Field {
-            placeholderText: "sk-ant-…"
+            placeholderText: page.sys.tr("Адрес API, например https://api.openai.com/v1")
+            text: page.sys.cfg.aiUrl
+            onEditingFinished: { page.sys.cfg.aiUrl = text.trim(); page.sys.saveCfg(); }
+        }
+        Field {
+            placeholderText: page.sys.tr("Модель")
+            text: page.sys.cfg.aiModel
+            onEditingFinished: { page.sys.cfg.aiModel = text.trim(); page.sys.saveCfg(); }
+        }
+        Field {
+            placeholderText: page.sys.tr("Ключ API (для локальных моделей не нужен)")
             echoMode: TextInput.Password
             text: page.sys.cfg.aiKey
             onEditingFinished: { page.sys.cfg.aiKey = text.trim(); page.sys.saveCfg(); }
-        }
-        Text {
-            text: page.sys.tr("Модель (пусто — claude-opus-5-5)")
-            color: page.sys.colFg
-            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
-        }
-        Field {
-            placeholderText: "claude-opus-5-5"
-            text: page.sys.cfg.aiModel
-            onEditingFinished: { page.sys.cfg.aiModel = text.trim(); page.sys.saveCfg(); }
         }
     }
 }

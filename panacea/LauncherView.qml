@@ -211,7 +211,9 @@ FocusScope {
     }
 
     // ------------------------------------------------------ веб и ИИ
-    readonly property bool isAsk: query.trim().indexOf("?") === 0 && query.trim().length > 1
+    // ИИ работает, только если человек сам подключил провайдера
+    readonly property bool aiOn: String(view.sys.cfg.aiUrl || "").length > 0
+    readonly property bool isAsk: aiOn && query.trim().indexOf("?") === 0 && query.trim().length > 1
     readonly property string askText: query.trim().substring(1).trim()
     property string aiAnswer: ""
     property bool   aiBusy: false
@@ -253,10 +255,8 @@ FocusScope {
             onStreamFinished: {
                 view.aiBusy = false;
                 var t = String(text).trim();
-                if (t.indexOf("ERROR no-key") === 0)
-                    t = view.sys.tr("Нет ключа API — добавьте его в Настройки → Лаунчер");
-                else if (t.indexOf("ERROR refusal") === 0)
-                    t = view.sys.tr("ИИ отказался отвечать на этот вопрос");
+                if (t.indexOf("ERROR not-configured") === 0 || t.indexOf("ERROR no-model") === 0)
+                    t = view.sys.tr("ИИ не настроен — укажите адрес и модель в Настройки → Лаунчер");
                 else if (t.indexOf("ERROR") === 0)
                     t = view.sys.tr("Ошибка: ") + t.substring(6);
                 view.aiAnswer = t.length ? t : view.sys.tr("Пустой ответ");
