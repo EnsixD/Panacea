@@ -503,6 +503,50 @@ ColumnLayout {
         }
     }
 
+    // ------------------------------------------------- браузер по умолчанию
+    // Раньше менялся только правкой mimeapps.list руками. Список — всё, что
+    // объявляет себя браузером; выбор применяется сразу через xdg-settings.
+    property var    browsers: []
+    property string browserCur: ""
+    Process {
+        id: pBrowsers
+        running: true
+        command: ["sh", "-c", page.sys.scriptDir + "/browser.sh list; echo '--'; "
+                              + page.sys.scriptDir + "/browser.sh get"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var parts = String(text).split("--\n");
+                var list = [];
+                var lines = (parts[0] || "").split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var p = lines[i].split("|");
+                    if (p.length >= 2) list.push({ id: p[0], text: p[1] });
+                }
+                page.browsers = list;
+                page.browserCur = String(parts[1] || "").trim();
+            }
+        }
+    }
+    Process { id: pBrowserSet; onRunningChanged: if (!running) { pBrowsers.running = false; pBrowsers.running = true; } }
+
+    SetCard {
+        sys: page.sys
+        visible: page.browsers.length > 0
+
+        SetLabel { sys: page.sys; text: page.sys.tr("Браузер по умолчанию") }
+        SetPick {
+            sys: page.sys
+            label: page.sys.tr("Открывать ссылки в")
+            options: page.browsers
+            value: page.browserCur
+            onPicked: id => {
+                page.browserCur = id;
+                pBrowserSet.command = ["sh", "-c", page.sys.scriptDir + "/browser.sh set \"$1\"", "_", id];
+                pBrowserSet.running = true;
+            }
+        }
+    }
+
     // ------------------------------------------------------------- машина
     SetCard {
         sys: page.sys

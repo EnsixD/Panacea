@@ -39,6 +39,8 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "settings: pick the default web browser":
+            "Настройки → Система: браузер по умолчанию выбирается из списка, без ручной правки mimeapps.list",
         "controls: restore the missing Back arrow on Wi-Fi, Bluetooth and battery pages":
             "Быстрые настройки: на страницах Wi-Fi, Bluetooth и батареи снова видна стрелка «Назад»; заодно вернулись пропавшие значки лупы в лаунчере и стрелки подменю в трее",
         "shell: Wi-Fi, Bluetooth and power toasts no longer close an open page":
