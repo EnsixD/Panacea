@@ -12,6 +12,7 @@ ColumnLayout {
     id: page
 
     property var sys
+    property bool applied: false
 
     Layout.fillWidth: true
     spacing: 12
@@ -36,6 +37,18 @@ ColumnLayout {
             color: page.sys.colFg
             placeholderTextColor: page.sys.colMuted
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+            leftPadding: 12; rightPadding: 12; topPadding: 9; bottomPadding: 9
+            selectByMouse: true
+            selectionColor: page.sys.colOn
+            // без своего фона стиль Qt рисует белое поле, и белый текст на нём
+            // не виден вовсе
+            background: Rectangle {
+                radius: 10
+                color: Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+                border.color: parent.activeFocus ? page.sys.colOn : page.sys.colLine
+            }
+            onAccepted: page.sys.applyKeyboardLayouts(layoutsField.text, variantsField.text, optionsField.text)
         }
         TextField {
             id: variantsField
@@ -45,6 +58,18 @@ ColumnLayout {
             color: page.sys.colFg
             placeholderTextColor: page.sys.colMuted
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+            leftPadding: 12; rightPadding: 12; topPadding: 9; bottomPadding: 9
+            selectByMouse: true
+            selectionColor: page.sys.colOn
+            // без своего фона стиль Qt рисует белое поле, и белый текст на нём
+            // не виден вовсе
+            background: Rectangle {
+                radius: 10
+                color: Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+                border.color: parent.activeFocus ? page.sys.colOn : page.sys.colLine
+            }
+            onAccepted: page.sys.applyKeyboardLayouts(layoutsField.text, variantsField.text, optionsField.text)
         }
         TextField {
             id: optionsField
@@ -54,6 +79,18 @@ ColumnLayout {
             color: page.sys.colFg
             placeholderTextColor: page.sys.colMuted
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 2 }
+            leftPadding: 12; rightPadding: 12; topPadding: 9; bottomPadding: 9
+            selectByMouse: true
+            selectionColor: page.sys.colOn
+            // без своего фона стиль Qt рисует белое поле, и белый текст на нём
+            // не виден вовсе
+            background: Rectangle {
+                radius: 10
+                color: Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+                border.color: parent.activeFocus ? page.sys.colOn : page.sys.colLine
+            }
+            onAccepted: page.sys.applyKeyboardLayouts(layoutsField.text, variantsField.text, optionsField.text)
         }
         Text {
             Layout.fillWidth: true
@@ -66,7 +103,13 @@ ColumnLayout {
         SetButton {
             sys: page.sys
             text: page.sys.tr("Применить раскладки")
-            onClicked: page.sys.applyKeyboardLayouts(layoutsField.text, variantsField.text, optionsField.text)
+            onClicked: page.applied = page.sys.applyKeyboardLayouts(layoutsField.text, variantsField.text, optionsField.text)
+        }
+        Text {
+            visible: page.applied && page.sys.keyboardInputError.length === 0
+            text: page.sys.tr("Раскладки применены")
+            color: page.sys.colOn
+            font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
         }
     }
 

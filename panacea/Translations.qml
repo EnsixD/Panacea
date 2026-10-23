@@ -874,6 +874,7 @@ QtObject {
         "Извлечь безопасно": "Safely eject",
         "Перемещение: ": "Moving: ",
         "Копирование: ": "Copying: ",
+        "Раскладки применены": "Layouts applied",
     })
     readonly property var tr: ({
         "Остров": "Ada",
@@ -1534,5 +1535,6 @@ QtObject {
         "Извлечь безопасно": "Güvenle çıkar",
         "Перемещение: ": "Taşınıyor: ",
         "Копирование: ": "Kopyalanıyor: ",
+        "Раскладки применены": "Düzenler uygulandı",
     })
 }
