@@ -866,6 +866,11 @@ FocusScope {
             orientation: ListView.Horizontal
             snapMode: ListView.SnapOneItem
             highlightRangeMode: ListView.StrictlyEnforceRange
+            // Без диапазона Qt молча игнорирует StrictlyEnforceRange: номер
+            // страницы менялся (и точка внизу вместе с ним), а лента стояла
+            // на месте. Диапазон в одну страницу — currentIndex двигает её.
+            preferredHighlightBegin: 0
+            preferredHighlightEnd: width
             highlightMoveDuration: view.sys.noMotion ? 0 : 320
             boundsBehavior: Flickable.StopAtBounds
             // все страницы держим живыми: иначе плитка, которую тащат,
