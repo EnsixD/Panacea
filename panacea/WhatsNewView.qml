@@ -39,6 +39,10 @@ Item {
     // ВАЖНО: новый коммит — новая строка сюда. Без неё заголовок покажется
     // по-английски: не сломается, но выпадет из языка интерфейса.
     readonly property var dictRu: ({
+        "update: notify only on a higher version, download only what changed, keep your own edits":
+            "Обновление: уведомление приходит только о новой версии, а не на каждое изменение в репозитории, и не повторяется после перезапуска. Скачивается только то, что изменилось (без обоев и демо-ролика), с настоящим процентом загрузки — обновление идёт секунды, а не минуты. Файлы конфигов, которые вы правили сами, больше не затираются: они остаются вашими, а новая версия кладётся рядом как *.panacea-new. Модель распознавания речи докачивается в фоне и не задерживает обновление",
+        "feat: add Launchpad, a full-screen app grid with folders":
+            "Launchpad: все приложения сеткой на весь экран поверх размытого стола — с поиском, страницами и папками (перетащите одно приложение на другое). Открывается по Super+G, сочетание меняется в окне Super+/, выключается в Настройки → Лаунчер",
         "launcher: AI answers through any OpenAI-compatible provider, off until configured":
             "Лаунчер: ИИ больше не привязан к одному сервису — подходит любой OpenAI-совместимый (OpenAI, OpenRouter, Groq, локальная Ollama). По умолчанию выключен: пока в настройках не указан адрес, «?» ищет как обычно",
         "wifi: visible arrow on the connect button with a white accent":
@@ -604,6 +608,15 @@ Item {
                 cmd: "sudo pacman -Rns " + view.sys.obsoleteDeps
                 shown: view.sys.obsoleteDeps.length > 0
                 tone: view.sys.colMuted
+            }
+
+            // Свои правки человек должен увидеть сохранёнными, а не гадать,
+            // затёрло ли их обновление.
+            DepsNotice {
+                text: view.sys.tr("Ваши правки сохранены (новые версии рядом — *.panacea-new)")
+                cmd: view.sys.keptEdits.split("\n").join("  ")
+                shown: view.sys.keptEdits.length > 0
+                tone: view.sys.colOn
             }
 
             // ------------------------------------------------- кнопка

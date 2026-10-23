@@ -944,6 +944,10 @@ install_configs() {
 
     stamp_version
     personalize_paths
+    # Суммы установленного: по ним следующее обновление поймёт, что человек
+    # правил сам, и не затрёт это.
+    [ -x "$CONF/panacea/scripts/manifest.sh" ] \
+        && "$CONF/panacea/scripts/manifest.sh" write "$SRC" >/dev/null 2>&1
 }
 
 # Какую версию поставили. По этой отметке оболочка потом понимает, что на

@@ -175,6 +175,8 @@ PanelWindow {
             // лаунчер: веб-поиск и короткие ответы ИИ (запрос с «?»)
             property string searchEngine: "duckduckgo"
             property string aiUrl: ""
+            // о какой версии уже сообщали — переживает перезапуск оболочки
+            property string updNotifiedVer: ""
             property string aiKey: ""
             property string aiModel: ""
             // Launchpad: все приложения сеткой на весь экран, с папками
@@ -1043,16 +1045,25 @@ PanelWindow {
     // заполняться. Числа взяты из замеров: клон около трёх секунд,
     // установщик около одной, остальное — мгновения.
     readonly property var updSteps: [
-        { id: "download",      w: 30 },
+        { id: "download",      w: 45 },
         { id: "selfupdate",    w: 2  },
         { id: "backup",        w: 4  },
         { id: "install",       w: 16 },
         { id: "greeter",       w: 2  },
         { id: "restore",       w: 4  },
-        { id: "voxtype_model", w: 15 },
         { id: "restart",       w: 4  },
         { id: "done",          w: 0  }
     ]
+    // Скачивание git сообщает настоящим процентом (update.sh печатает dl=NN):
+    // полоса на этом шаге идёт по факту, а не подползает наугад.
+    function updDownload(pct) {
+        if (!root.updBusy || root.updStep !== "download") return;
+        var v = root.updStepPercent + (root.updStepCeil - root.updStepPercent) * pct / 100;
+        if (v > root.updCreepAt) {
+            root.updCreepAt = v;
+            root.busyProgress = Math.round(v);
+        }
+    }
     readonly property real updWeightTotal: {
         var t = 0;
         for (var i = 0; i < root.updSteps.length; i++) t += root.updSteps[i].w;
@@ -1130,6 +1141,7 @@ PanelWindow {
             else if (k === "current") root.updCurrent = v;
             else if (k === "step")    root.updStep = v;
             else if (k === "error")   root.updError = v;
+            else if (k === "dl")      root.updDownload(parseInt(v, 10) || 0);
             else if (k === "missing")  root.missingDeps = v;
             else if (k === "obsolete") root.obsoleteDeps = v;
             else if (k === "version") root.updCurrent = v;
@@ -1137,8 +1149,14 @@ PanelWindow {
         if (!done) return;
         // Уведомление показываем один раз на версию: проверка идёт по таймеру,
         // и каждые шесть часов напоминать об одном и том же — навязчиво.
-        if (root.updStatus === "behind" && root.updLatest !== root.updNotified) {
+        // Номер, о котором уже сообщали, живёт в настройках: в памяти он
+        // терялся с каждым перезапуском оболочки, и уведомление о той же
+        // версии приходило снова и снова.
+        if (root.updStatus === "behind" && root.updLatest.length
+                && root.updLatest !== root.cfg.updNotifiedVer) {
             root.updNotified = root.updLatest;
+            root.cfg.updNotifiedVer = root.updLatest;
+            root.saveCfg();
             pUpdNotify.running = true;
         }
     }
@@ -1267,8 +1285,24 @@ PanelWindow {
         onLoadFailed: root.obsoleteDeps = ""
     }
 
+    // Файлы, которые человек правил сам и обновление оставило как есть
+    // (scripts/manifest.sh). Свежая версия, если она изменилась, лежит рядом
+    // как <файл>.panacea-new.
+    property string keptEdits: ""
+    FileView {
+        id: keptEditsFile
+        path: Quickshell.env("HOME") + "/.config/panacea/.keptedits"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: root.keptEdits = String(keptEditsFile.text()).trim().split("\n")
+                      .map(function (l) { return l.replace(/^kept /, ""); }).join("\n")
+        onLoadFailed: root.keptEdits = ""
+    }
+
     function dismissWhatsNew() {
         root.whatsNew = [];
+        root.keptEdits = "";
         root.missingDeps = "";
         root.obsoleteDeps = "";
         pWhatsNewClear.running = true;
@@ -1276,7 +1310,7 @@ PanelWindow {
     Process {
         id: pWhatsNewClear
         command: ["sh", "-c",
-                  "rm -f \"$1/.whatsnew\" \"$1/.missingdeps\" \"$1/.obsoletedeps\"", "_",
+                  "rm -f \"$1/.whatsnew\" \"$1/.missingdeps\" \"$1/.obsoletedeps\" \"$1/.keptedits\"", "_",
                   Quickshell.env("HOME") + "/.config/panacea"]
     }
 

@@ -908,6 +908,7 @@ QtObject {
         "Адрес API, например https://api.openai.com/v1": "API URL, e.g. https://api.openai.com/v1",
         "Модель": "Model",
         "Ключ API (для локальных моделей не нужен)": "API key (not needed for local models)",
+        "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Your edits were kept (new versions next to them — *.panacea-new)",
     })
     readonly property var tr: ({
         "Разработка": "Geliştirme",
@@ -1602,5 +1603,6 @@ QtObject {
         "Адрес API, например https://api.openai.com/v1": "API adresi, örn. https://api.openai.com/v1",
         "Модель": "Model",
         "Ключ API (для локальных моделей не нужен)": "API anahtarı (yerel modeller için gerekmez)",
+        "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Düzenlemeleriniz korundu (yeni sürümler yanında — *.panacea-new)",
     })
 }

@@ -193,7 +193,7 @@ cmd_check() {
     fi
 
     local target_ver="${rem_ver:-$sha}"
-    local active_ver="${cur_sha:-$cur_ver}"
+    local active_ver="${cur_ver:-$cur_sha}"
 
     echo "current=$active_ver"
     echo "latest=$target_ver"
@@ -201,21 +201,18 @@ cmd_check() {
     echo "remote_version=${rem_ver:-$target_ver}"
     echo "subject=${subject:-Panacea $target_ver}"
 
-    # Версия неизвестна (ставили не установщиком) — предлагать обновление
-    # наугад нельзя: человек не поймёт, с чего на что.
-    if [ -z "$cur_ver" ] && [ -z "$cur_sha" ]; then
+    # Обновление — это только БОЛЕЕ ВЫСОКИЙ номер версии. Раньше при сбое
+    # чтения версии с GitHub (таймаут, лимит запросов) проверка откатывалась
+    # к сравнению хешей коммитов, и любой коммит в ветке выглядел новой
+    # версией — уведомление прилетало на каждый пуш.
+    if [ -z "$cur_ver" ]; then
         echo "status=unknown"
-    elif [ -n "$rem_ver" ] && [ -n "$cur_ver" ]; then
-        # Обновление срабатывает только когда меняется версия в репозитории!
-        if version_gt "$rem_ver" "$cur_ver"; then
-            echo "status=behind"
-        else
-            echo "status=current"
-        fi
-    elif [ "$active_ver" = "$target_ver" ]; then
-        echo "status=current"
-    else
+    elif [ -z "$rem_ver" ]; then
+        echo "status=offline"
+    elif version_gt "$rem_ver" "$cur_ver"; then
         echo "status=behind"
+    else
+        echo "status=current"
     fi
 }
 
@@ -405,6 +402,45 @@ write_changelog() {
     } > "$out"
 }
 
+# Скачать или обновить копию репозитория в $1, печатая «dl=NN» — реальный
+# процент приёма объектов от git, а не угаданный.
+fetch_repo() {
+    local dir="$1"
+    # progress_filter BASE SPAN — проценты git, уложенные в [BASE, BASE+SPAN]
+    progress_filter() {
+        local base=$1 span=$2
+        tr '\r' '\n' | sed -un 's/^\(remote: \)\{0,1\}\(Receiving\|Resolving\|Updating\) [a-z]*: *\([0-9]\{1,3\}\)%.*/\2 \3/p' |
+        while read -r what pct; do
+            [ "$what" = "Resolving" ] && pct=$(( 90 + pct / 10 )) || pct=$(( pct * 9 / 10 ))
+            echo "dl=$(( base + pct * span / 100 ))"
+        done
+    }
+    # Установщику не нужны обои (отдельный выбор при установке), демо-ролик
+    # и документация — их в копии нет вовсе.
+    local sparse=('/*' '!/wallpapers/' '!/demo.mp4' '!/demo-poster.jpg' '!/docs/')
+    if [ -d "$dir/.git" ]; then
+        git -C "$dir" remote set-url origin "$GIT_URL" 2>/dev/null
+        git -C "$dir" sparse-checkout set --no-cone "${sparse[@]}" >/dev/null 2>&1
+        git -C "$dir" fetch --progress --depth 1 --filter=blob:none --no-tags origin "$BRANCH" 2>&1 \
+            | progress_filter 0 10
+        [ "${PIPESTATUS[0]}" = 0 ] || return 1
+        # содержимое изменившихся файлов git докачивает здесь
+        git -C "$dir" reset --hard FETCH_HEAD 2>&1 | progress_filter 10 90
+        [ "${PIPESTATUS[0]}" = 0 ] || return 1
+        git -C "$dir" clean -qfdx || return 1
+    else
+        mkdir -p "$(dirname "$dir")"
+        git clone --progress --depth 1 --filter=blob:none --no-checkout --single-branch \
+            --no-tags --branch "$BRANCH" "$GIT_URL" "$dir" 2>&1 | progress_filter 0 10
+        [ "${PIPESTATUS[0]}" = 0 ] || return 1
+        git -C "$dir" sparse-checkout set --no-cone "${sparse[@]}" >/dev/null 2>&1 || return 1
+        git -C "$dir" -c checkout.workers=0 checkout --progress "$BRANCH" 2>&1 | progress_filter 10 90
+        [ "${PIPESTATUS[0]}" = 0 ] || return 1
+    fi
+    echo "dl=100"
+    [ -f "$dir/install.sh" ]
+}
+
 cmd_apply() {
     have git || { echo "status=error"; echo "error=nogit"; exit 1; }
 
@@ -415,25 +451,27 @@ cmd_apply() {
     IFS=$'\t' read -r sha subject <<<"$(remote_info)"
     [ -n "$sha" ] || { echo "status=error"; echo "error=offline"; exit 1; }
 
-    # переменная нарочно не local: trap срабатывает при выходе из скрипта,
-    # когда область видимости функции уже закрыта
+    # Постоянная копия репозитория. Раньше каждое обновление клонировало
+    # его заново целиком — вместе с 400+ МБ обоев, — и шло минутами. Теперь
+    # копия живёт в кэше: повторное обновление докачивает только изменения.
+    #
+    # Обои из копии исключены (sparse checkout + частичный клон без
+    # содержимого файлов): обновление их не ставит вовсе.
+    CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/panacea/repo"
     tmp="$(mktemp -d)"
     trap 'rm -rf "${tmp:-}"' EXIT
 
-    # Клон мог приехать от прежней копии скрипта — при самообновлении она
-    # уже всё скачала. Проверяем, что это действительно наш каталог, а не
-    # оставшийся от чужого запуска: без install.sh дальше делать нечего.
     if [ -n "${PANACEA_SRC:-}" ] && [ -f "$PANACEA_SRC/install.sh" ]; then
-        rm -rf "$tmp"
-        tmp="$(dirname "$PANACEA_SRC")"
-        trap 'rm -rf "${tmp:-}"' EXIT
+        src="$PANACEA_SRC"
     else
-        # --no-tags: метки в оболочке не используются, а тянутся вместе с
-        # ветками. Один коммит без истории — всё, что нужно для установки.
-        git clone --depth 1 --single-branch --no-tags --branch "$BRANCH" \
-            "$GIT_URL" "$tmp/src" >/dev/null 2>&1 \
-            || { echo "status=error"; echo "error=download"; exit 1; }
+        src="$CACHE"
+        if ! fetch_repo "$src"; then
+            # испорченную копию не чиним по частям — качаем заново
+            rm -rf "$src"
+            fetch_repo "$src" || { echo "status=error"; echo "error=download"; exit 1; }
+        fi
     fi
+    ln -s "$src" "$tmp/src"
 
     # Скрипт обновляет сам себя.
     #
@@ -454,7 +492,7 @@ cmd_apply() {
         # второй раз. Клонирование — самый долгий шаг обновления, и при смене
         # самого update.sh оно шло дважды подряд, удваивая ожидание на ровном
         # месте. Каталог за собой убирает тот, кто им закончил.
-        PANACEA_SRC="$tmp/src" PANACEA_SELFEXEC=1 bash "$fresh" apply
+        PANACEA_SRC="$src" PANACEA_SELFEXEC=1 bash "$fresh" apply
         rc=$?
         rm -f "$fresh"
         rm -rf "$tmp"
@@ -467,6 +505,10 @@ cmd_apply() {
     local was
     was="$(current)"
     stash_user_state
+    # Всё, что человек правил или добавил в конфигах сам, — в сторону,
+    # по контрольным суммам прошлой установки (scripts/manifest.sh).
+    EDITS="$(mktemp -d "$CONF/.panacea-edits.XXXXXXXX")"
+    bash "$tmp/src/panacea/scripts/manifest.sh" save "$tmp/src" "$EDITS" >/dev/null 2>&1
 
     # Ставим тем же установщиком, что и с нуля: одна логика на установку и
     # обновление — значит, обновлённая машина ничем не отличается от свежей.
@@ -482,6 +524,8 @@ cmd_apply() {
     if ! (cd "$tmp/src" && bash ./install.sh --no-deps --no-sddm --no-grub \
             --no-services --no-wallpapers --no-restart --no-backup --yes >"$tmp/log" 2>&1); then
         restore_user_state
+        bash "$tmp/src/panacea/scripts/manifest.sh" restore "$EDITS" >/dev/null 2>&1
+        rm -rf "$EDITS"
         echo "status=error"
         echo "error=install"
         echo "log=$tmp/log"
@@ -513,12 +557,13 @@ cmd_apply() {
 
     echo "step=restore"
     restore_user_state
+    bash "$tmp/src/panacea/scripts/manifest.sh" restore "$EDITS" > "$CONF/panacea/.keptedits" 2>/dev/null
+    [ -s "$CONF/panacea/.keptedits" ] || rm -f "$CONF/panacea/.keptedits"
+    rm -rf "$EDITS"
 
-    # Синхронизируем новые обои из репозитория, не затирая пользовательские
-    if [ -d "$tmp/src/wallpapers" ]; then
-        mkdir -p "$CONF/hypr/wallpaper/shell"
-        cp -n "$tmp/src/wallpapers"/* "$CONF/hypr/wallpaper/shell/" 2>/dev/null || true
-    fi
+    # Обои обновление не трогает: их набор — отдельный выбор при установке
+    # (install.sh без --no-wallpapers), и тянуть сотни мегабайт картинок
+    # ради обновления оболочки незачем.
 
     # Новая версия могла добавить зависимости, а ставим мы с --no-deps:
     # хватать пакеты без спроса, да ещё и через sudo из-под кнопки в
@@ -578,21 +623,20 @@ EOF
             systemctl --user daemon-reload >/dev/null 2>&1 || true
         fi
 
-        # Проверка и скачивание модели Medium, если её ещё нет
-        if [ ! -f "$models_dir/ggml-medium.bin" ]; then
-            echo "step=voxtype_model"
-            if command -v curl >/dev/null 2>&1; then
-                curl -sL "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin" -o "$models_dir/ggml-medium.bin" 2>/dev/null || true
-            else
-                "$vox_cmd" setup --download --model medium >/dev/null 2>&1 || true
-            fi
-        fi
-
-        # Silero VAD
-        if [ ! -f "$models_dir/ggml-silero-vad.bin" ]; then
-            if command -v curl >/dev/null 2>&1; then
-                curl -sL "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-silero-vad.bin" -o "$models_dir/ggml-silero-vad.bin" 2>/dev/null || true
-            fi
+        # Модели (medium — полтора гигабайта) качаем в фоне, отдельным
+        # сеансом: раньше обновление молча стояло на этом шаге минутами.
+        # Пишем во временный файл и переименовываем только целый — оборванная
+        # загрузка больше не выдаёт себя за готовую модель.
+        if [ ! -f "$models_dir/ggml-medium.bin" ] || [ ! -f "$models_dir/ggml-silero-vad.bin" ]; then
+            setsid sh -c '
+                d="$1"; base=https://huggingface.co/ggerganov/whisper.cpp/resolve/main
+                for m in ggml-silero-vad.bin ggml-medium.bin; do
+                    [ -f "$d/$m" ] && continue
+                    curl -fsL "$base/$m" -o "$d/.$m.part" && mv -f "$d/.$m.part" "$d/$m"
+                    rm -f "$d/.$m.part"
+                done
+                systemctl --user restart voxtype.service
+            ' _ "$models_dir" >/dev/null 2>&1 &
         fi
 
         systemctl --user enable --now voxtype.service >/dev/null 2>&1 || true
