@@ -215,7 +215,7 @@ Item {
             }
 
             Text {
-                text: ""
+                text: String.fromCodePoint(0xF0142)   // шеврон вправо
                 color: bodyMa.containsMouse ? view.sys.colFg : view.sys.colMuted
                 font { family: view.sys.fontFam; pixelSize: 13 }
                 Behavior on color { ColorAnimation { duration: 130 } }
@@ -906,7 +906,7 @@ Item {
             color: backMa.containsMouse ? view.sys.colHover : "transparent"
             Behavior on color { ColorAnimation { duration: 130 } }
             Text {
-                anchors.centerIn: parent; text: ""
+                anchors.centerIn: parent; text: String.fromCodePoint(0xF004D)   // стрелка назад
                 color: view.sys.colFg
                 font { family: view.sys.fontFam; pixelSize: 13 }
             }
@@ -2569,7 +2569,7 @@ Item {
                             // стрелка у подменю
                             Text {
                                 visible: entry.modelData.hasChildren
-                                text: ""
+                                text: String.fromCodePoint(0xF0142)
                                 color: view.sys.colMuted
                                 font { family: view.sys.fontFam; pixelSize: 11 }
                             }

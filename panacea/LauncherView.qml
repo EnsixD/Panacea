@@ -277,7 +277,7 @@ FocusScope {
                 spacing: 9
 
                 Text {
-                    text: ""
+                    text: String.fromCodePoint(0xF0349)   // лупа
                     color: view.sys.colMuted
                     font { family: view.sys.fontFam; pixelSize: 14 }
                 }
