@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Panacea</vendor>
+  <action id="org.panacea.root">
+    <description>Change system settings from Panacea</description>
+    <description xml:lang="ru">Изменить системные настройки из Panacea</description>
+    <message>Panacea needs administrator rights to change system settings</message>
+    <message xml:lang="ru">Panacea нужны права администратора, чтобы изменить системные настройки</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- пароль один раз, дальше несколько минут без повторов -->
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/lib/panacea/panacea-root</annotate>
+  </action>
+</policyconfig>

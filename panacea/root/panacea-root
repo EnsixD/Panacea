@@ -1,0 +1,78 @@
+#!/bin/bash
+# Единая точка для всего, что оболочке нужно делать от root.
+#
+# Зовётся через pkexec, и правило polkit (org.panacea.root.policy) стоит
+# auth_admin_keep: пароль спрашивается один раз, и несколько минут после
+# этого следующие запросы проходят без повторного ввода — как у sudo.
+# Раньше каждое действие было отдельным pkexec со своим окном пароля.
+#
+# Лежит в /usr/local/lib/panacea и принадлежит root: исполнять от root
+# скрипты из домашней папки (их может переписать любая программа
+# пользователя) нельзя.
+#
+#   panacea-root sddm SRC          тема экрана входа из каталога SRC
+#   panacea-root self REPO         обновить сам помощник и правило
+#   panacea-root update REPO       self + тема входа, если изменилась
+#   panacea-root timezone ZONE     часовой пояс
+#   panacea-root ntp true|false    синхронизация времени
+#   panacea-root settime 'Y-m-d H:M:S'
+#   panacea-root locale CODE       язык системы
+#   panacea-root boot ID           перезагрузиться в другую систему
+set -u
+LIB=/usr/local/lib/panacea
+[ "$(id -u)" = 0 ] || { echo "must run as root" >&2; exit 1; }
+
+case "${1:-}" in
+    sddm)
+        src="${2:?}"
+        [ -f "$src/Main.qml" ] || { echo "not a theme: $src" >&2; exit 1; }
+        rm -rf /usr/share/sddm/themes/panacea.new
+        cp -r "$src" /usr/share/sddm/themes/panacea.new || exit 1
+        chown -R root:root /usr/share/sddm/themes/panacea.new
+        rm -rf /usr/share/sddm/themes/panacea
+        mv /usr/share/sddm/themes/panacea.new /usr/share/sddm/themes/panacea
+        ;;
+    self)
+        # SRC — корень репозитория
+        src="${2:?}"
+        [ -f "$src/panacea/root/panacea-root" ] || exit 1
+        install -Dm755 -o root -g root "$src/panacea/root/panacea-root" "$LIB/panacea-root.new" \
+            && mv -f "$LIB/panacea-root.new" "$LIB/panacea-root"
+        for f in locale.sh bootos.sh; do
+            [ -f "$src/panacea/scripts/$f" ] && install -Dm755 -o root -g root "$src/panacea/scripts/$f" "$LIB/$f"
+        done
+        install -Dm644 -o root -g root "$src/panacea/root/org.panacea.root.policy" \
+            /usr/share/polkit-1/actions/org.panacea.root.policy
+        ;;
+    update)
+        # всё, что обновлению нужно от root, — одним вызовом и одним паролем
+        src="${2:?}"
+        "$0" self "$src" || exit 1
+        if [ -d /usr/share/sddm/themes/panacea ] && [ -f "$src/sddm/panacea/Main.qml" ] \
+           && ! diff -rq /usr/share/sddm/themes/panacea "$src/sddm/panacea" >/dev/null 2>&1; then
+            "$0" sddm "$src/sddm/panacea"
+        fi
+        ;;
+    timezone)
+        z="${2:?}"
+        [[ "$z" =~ ^[A-Za-z0-9_+/-]+$ ]] && [ -f "/usr/share/zoneinfo/$z" ] || exit 1
+        timedatectl set-timezone "$z"
+        ;;
+    ntp)
+        case "${2:-}" in true|false) timedatectl set-ntp "$2" ;; *) exit 1 ;; esac
+        ;;
+    settime)
+        [[ "${2:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}(:[0-9]{2})?$ ]] || exit 1
+        timedatectl set-time "$2"
+        ;;
+    locale)
+        exec "$LIB/locale.sh" set "${2:?}"
+        ;;
+    boot)
+        exec "$LIB/bootos.sh" boot "${2:?}"
+        ;;
+    *)
+        echo "usage: panacea-root sddm|self|timezone|ntp|settime|locale|boot ..." >&2
+        exit 1
+        ;;
+esac

@@ -872,7 +872,8 @@ PanelWindow {
         root.saveCfg();
 
         root.sysLangPending = true;
-        pLocaleSet.command = ["pkexec", Quickshell.env("HOME") + "/.config/panacea/scripts/locale.sh", "set", code];
+        pLocaleSet.command = root.rootCmd(["locale", code],
+            ["pkexec", Quickshell.env("HOME") + "/.config/panacea/scripts/locale.sh", "set", code]);
         pLocaleSet.running = false;
         pLocaleSet.running = true;
     }
@@ -966,9 +967,24 @@ PanelWindow {
         pOpenWith.running = true;
     }
 
+    // Действия от root идут через системный помощник panacea-root: его
+    // правило polkit спрашивает пароль один раз на несколько минут, а не на
+    // каждое действие. Пока помощник не поставлен — старый путь.
+    readonly property string rootHelper: "/usr/local/lib/panacea/panacea-root"
+    property bool rootHelperOk: false
+    Process {
+        running: true
+        command: ["test", "-x", root.rootHelper]
+        onExited: code => root.rootHelperOk = (code === 0)
+    }
+    function rootCmd(args, legacy) {
+        return root.rootHelperOk ? ["pkexec", root.rootHelper].concat(args) : legacy;
+    }
+
     function bootIntoSystem(id) {
         if (!id) return;
-        pBootOs.command = ["pkexec", root.scriptDir + "/bootos.sh", "boot", String(id)];
+        pBootOs.command = root.rootCmd(["boot", String(id)],
+            ["pkexec", root.scriptDir + "/bootos.sh", "boot", String(id)]);
         pBootOs.running = false;
         pBootOs.running = true;
     }

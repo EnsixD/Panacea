@@ -1487,6 +1487,21 @@ if [ "$DO_GRUB" = "1" ] && [ -d /boot/grub ]; then
     fi
 fi
 
+# Помощник для действий от root (часовой пояс, язык, тема входа, загрузка в
+# другую систему) и правило polkit к нему: пароль спрашивается один раз, а
+# не на каждое действие. Ставим молча, если sudo доступен без вопросов
+# (установка уже спросила пароль раньше); иначе оболочка поставит его при
+# первом обновлении.
+install_root_helper() {
+    [ -f "$SRC/panacea/root/panacea-root" ] || return 0
+    $SUDO install -Dm755 "$SRC/panacea/root/panacea-root" /usr/local/lib/panacea/panacea-root \
+        && $SUDO /usr/local/lib/panacea/panacea-root self "$SRC" \
+        && ok "system helper → /usr/local/lib/panacea (one password per few minutes)"
+}
+if [ "$DO_SERVICES" = "1" ] || [ "$DO_SDDM" = "1" ]; then
+    install_root_helper || warn "system helper not installed — the shell will ask for it on update"
+fi
+
 if [ "$DO_SDDM" = "1" ] && command -v sddm >/dev/null 2>&1; then
     if ask "Also install the Panacea SDDM login theme? (replaces your current login screen, needs root)"; then
         step "Installing the login theme"; install_sddm

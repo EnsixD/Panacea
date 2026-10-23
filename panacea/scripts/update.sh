@@ -441,6 +441,20 @@ fetch_repo() {
     [ -f "$dir/install.sh" ]
 }
 
+# Нужно ли что-то менять от root: помощник, правило polkit, тема входа.
+root_needs_update() {
+    local src="$1" lib=/usr/local/lib/panacea
+    cmp -s "$src/panacea/root/panacea-root" "$lib/panacea-root" || return 0
+    cmp -s "$src/panacea/root/org.panacea.root.policy" /usr/share/polkit-1/actions/org.panacea.root.policy || return 0
+    cmp -s "$src/panacea/scripts/locale.sh" "$lib/locale.sh" || return 0
+    cmp -s "$src/panacea/scripts/bootos.sh" "$lib/bootos.sh" || return 0
+    if [ -d /usr/share/sddm/themes/panacea ] && [ -d "$src/sddm/panacea" ] \
+       && ! diff -rq /usr/share/sddm/themes/panacea "$src/sddm/panacea" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
 cmd_apply() {
     have git || { echo "status=error"; echo "error=nogit"; exit 1; }
 
@@ -541,17 +555,22 @@ cmd_apply() {
     # Обновляем через pkexec: агент polkit у оболочки есть, и он покажет
     # обычное окно запроса пароля. Отказались или агента нет — пропускаем
     # молча, обновление из-за этого падать не должно.
-    if [ "$DRY" != "1" ] \
-       && [ -d /usr/share/sddm/themes/panacea ] \
-       && [ -d "$tmp/src/sddm/panacea" ] \
-       && ! diff -rq /usr/share/sddm/themes/panacea "$tmp/src/sddm/panacea" >/dev/null 2>&1
-    then
+    # Всё системное (тема экрана входа, помощник panacea-root) — одним
+    # вызовом pkexec, то есть одним окном пароля, и только если что-то
+    # действительно изменилось. Раньше было отдельное окно на каждое
+    # действие. Отказались или агента нет — пропускаем, обновление из-за
+    # этого не падает.
+    if [ "$DRY" != "1" ] && command -v pkexec >/dev/null 2>&1 && root_needs_update "$tmp/src"; then
         echo "step=greeter"
-        if command -v pkexec >/dev/null 2>&1; then
+        local helper=/usr/local/lib/panacea/panacea-root
+        if [ -x "$helper" ]; then
+            pkexec "$helper" update "$(readlink -f "$tmp/src")" >/dev/null 2>&1 || true
+        else
+            # помощника ещё нет (ставили до него) — ставим его этим же вызовом
             pkexec sh -c '
-                rm -rf /usr/share/sddm/themes/panacea &&
-                cp -r "$1" /usr/share/sddm/themes/panacea
-            ' _ "$tmp/src/sddm/panacea" >/dev/null 2>&1 || true
+                install -Dm755 "$1/panacea/root/panacea-root" /usr/local/lib/panacea/panacea-root &&
+                /usr/local/lib/panacea/panacea-root update "$1"
+            ' _ "$(readlink -f "$tmp/src")" >/dev/null 2>&1 || true
         fi
     fi
 

@@ -64,6 +64,12 @@ ColumnLayout {
     Timer { id: noteTimer; interval: 4000; onTriggered: page.note = "" }
 
     function run(cmd) { pApply.args = cmd; pApply.running = true; }
+    // через помощника — один пароль на несколько минут; без него — как раньше
+    function root(args, legacy) {
+        if (!page.sys.rootHelperOk) return "pkexec " + legacy;
+        return "pkexec " + page.sys.rootHelper + " "
+             + args.map(function (a) { return "'" + String(a).replace(/'/g, "") + "'"; }).join(" ");
+    }
 
     // ------------------------------------------------------------- формат
     SetCard {
@@ -123,7 +129,7 @@ ColumnLayout {
             sub: page.ntp ? page.sys.tr("Время приходит с сервера времени.")
                           : page.sys.tr("Время стоит так, как выставили вручную.")
             on: page.ntp
-            onToggled: v => page.run("pkexec timedatectl set-ntp " + (v ? "true" : "false"))
+            onToggled: v => page.run(page.root(["ntp", v ? "true" : "false"], "timedatectl set-ntp " + (v ? "true" : "false")))
         }
 
         SetPick {
@@ -138,7 +144,7 @@ ColumnLayout {
             onPicked: id => {
                 page.sys.cfg.clockTz = id;
                 page.sys.saveCfg();
-                if (id !== "auto") page.run("pkexec timedatectl set-timezone " + id);
+                if (id !== "auto") page.run(page.root(["timezone", id], "timedatectl set-timezone " + id));
             }
         }
     }
@@ -218,7 +224,7 @@ ColumnLayout {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: page.run("pkexec timedatectl set-time '" + page.draft + "'")
+                    onClicked: page.run(page.root(["settime", page.draft], "timedatectl set-time '" + page.draft + "'"))
                 }
             }
         }
