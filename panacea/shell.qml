@@ -3498,11 +3498,27 @@ PanelWindow {
             root.wifiConnecting = false;
             root.wifiConnectingSsid = "";
             root.showWifiToast(ssid, root.wifiQuality, false);
+            root.checkCaptive(ssid);
         } else if (ssid.length === 0) {
             root.wifiPrevConnected = "";
             root.wifiConnectingSsid = "";
         }
     }
+
+    // Сеть со страницей входа: проверяем после каждого подключения, и если
+    // нас перехватили — уведомление с кнопкой, открывающей страницу входа.
+    function checkCaptive(ssid) {
+        pCaptive.running = false;
+        pCaptive.command = ["sh", "-c", root.scriptDir + "/captive.sh \"$1\"", "_", ssid];
+        pCaptive.environment = {
+            PANACEA_CAPTIVE_TITLE: root.tr("Требуется вход в сеть"),
+            PANACEA_CAPTIVE_BODY: root.tr("Откройте страницу входа, чтобы получить доступ к интернету"),
+            PANACEA_CAPTIVE_BTN: root.tr("Войти")
+        };
+        captiveDelay.restart();
+    }
+    Timer { id: captiveDelay; interval: 2500; onTriggered: pCaptive.running = true }
+    Process { id: pCaptive }
 
     onWifiOnChanged: {
         if (!root.wifiInitDone) return;
