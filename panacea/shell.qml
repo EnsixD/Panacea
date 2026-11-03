@@ -7135,7 +7135,9 @@ PanelWindow {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Bottom
-    WlrLayershell.keyboardFocus: widgets.scratchpadActive ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    // OnDemand должен быть объявлен до нажатия: компоновщик решает,
+    // передавать ли клавиатуру слою, непосредственно при клике.
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     mask: Region { item: widgets }
 
     WidgetsView {
@@ -7147,6 +7149,22 @@ PanelWindow {
         // ниже острова: тот стоит по центру верхней кромки и до левого
         // угла не достаёт, но запас нужен под его вогнутый уголок
         anchors.topMargin: 28
+    }
+}
+
+// Пока редактируются заметки, прозрачный слой над обоями ловит щелчок по
+// пустому рабочему столу. Окна и сами карточки остаются выше этого слоя.
+PanelWindow {
+    visible: root.cfg.featWidgets && widgets.scratchpadActive
+    screen: root.screen
+    anchors { top: true; bottom: true; left: true; right: true }
+    color: "transparent"
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.layer: WlrLayer.Background
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    MouseArea {
+        anchors.fill: parent
+        onPressed: widgets.dismissScratchpad()
     }
 }
 

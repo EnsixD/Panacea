@@ -26,6 +26,10 @@ Item {
 
     property var sys
     property bool scratchpadActive: false
+    function dismissScratchpad() {
+        scratchEdit.focus = false;
+        scratchpadActive = false;
+    }
 
     // Ширина колонки и просвет между карточками
     readonly property real col: 144
@@ -915,6 +919,9 @@ Item {
                 // Верхний ряд: заголовок и счетчик символов / кнопки
                 RowLayout {
                     Layout.fillWidth: true
+                    Layout.minimumHeight: 20
+                    Layout.preferredHeight: 20
+                    Layout.maximumHeight: 20
                     spacing: 6
 
                     Rectangle {
@@ -1025,8 +1032,7 @@ Item {
                             }
 
                             Keys.onEscapePressed: {
-                                scratchEdit.focus = false;
-                                view.scratchpadActive = false;
+                                view.dismissScratchpad();
                             }
                         }
                     }
