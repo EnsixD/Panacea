@@ -10,7 +10,8 @@ ColumnLayout {
     readonly property var history: info.history || []
     function duration(seconds) {
         var mins = Math.round(seconds / 60);
-        return Math.floor(mins / 60) + " ч " + (mins % 60) + " мин";
+        var hours = Math.floor(mins / 60), minutes = mins % 60;
+        return (hours ? hours + " " + sys.tr("ч") + " " : "") + minutes + " " + sys.tr("мин");
     }
     Text {
         Layout.fillWidth: true
