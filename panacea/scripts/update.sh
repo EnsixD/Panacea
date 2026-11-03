@@ -415,9 +415,9 @@ fetch_repo() {
             echo "dl=$(( base + pct * span / 100 ))"
         done
     }
-    # Установщику не нужны обои (отдельный выбор при установке), демо-ролик
-    # и документация — их в копии нет вовсе.
-    local sparse=('/*' '!/wallpapers/' '!/demo.mp4' '!/demo-poster.jpg' '!/docs/')
+    # Большой набор обоев не скачиваем при обновлении, но компактный
+    # фирменный фон нужен установщику даже при --no-wallpapers.
+    local sparse=('/*' '!/wallpapers/*' '/wallpapers/nothing_orbit.png' '!/demo.mp4' '!/demo-poster.jpg' '!/docs/')
     if [ -d "$dir/.git" ]; then
         git -C "$dir" remote set-url origin "$GIT_URL" 2>/dev/null
         git -C "$dir" sparse-checkout set --no-cone "${sparse[@]}" >/dev/null 2>&1

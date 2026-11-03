@@ -238,14 +238,14 @@ Item {
     // меню читается как развернувшийся остров, а не как отдельное окно.
     Rectangle {
         id: morph
-        color: view.sys.colBg
+        color: "#111112"
         z: -1
         x:      view.open ? 0 : view.sys.pillRectX
         y:      view.open ? 0 : view.sys.pillRectY
         width:  view.open ? view.width  : Math.max(8, view.sys.pillRectW)
         height: view.open ? view.height : Math.max(8, view.sys.pillRectH)
         radius: view.open ? 0 : Math.min(width, height) / 2
-        opacity: view.open ? 0.30 : 0.96
+        opacity: view.open ? 0.97 : 0.96
         visible: view.sys.wallsOpen
 
         Behavior on x      { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutQuint } }
@@ -254,6 +254,23 @@ Item {
         Behavior on height { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutQuint } }
         Behavior on radius { NumberAnimation { duration: view.sys.animMs; easing.type: Easing.OutQuint } }
         Behavior on opacity { NumberAnimation { duration: view.sys.animMs } }
+    }
+
+    Grid {
+        anchors.right: parent.right
+        anchors.rightMargin: Math.round(view.width * 0.07)
+        anchors.top: parent.top
+        anchors.topMargin: Math.round(view.height * 0.075)
+        columns: 12; spacing: 5
+        opacity: view.open ? 0.38 : 0
+        Repeater {
+            model: 36
+            Rectangle {
+                required property int index
+                width: 3; height: 3; radius: 1.5
+                color: index === 35 ? "#e23b3b" : "#77777a"
+            }
+        }
     }
 
     // клик по пустому месту закрывает — как у обзора столов
@@ -281,17 +298,18 @@ Item {
 
     // ------------------------------------------------------------- заголовок
     ColumnLayout {
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.left: parent.left
+        anchors.leftMargin: Math.round(view.width * 0.07)
         anchors.top: parent.top
-        anchors.topMargin: Math.round(view.height * 0.09)
-        spacing: 2
+        anchors.topMargin: Math.round(view.height * 0.07)
+        spacing: 5
         opacity: view.open ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: view.sys.animMs } }
 
         Text {
-            Layout.alignment: Qt.AlignHCenter
+            Layout.alignment: Qt.AlignLeft
             text: view.live ? view.sys.tr("Живые обои") : view.sys.tr("Обои")
-            color: view.sys.colFg
+            color: "#f2f2f2"
             font {
                 family: view.sys.fontFam
                 pixelSize: view.sys.fontSize + 12; bold: true
@@ -300,8 +318,8 @@ Item {
         // Вкладки: картинки и видео. Карусель у них одна и та же — меняется
         // только источник строк и скрипт, который ставит фон.
         RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: 10
+            Layout.alignment: Qt.AlignLeft
+            Layout.topMargin: 12
             spacing: 8
 
             Repeater {
@@ -315,14 +333,10 @@ Item {
                     readonly property bool picked: view.mode === tabBtn.modelData.m
 
                     Layout.preferredWidth: tabTxt.implicitWidth + 34
-                    Layout.preferredHeight: 34
-                    radius: 17
-                    color: tabBtn.picked
-                           ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g,
-                                     view.sys.colOn.b, 0.24)
-                           : (tabMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12)
-                                                  : Qt.rgba(1, 1, 1, 0.06))
-                    border.color: tabBtn.picked ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.10)
+                    Layout.preferredHeight: 38
+                    radius: 12
+                    color: tabBtn.picked ? "#e8e8e8" : (tabMa.containsMouse ? "#353538" : "#222224")
+                    border.color: tabBtn.picked ? "#e8e8e8" : "#39393c"
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 160 } }
                     Behavior on border.color { ColorAnimation { duration: 160 } }
@@ -331,7 +345,7 @@ Item {
                         id: tabTxt
                         anchors.centerIn: parent
                         text: tabBtn.modelData.t
-                        color: tabBtn.picked ? view.sys.colFg : view.sys.colMuted
+                        color: tabBtn.picked ? "#171719" : "#b8b8bb"
                         font {
                             family: view.sys.fontFam
                             pixelSize: view.sys.fontSize - 2
@@ -351,7 +365,8 @@ Item {
         }
 
         Text {
-            Layout.alignment: Qt.AlignHCenter
+            Layout.alignment: Qt.AlignLeft
+            Layout.topMargin: 6
             text: walls.count
                   ? (view.target + 1) + " / " + walls.count
                   : (view.live ? view.sys.liveListReady : view.sys.wallListReady)
@@ -396,7 +411,7 @@ Item {
                 width: view.cardW
                 height: view.cardH
                 x: reel.width / 2 - width / 2 + card.d * view.step
-                y: reel.height / 2 - height / 2
+                y: reel.height / 2 - height / 2 + 22
                 // дальние карточки мельче и бледнее — получается глубина
                 scale: Math.max(0.5, 1 - card.ad * 0.16)
                 opacity: Math.max(0, 1 - card.ad * 0.34)
@@ -410,7 +425,7 @@ Item {
                 Item {
                     id: frame
                     anchors.fill: parent
-                    readonly property int r: 22
+                    readonly property int r: 16
                     z: 1
 
                     Item {
@@ -497,7 +512,7 @@ Item {
                         anchors.fill: parent
                         radius: frame.r
                         color: "transparent"
-                        border.color: card.wActive ? view.sys.colOn
+                        border.color: card.wActive ? "#e23b3b"
                                     : card.centered ? Qt.rgba(1, 1, 1, 0.55)
                                                     : Qt.rgba(1, 1, 1, 0.10)
                         border.width: card.centered || card.wActive ? 2 : 1
@@ -543,7 +558,7 @@ Item {
                                 Layout.preferredHeight: 26
                                 radius: 13
                                 visible: card.wActive && view.applying.length === 0
-                                color: view.sys.colOn
+                                color: "#e23b3b"
                                 Text {
                                     anchors.centerIn: parent
                                     text: String.fromCodePoint(0xF012C)

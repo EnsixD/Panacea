@@ -905,6 +905,12 @@ install_configs() {
     # каталог живых обоев: карусель открывает его кнопкой, и он должен
     # существовать ещё до того, как туда что-то положат
     mkdir -p "$CONF/hypr/wallpaper/live"
+    # Небольшой фирменный фон входит в оболочку и доставляется и при
+    # обновлении с --no-wallpapers; существующий файл пользователя не менять.
+    if [ -f "$SRC/wallpapers/nothing_orbit.png" ]; then
+        mkdir -p "$CONF/hypr/wallpaper/shell"
+        cp -n "$SRC/wallpapers/nothing_orbit.png" "$CONF/hypr/wallpaper/shell/nothing_orbit.png"
+    fi
 
     # Сочетания клавиш Hyprland читает только из lua/binds_data.lua, а окно
     # Super+/ пишет их в settings.json и пересобирает этот файл. Если файла
