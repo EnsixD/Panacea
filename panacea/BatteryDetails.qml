@@ -77,8 +77,37 @@ ColumnLayout {
         }
         RowLayout {
             Layout.fillWidth: true
-            Button { Layout.fillWidth: true; text: "75–80%"; onClicked: sys.setBatteryThreshold(75, 80) }
-            Button { Layout.fillWidth: true; text: "95–100%"; onClicked: sys.setBatteryThreshold(95, 100) }
+            spacing: 6
+            Repeater {
+                model: [ { start: 75, end: 80 }, { start: 95, end: 100 } ]
+                Rectangle {
+                    id: preset
+                    required property var modelData
+                    readonly property bool selected: view.info.start === modelData.start && view.info.end === modelData.end
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    radius: 10
+                    color: selected ? Qt.rgba(sys.colOn.r, sys.colOn.g, sys.colOn.b, 0.18)
+                                    : hit.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05)
+                    border.width: 1
+                    border.color: selected ? Qt.rgba(sys.colOn.r, sys.colOn.g, sys.colOn.b, 0.55) : sys.colLine
+                    Behavior on color { ColorAnimation { duration: sys.animFast } }
+                    Behavior on border.color { ColorAnimation { duration: sys.animFast } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: preset.modelData.start + "–" + preset.modelData.end + "%"
+                        color: preset.selected || hit.containsMouse ? sys.colFg : sys.colMuted
+                        font { family: sys.fontFam; pixelSize: 11; bold: preset.selected }
+                    }
+                    MouseArea {
+                        id: hit
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: sys.setBatteryThreshold(preset.modelData.start, preset.modelData.end)
+                    }
+                }
+            }
         }
         Text {
             Layout.fillWidth: true; wrapMode: Text.WordWrap
