@@ -1577,6 +1577,35 @@ PanelWindow {
     // живёт карточкой на главной, там же, где всё остальное.
     property string page: "main"
     // что показывает медиаплеер (страница "media")
+    property string quickFilePath: ""
+    property var quickFilePaths: []
+    property bool fileOverIsland: false
+    property real fileAbsorb: 0
+    SequentialAnimation {
+        id: fileAbsorbAnimation
+        NumberAnimation { target: root; property: "fileAbsorb"; to: 1; duration: root.noMotion ? 0 : 130; easing.type: Easing.InQuad }
+        NumberAnimation { target: root; property: "fileAbsorb"; to: 0; duration: root.noMotion ? 0 : 260; easing.type: Easing.OutBack }
+    }
+    Timer {
+        id: quickFileOpenTimer
+        interval: root.noMotion ? 1 : 170
+        onTriggered: { pageResetTimer.stop(); root.page = "quickfile"; root.expanded = true; root.holdOpen = true; }
+    }
+    function openDroppedFile(urls) {
+        if (!urls || !urls.length) return;
+        var paths = [];
+        for (var i = 0; i < urls.length; i++) {
+            var url = String(urls[i]);
+            if (url.indexOf("file:///") !== 0) { sayToast(tr("Файлы"), tr("Поддерживаются только локальные файлы")); return; }
+            try { paths.push(decodeURIComponent(url.substring(7))); }
+            catch (e) { sayToast(tr("Файлы"), tr("Не удалось прочитать путь")); return; }
+        }
+        quickFilePaths = paths; quickFilePath = paths[0];
+        fileOverIsland = false;
+        fileAbsorbAnimation.restart();
+        quickFileOpenTimer.restart();
+    }
+
     property string mediaPath: ""
     // высота полотна плеера: большую часть экрана, но не впритык
     readonly property int mediaStageH: Math.round((screen ? screen.height : 1080) * 0.58)
@@ -1924,7 +1953,7 @@ PanelWindow {
     // и ждать её уезда тоже, перетаскивание начинается сразу.
     function startFileDrag(path, fromWindow) {
         var list = Array.isArray(path) ? path : [path];
-        fileDrag.uri = list.map(function (p) { return "file://" + encodeURI(p); }).join("\r\n");
+        fileDrag.uri = list.map(function (p) { return "file://" + String(p).split("/").map(encodeURIComponent).join("/"); }).join("\r\n");
         if (fromWindow) { fileDrag.Drag.active = true; return; }
         root.collapse();
         fileDragStart.restart();
@@ -4024,7 +4053,7 @@ PanelWindow {
         root.filesClipPaths = paths;
         root.filesClipMode = mode;
         // и в системный буфер — чтобы вставить можно было и в другие программы
-        var uris = paths.map(function (p) { return "file://" + encodeURI(p); }).join("\r\n");
+        var uris = paths.map(function (p) { return "file://" + String(p).split("/").map(encodeURIComponent).join("/"); }).join("\r\n");
         pClipOut.command = ["sh", "-c", "printf '%s' \"$1\" | wl-copy --type text/uri-list", "_", uris];
         pClipOut.running = false;
         pClipOut.running = true;
@@ -4723,6 +4752,17 @@ PanelWindow {
     // ------------------------------------------------------------- сама пилюля
     Rectangle {
         id: capsule
+        scale: 1 + (root.fileOverIsland ? 0.035 : 0) - root.fileAbsorb * 0.07
+        Behavior on scale { NumberAnimation { duration: root.noMotion ? 0 : 150; easing.type: Easing.OutCubic } }
+        DropArea {
+            anchors.fill: parent
+            z: 500
+            visible: !root.expanded
+            keys: ["text/uri-list"]
+            onEntered: drag => { drag.accepted = drag.hasUrls; root.fileOverIsland = drag.hasUrls; }
+            onExited: root.fileOverIsland = false
+            onDropped: drop => { root.fileOverIsland = false; if (drop.hasUrls) { drop.accept(Qt.CopyAction); root.openDroppedFile(drop.urls); } }
+        }
 
         // Прижата к своей кромке и растёт от неё — поэтому «раскрытие к
         // центру» получается само, без отдельной анимации направления.
@@ -6426,6 +6466,7 @@ PanelWindow {
                            : root.page === "record"   ? recordComp
                            : root.page === "files"    ? filesComp
                            : root.page === "media"    ? mediaComp
+                           : root.page === "quickfile" ? quickFileComp
                            : root.page === "auth"     ? authComp
                            : root.page === "vault"    ? vaultComp
                            : root.page === "vaultsave" ? vaultSaveComp
@@ -6444,6 +6485,7 @@ PanelWindow {
         Component { id: recordComp;   RecordView { sys: root } }
         Component { id: filesComp;    FilesView { sys: root } }
         Component { id: mediaComp;    MediaView { sys: root } }
+        Component { id: quickFileComp; QuickFileView { sys: root } }
         Component { id: authComp;     AuthView { sys: root } }
         Component { id: vaultComp;     VaultView { sys: root } }
         Component { id: vaultSaveComp; VaultSaveView { sys: root } }
