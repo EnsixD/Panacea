@@ -53,6 +53,25 @@ case "${1:-}" in
             "$0" sddm "$src/sddm/panacea"
         fi
         ;;
+    charge-threshold)
+        name="${2:-}"; start="${3:-}"; end="${4:-}"
+        [[ "$name" =~ ^[A-Za-z0-9_-]+$ && "$start" =~ ^[0-9]{1,3}$ && "$end" =~ ^[0-9]{1,3}$ ]] || exit 1
+        (( 10 <= 10#$start && 10#$start < 10#$end && 10#$end <= 100 )) || exit 1
+        dir="/sys/class/power_supply/$name"
+        [ "$(cat "$dir/type" 2>/dev/null)" = Battery ] || exit 1
+        [ -f "$dir/charge_control_start_threshold" ] && [ -f "$dir/charge_control_end_threshold" ] || exit 1
+        old_start=$(cat "$dir/charge_control_start_threshold") || exit 1
+        old_end=$(cat "$dir/charge_control_end_threshold") || exit 1
+        if (( 10#$end <= old_start )); then
+            printf '%s\n' "$start" > "$dir/charge_control_start_threshold" || exit 1
+            printf '%s\n' "$end" > "$dir/charge_control_end_threshold" || {
+                printf '%s\n' "$old_start" > "$dir/charge_control_start_threshold"; exit 1; }
+        else
+            printf '%s\n' "$end" > "$dir/charge_control_end_threshold" || exit 1
+            printf '%s\n' "$start" > "$dir/charge_control_start_threshold" || {
+                printf '%s\n' "$old_end" > "$dir/charge_control_end_threshold"; exit 1; }
+        fi
+        ;;
     timezone)
         z="${2:?}"
         [[ "$z" =~ ^[A-Za-z0-9_+/-]+$ ]] && [ -f "/usr/share/zoneinfo/$z" ] || exit 1

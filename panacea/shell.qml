@@ -2643,6 +2643,43 @@ PanelWindow {
     // Подробности для страницы «Батарея»: ёмкость, износ и текущий расход.
     // Прогнозов «сколько осталось» здесь намеренно нет — UPower пересчитывает
     // их рывками, и цифра прыгала на глазах.
+    // Локальная история заряда и параметры, доступные в sysfs.
+    property var batteryDetails: ({})
+    Process {
+        id: batteryInfoProcess
+        command: ["python3", root.scriptDir + "/battery-info.py"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { root.batteryDetails = JSON.parse(text); }
+                catch (e) { root.batteryDetails = ({}); }
+            }
+        }
+    }
+    Timer {
+        interval: 300000; repeat: true
+        running: root.batteryPresent
+        triggeredOnStart: true
+        onTriggered: if (!batteryInfoProcess.running) batteryInfoProcess.running = true
+    }
+    function refreshBatteryDetails() {
+        if (!batteryInfoProcess.running) batteryInfoProcess.running = true;
+    }
+    Process {
+        id: batteryThresholdProcess
+        onExited: (code, status) => {
+            root.refreshBatteryDetails();
+            if (code !== 0) root.sayToast(root.tr("Батарея"), root.tr("Не удалось изменить порог зарядки"));
+        }
+    }
+    function setBatteryThreshold(start, end) {
+        var name = root.batteryDetails.name || "";
+        if (!name || batteryThresholdProcess.running) return;
+        batteryThresholdProcess.command = ["pkexec", "/usr/local/lib/panacea/panacea-root", "charge-threshold", name, String(start), String(end)];
+        batteryThresholdProcess.running = true;
+    }
+    readonly property real batteryRemainingSeconds: battDev && battDev.ready
+        ? (batteryCharging ? battDev.timeToFull : (!acOnline ? battDev.timeToEmpty : 0)) : 0
+
     readonly property real batteryHealth:
         battDev && battDev.ready ? Math.round(battDev.healthPercentage) : 0
     readonly property real batteryCapacity:

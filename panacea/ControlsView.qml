@@ -2235,7 +2235,7 @@ Item {
                            ? view.sys.batteryCapacity.toFixed(1) + " Wh" : "—"
                 }
                 BattStat {
-                    label: view.sys.tr("Износ")
+                    label: view.sys.tr("Здоровье")
                     value: view.sys.batteryHealth > 0
                            ? view.sys.batteryHealth + "%" : "—"
                 }
@@ -2244,6 +2244,11 @@ Item {
                     value: Math.abs(view.sys.batteryRate) > 0.05
                            ? Math.abs(view.sys.batteryRate).toFixed(1) + " W" : "—"
                 }
+            }
+            BatteryDetails {
+                Layout.fillWidth: true
+                sys: view.sys
+                visible: view.sys.batteryPresent
             }
         }
 
