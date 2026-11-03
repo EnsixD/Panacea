@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Effects
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
@@ -4798,6 +4799,27 @@ PanelWindow {
             visible: (root.fileOverIsland || fileAbsorbAnimation.running) && !root.expanded
             color: root.colBg
             radius: Math.min(18, height / 2)
+            // Один скруглённый контур: штрихи продолжаются и на углах.
+            Shape {
+                id: dropOutline
+                anchors.fill: parent; anchors.margins: 6
+                opacity: 0.65; antialiasing: true
+                readonly property real corner: Math.min(14, Math.max(0, height / 2 - 1))
+                ShapePath {
+                    strokeColor: root.colOn; strokeWidth: 1.2
+                    strokeStyle: ShapePath.DashLine; dashPattern: [4, 4]
+                    capStyle: ShapePath.RoundCap; fillColor: "transparent"
+                    startX: dropOutline.corner; startY: 0.6
+                    PathLine { x: dropOutline.width - dropOutline.corner; y: 0.6 }
+                    PathQuad { x: dropOutline.width - 0.6; y: dropOutline.corner; controlX: dropOutline.width - 0.6; controlY: 0.6 }
+                    PathLine { x: dropOutline.width - 0.6; y: dropOutline.height - dropOutline.corner }
+                    PathQuad { x: dropOutline.width - dropOutline.corner; y: dropOutline.height - 0.6; controlX: dropOutline.width - 0.6; controlY: dropOutline.height - 0.6 }
+                    PathLine { x: dropOutline.corner; y: dropOutline.height - 0.6 }
+                    PathQuad { x: 0.6; y: dropOutline.height - dropOutline.corner; controlX: 0.6; controlY: dropOutline.height - 0.6 }
+                    PathLine { x: 0.6; y: dropOutline.corner }
+                    PathQuad { x: dropOutline.corner; y: 0.6; controlX: 0.6; controlY: 0.6 }
+                }
+            }
             RowLayout {
                 anchors.centerIn: parent
                 spacing: 10
