@@ -57,19 +57,19 @@ trap cleanup EXIT INT TERM HUP
 
 # Если задана область кропа — вырезаем её во временный файл
 if [ -n "$X" ] && [ -n "$Y" ] && [ -n "$W" ] && [ -n "$H" ]; then
-    TMP_CROP=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}" ocr-crop.XXXXXX.png)
-    if python3 -c "
+    TMP_CROP=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}" ocr-crop.XXXXXX.png) || exit 3
+    if python3 - "$IMG" "$X" "$Y" "$W" "$H" "$TMP_CROP" <<'PYCODE'
 import sys
 from PIL import Image
-try:
-    im = Image.open('$IMG')
-    x, y, w, h = int('$X'), int('$Y'), int('$W'), int('$H')
-    cr = im.crop((x, y, x + w, y + h))
-    cr.save('$TMP_CROP')
-except Exception as e:
-    sys.exit(1)
-" 2>/dev/null; then
+im = Image.open(sys.argv[1])
+x, y, w, h = map(int, sys.argv[2:6])
+im.crop((x, y, x + w, y + h)).save(sys.argv[6])
+PYCODE
+    then
         IMG="$TMP_CROP"
+    else
+        echo "ERROR: failed to crop image" >&2
+        exit 3
     fi
 fi
 

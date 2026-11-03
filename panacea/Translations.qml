@@ -420,6 +420,7 @@ QtObject {
         "Открыть с помощью…": "Open with…",
         "Копировать": "Copy",
         "Копировать текст": "Copy text",
+        "Распознать текст": "Recognize text",
         "Текст из области": "Text from selection",
         "Распознаю…": "Recognizing…",
         "Распознаю текст…": "Recognizing text…",

@@ -165,7 +165,7 @@ EXTRA_PKGS=(
             # (порог заряда, ASPM, runtime PM, Wi-Fi, звук), а tlp-pd отдаёт
             # тот же D-Bus API net.hadess.PowerProfiles — переключатель
             # профилей в быстрых настройках работает без изменений.
-            tlp tlp-pd
+            tlp tlp-pd tesseract-data-eng tesseract-data-rus
             bluez bluez-utils iwd cava pipewire-audio
             ttf-jetbrains-mono-nerd papirus-icon-theme
             # Эмодзи и всё остальное, чего нет в Nerd Font. Без них система

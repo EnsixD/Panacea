@@ -143,6 +143,7 @@ FocusScope {
         pSave.running = true;
     }
 
+    property string recognizedText: ""
     property bool ocrRunning: false
     Process {
         id: pMediaOcr
@@ -155,8 +156,8 @@ FocusScope {
                 } else if (txt.length === 0) {
                     view.busyText = view.sys.tr("Текст не найден");
                 } else {
-                    view.sys.playSound("screenshot");
-                    view.busyText = view.sys.tr("Текст скопирован!");
+                    view.recognizedText = txt;
+                    view.busyText = "";
                 }
                 busyTimer.restart();
             }
@@ -175,10 +176,10 @@ FocusScope {
 
         var r = (view.cropMode && cropRect.valid) ? view.cropRegion() : null;
         if (r) {
-            pMediaOcr.command = ["sh", view.sys.scriptDir + "/ocr.sh",
-                                 view.path, String(r.x), String(r.y), String(r.w), String(r.h), "--copy"];
+            pMediaOcr.command = ["bash", view.sys.scriptDir + "/ocr.sh",
+                                 view.path, String(r.x), String(r.y), String(r.w), String(r.h)];
         } else {
-            pMediaOcr.command = ["sh", view.sys.scriptDir + "/ocr.sh", view.path, "--copy"];
+            pMediaOcr.command = ["bash", view.sys.scriptDir + "/ocr.sh", view.path];
         }
         pMediaOcr.running = false;
         pMediaOcr.running = true;
@@ -618,6 +619,30 @@ FocusScope {
             }
         }
 
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(180, recognizedEdit.implicitHeight + 24)
+            visible: view.recognizedText.length > 0 && !view.isVideo
+            color: Qt.rgba(1, 1, 1, 0.06)
+            radius: 12
+            border.color: view.sys.colLine
+            clip: true
+            ScrollView {
+                anchors.fill: parent
+                anchors.margins: 10
+                TextArea {
+                    id: recognizedEdit
+                    text: view.recognizedText
+                    readOnly: true
+                    selectByMouse: true
+                    wrapMode: TextEdit.Wrap
+                    color: view.sys.colFg
+                    font { family: view.sys.fontFam; pixelSize: view.sys.fontSize }
+                    background: null
+                }
+            }
+        }
+
         // ------------------------------------------------- управление видео
         ColumnLayout {
             Layout.fillWidth: true
@@ -834,7 +859,7 @@ FocusScope {
                               ? view.sys.tr("Распознаю…")
                               : (view.cropMode && cropRect.valid
                                  ? view.sys.tr("Текст из области")
-                                 : view.sys.tr("Копировать текст"))
+                                 : view.sys.tr("Распознать текст"))
                         color: view.sys.colFg
                         font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2; bold: true }
                     }
