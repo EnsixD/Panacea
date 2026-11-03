@@ -217,6 +217,7 @@ PanelWindow {
             property string widgetRightMode: "weather"
             property string widgetProgressMode: "day"
             property bool   widgetMusic: true
+            property bool   widgetScratchpad: true
             // JSON string: {"Turkish":"TR","Russian":"RU"}
             property string keyboardLayoutMap: ""
 
@@ -433,6 +434,7 @@ PanelWindow {
         weatherOnIsland: false, systemLoadOnIsland: false, keyboardLayoutMap: "", featWidgets: false,
         widgetClockMode: "analog", widgetRightMode: "weather", widgetProgressMode: "day",
         widgetMusic: true,
+        widgetScratchpad: true,
         termAlpha: 0.90,
         uiSounds: true
     })
@@ -7133,7 +7135,7 @@ PanelWindow {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Bottom
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: widgets.scratchpadActive ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     mask: Region { item: widgets }
 
     WidgetsView {

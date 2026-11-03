@@ -629,6 +629,12 @@ QtObject {
         "ОЖИДАНИЕ": "IDLE",
         "Нет музыки": "No media",
         "Запустите плеер": "Start player",
+        "Виджет ScratchPad": "ScratchPad widget",
+        "Быстрые заметки прямо на рабочем столе с автоматическим сохранением.":
+            "Quick notes directly on the desktop with automatic saving.",
+        "Нажмите, чтобы записать…": "Tap to write notes…",
+        "Заметки скопированы": "Notes copied",
+        "симв.": "chars",
         "Уведомления": "Notifications",
         "Не беспокоить": "Do not disturb",
         "Очистить": "Clear",

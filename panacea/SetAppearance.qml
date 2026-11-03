@@ -128,6 +128,15 @@ ColumnLayout {
             onToggled: v => { page.sys.cfg.widgetMusic = v; page.sys.saveCfg(); }
         }
 
+        SetToggle {
+            visible: page.sys.cfg.featWidgets && page.detailsOpen
+            sys: page.sys
+            label: page.sys.tr("Виджет ScratchPad")
+            sub: page.sys.tr("Быстрые заметки прямо на рабочем столе с автоматическим сохранением.")
+            on: page.sys.cfg.widgetScratchpad !== false
+            onToggled: v => { page.sys.cfg.widgetScratchpad = v; page.sys.saveCfg(); }
+        }
+
         Text {
             Layout.fillWidth: true
             visible: page.sys.cfg.featWidgets

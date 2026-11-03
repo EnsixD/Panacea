@@ -1,5 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
+import Quickshell
+import Quickshell.Io
 
 // Настольные виджеты темы Nothing — карточки поверх обоев.
 //
@@ -15,10 +18,13 @@ import QtQuick.Layouts
 //   погоды (описание + влажность/ветер) и монитором системы (концентрические дуги RAM и SSD).
 // - Шкала прогресса (Life Bar, снизу): 24-сегментный прогресс дня с пульсирующим
 //   текущим часом. Клик переключает между прогрессом дня (24H) и года (365D).
+// - Nothing Music: стилизованный плеер с крутящимся винилом и управлением треком.
+// - ScratchPad: быстрые заметки на рабочем столе с автосохранением в файл.
 Item {
     id: view
 
     property var sys
+    property bool scratchpadActive: false
 
     // Ширина колонки и просвет между карточками
     readonly property real col: 144
@@ -1132,6 +1138,206 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 z: -1
+            }
+        }
+
+        // ------------------------------------------------------ Ряд 5: ScratchPad Widget (300x140)
+        Card {
+            id: scratchCard
+            visible: (view.sys && view.sys.cfg && view.sys.cfg.widgetScratchpad !== false)
+            Layout.preferredWidth: view.fullW
+            Layout.preferredHeight: 140
+            color: scratchMa.containsMouse || view.scratchpadActive ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
+            border.color: view.scratchpadActive
+                          ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.6)
+                          : (scratchMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06))
+            Behavior on color { ColorAnimation { duration: 120 } }
+            Behavior on border.color { ColorAnimation { duration: 120 } }
+
+            readonly property string dataDir:
+                (Quickshell.env("XDG_DATA_HOME") || (Quickshell.env("HOME") + "/.local/share")) + "/panacea"
+            readonly property string dataPath: dataDir + "/scratchpad.txt"
+
+            Process {
+                id: scratchMkdir
+                command: ["mkdir", "-p", scratchCard.dataDir]
+                onExited: (code, status) => {
+                    if (code === 0) scratchFile.setText(scratchEdit.text);
+                    else console.warn("ScratchPad: cannot create notes directory")
+                }
+            }
+
+            FileView {
+                id: scratchFile
+                path: scratchCard.dataPath
+                printErrors: false
+                watchChanges: true
+                onFileChanged: if (!scratchEdit.activeFocus) reload()
+                onLoaded: {
+                    var t = text();
+                    if (t !== scratchEdit.text && !scratchEdit.activeFocus) {
+                        scratchEdit.text = t;
+                    }
+                }
+            }
+
+            Timer {
+                id: saveDebounce
+                interval: 350
+                repeat: false
+                onTriggered: {
+                    if (!scratchMkdir.running) scratchMkdir.running = true;
+                }
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 6
+
+                // Верхний ряд: заголовок и счетчик символов / кнопки
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Rectangle {
+                        width: 6; height: 6; radius: 3
+                        color: view.scratchpadActive ? (view.sys ? view.sys.colCrit : "#d71921")
+                                                     : (view.sys ? Qt.rgba(view.sys.colMuted.r, view.sys.colMuted.g, view.sys.colMuted.b, 0.4) : "#555555")
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                    }
+
+                    Caption {
+                        text: "SCRATCHPAD"
+                        font.bold: true
+                        font.pixelSize: 8
+                        font.letterSpacing: 1.1
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    // Копировать всё
+                    Text {
+                        visible: scratchEdit.text.length > 0
+                        text: "󰆏"
+                        color: copyMa.containsMouse ? (view.sys ? view.sys.colFg : "#ffffff") : (view.sys ? view.sys.colMuted : "#888888")
+                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11 }
+                        MouseArea {
+                            id: copyMa
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (view.sys) {
+                                    view.sys.runDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", scratchEdit.text]);
+                                    view.sys.playSound("screenshot");
+                                }
+                            }
+                        }
+                    }
+
+                    // Очистить
+                    Text {
+                        visible: scratchEdit.text.length > 0
+                        text: "×"
+                        color: clearMa.containsMouse ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888888")
+                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13; bold: true }
+                        MouseArea {
+                            id: clearMa
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                scratchEdit.text = "";
+                                saveDebounce.restart();
+                            }
+                        }
+                    }
+
+                    Caption {
+                        text: scratchEdit.text.length + " " + (view.sys ? view.sys.tr("симв.") : "chars")
+                        font.pixelSize: 8
+                    }
+                }
+
+                // Область ввода заметок
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    Flickable {
+                        id: flick
+                        anchors.fill: parent
+                        contentWidth: width
+                        contentHeight: scratchEdit.implicitHeight
+                        clip: true
+
+                        TextEdit {
+                            id: scratchEdit
+                            width: flick.width
+                            height: Math.max(flick.height, implicitHeight)
+                            wrapMode: TextEdit.Wrap
+                            textFormat: TextEdit.PlainText
+                            selectByMouse: true
+                            selectionColor: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4)
+                            selectedTextColor: "#ffffff"
+                            color: view.sys ? view.sys.colFg : "#ffffff"
+                            font {
+                                family: view.sys ? view.sys.fontFam : "monospace"
+                                pixelSize: 11
+                            }
+
+                            onActiveFocusChanged: {
+                                view.scratchpadActive = activeFocus;
+                            }
+
+                            onTextChanged: {
+                                saveDebounce.restart();
+                            }
+
+                            Keys.onEscapePressed: {
+                                scratchEdit.focus = false;
+                                view.scratchpadActive = false;
+                            }
+                        }
+                    }
+
+                    // Подсказка (placeholder)
+                    Text {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        text: view.sys ? view.sys.tr("Нажмите, чтобы записать…") : "Tap to write notes…"
+                        color: view.sys ? Qt.rgba(view.sys.colMuted.r, view.sys.colMuted.g, view.sys.colMuted.b, 0.6) : "#666666"
+                        visible: scratchEdit.text.length === 0 && !scratchEdit.activeFocus
+                        font {
+                            family: view.sys ? view.sys.fontFam : "sans-serif"
+                            pixelSize: 11
+                        }
+                    }
+
+                    MouseArea {
+                        id: editClickArea
+                        anchors.fill: parent
+                        z: -1
+                        cursorShape: Qt.IBeamCursor
+                        onClicked: {
+                            scratchEdit.forceActiveFocus();
+                        }
+                    }
+                }
+            }
+
+            MouseArea {
+                id: scratchMa
+                anchors.fill: parent
+                hoverEnabled: true
+                z: -2
+                cursorShape: Qt.IBeamCursor
+                onClicked: {
+                    scratchEdit.forceActiveFocus();
+                }
             }
         }
     }

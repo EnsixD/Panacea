@@ -101,5 +101,6 @@
     "pillPos": "top",
     "themeId": "nothing",
     "uiSounds": true,
-    "widgetMusic": true
+    "widgetMusic": true,
+    "widgetScratchpad": true
 }
