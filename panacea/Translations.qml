@@ -420,6 +420,7 @@ QtObject {
         "Открыть с помощью…": "Open with…",
         "Копировать": "Copy",
         "Быстрые действия": "Quick actions",
+        "Отпустите файл": "Drop file here",
         "Скопировать путь": "Copy path",
         "Прикрепить к письму": "Attach to email",
         "Путь скопирован": "Path copied",

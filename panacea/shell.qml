@@ -4789,26 +4789,55 @@ PanelWindow {
     // ------------------------------------------------------------- сама пилюля
     Rectangle {
         id: capsule
-        scale: 1 + (root.fileOverIsland ? 0.035 : 0) - root.fileAbsorb * 0.07
+        scale: 1 - root.fileAbsorb * 0.05
         Behavior on scale { NumberAnimation { duration: root.noMotion ? 0 : 150; easing.type: Easing.OutCubic } }
-        // Миниатюра втягивается в остров при отпускании файла.
-        Text {
-            z: 501
-            x: capsule.width * (0.18 + root.fileAbsorb * 0.30)
-            y: capsule.height * 0.5 - height * 0.5
-            text: "󰈙"
-            color: root.colOn
-            font { family: root.fontFam; pixelSize: 17 }
-            opacity: root.fileOverIsland ? 0.9 : (fileAbsorbAnimation.running ? Math.max(0, 1 - root.fileAbsorb) : 0)
-            scale: Math.max(0.2, 1 - root.fileAbsorb * 0.8)
-            visible: opacity > 0 && !root.expanded
+        // Во время переноса весь остров становится областью приёма.
+        Rectangle {
+            anchors.fill: parent
+            z: 499
+            visible: (root.fileOverIsland || fileAbsorbAnimation.running) && !root.expanded
+            color: root.colBg
+            radius: Math.min(18, height / 2)
+            RowLayout {
+                anchors.centerIn: parent
+                spacing: 10
+                Rectangle {
+                    Layout.preferredWidth: 34; Layout.preferredHeight: 34; radius: 12
+                    color: Qt.rgba(root.colOn.r, root.colOn.g, root.colOn.b, 0.15)
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󰈙"
+                        color: root.colOn
+                        font { family: root.fontFam; pixelSize: 17 }
+                        scale: Math.max(0.25, 1 - root.fileAbsorb * 0.75)
+                        opacity: Math.max(0.3, 1 - root.fileAbsorb * 0.7)
+                    }
+                }
+                ColumnLayout {
+                    spacing: 1
+                    Text {
+                        text: root.tr("Отпустите файл")
+                        color: root.colFg
+                        font { family: root.fontFam; pixelSize: 12; bold: true }
+                    }
+                    Text {
+                        text: root.tr("Быстрые действия")
+                        color: root.colMuted
+                        font { family: root.fontFam; pixelSize: 10 }
+                    }
+                }
+            }
         }
         DropArea {
             anchors.fill: parent
             z: 500
             visible: !root.expanded
             keys: ["text/uri-list"]
-            onEntered: drag => { drag.accepted = drag.hasUrls; root.fileOverIsland = drag.hasUrls; }
+            onEntered: drag => {
+                drag.accepted = drag.hasUrls;
+                root.fileOverIsland = drag.hasUrls;
+                if (drag.hasUrls) { expandTimer.stop(); collapseTimer.stop(); }
+            }
             onExited: root.fileOverIsland = false
             onDropped: drop => { root.fileOverIsland = false; if (drop.hasUrls) { drop.accept(Qt.CopyAction); root.openDroppedFile(drop.urls); } }
         }
@@ -4876,7 +4905,9 @@ PanelWindow {
         // дробная ширина содержимого стала попадать наружу.
         function evenUp(v) { return Math.round(v / 2) * 2; }
 
-        readonly property real idleLen: root.voxActive
+        readonly property real idleLen: root.fileOverIsland || fileAbsorbAnimation.running
+                    ? capsule.evenUp(Math.max(300, capsule.collapsedMin))
+                : root.voxActive
                     ? capsule.evenUp(Math.max(voxCapsule.implicitWidth + 40, 240))
                 : root.recPickActive
                     ? capsule.evenUp(Math.max(recPickCapsule.implicitWidth + 28, 240))
@@ -4892,7 +4923,8 @@ PanelWindow {
                                                            capsule.collapsedMin))
                 : capsule.evenUp(Math.max(nothingCapsule.implicitWidth + 28,
                                           capsule.collapsedMin))
-        readonly property real idleThick: (root.btToastActive || root.wifiToastActive || root.acToastActive
+        readonly property real idleThick: (root.fileOverIsland || fileAbsorbAnimation.running) ? 58
+                : (root.btToastActive || root.wifiToastActive || root.acToastActive
                     || root.recPickActive || root.voxActive)
                 ? root.pillH
                 : root.toastActive
@@ -5101,7 +5133,7 @@ PanelWindow {
         Timer {
             id: expandTimer; interval: 0
             onTriggered: {
-                if (!capsuleHover.hovered || root.launcherOpen) return;
+                if (!capsuleHover.hovered || root.launcherOpen || root.fileOverIsland || fileDrag.Drag.active) return;
                 if (!root.hoverExpandArmed) return;
                 // пока висит уведомление, наведение не раскрывает панель:
                 // иначе до крестика не добраться
