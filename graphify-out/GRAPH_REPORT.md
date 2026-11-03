@@ -1,17 +1,17 @@
 # Graph Report - Panacea  (2026-11-03)
 
 ## Corpus Check
-- 76 files · ~52,440 words
+- 78 files · ~54,971 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 120 file(s) not represented in the graph (top: .qml 64, .fish 16, .conf 16)
+- Unclassified: 122 file(s) not represented in the graph (top: .qml 66, .fish 16, .conf 16)
 
 ## Summary
-- 353 nodes · 595 edges · 59 communities (22 shown, 37 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.85)
+- 364 nodes · 610 edges · 60 communities (23 shown, 37 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8f76a2ee`
+- Built from commit: `4230f2dd`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -64,6 +64,7 @@
 - power.sh
 - smart_close.sh
 - sysload.sh
+- shotcrop.py
 
 ## God Nodes (most connected - your core abstractions)
 1. `ok()` - 31 edges
@@ -92,15 +93,15 @@
 ## Import Cycles
 - None detected.
 
-## Communities (59 total, 37 thin omitted)
+## Communities (60 total, 37 thin omitted)
 
 ### Community 0 - "install.sh"
 Cohesion: 0.13
 Nodes (47): ask(), aur_helper(), backup(), check_aur_helper(), check_deps(), check_grub_prefix(), copy_into_config(), detect_distro() (+39 more)
 
 ### Community 1 - "shotcrop.py"
-Cohesion: 0.09
-Nodes (13): check_amd_s2idle(), DistroPackage, get_distro(), is_root(), PipxPackage, read_file(), relaunch_sudo(), die() (+5 more)
+Cohesion: 0.08
+Nodes (7): check_amd_s2idle(), DistroPackage, get_distro(), is_root(), PipxPackage, read_file(), relaunch_sudo()
 
 ### Community 2 - "brightness.sh"
 Cohesion: 0.22
@@ -119,7 +120,7 @@ Cohesion: 0.37
 Nodes (13): active_iface(), autoconnect(), current_quality(), current_ssid(), find_available_known(), iface_list(), known_iwd(), known_networks() (+5 more)
 
 ### Community 7 - "make_assets.py"
-Cohesion: 0.25
+Cohesion: 0.29
 Nodes (5): build_background(), build_boxes(), cover(), rounded(), slice9()
 
 ### Community 8 - "record.sh"
@@ -182,23 +183,27 @@ Nodes (3): make_lockbg(), make_thumb(), thumbs.sh script
 Cohesion: 0.83
 Nodes (3): find_vox(), ipc(), voxtype.sh script
 
+### Community 59 - "shotcrop.py"
+Cohesion: 0.22
+Nodes (6): die(), encode_png(), layout_frame(), main(), parse_geom(), read_ppm()
+
 ## Knowledge Gaps
 - **8 isolated node(s):** `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE`, `QT_QPA_PLATFORM`, `GDK_BACKEND` (+3 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 99 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+  These have ≤1 connection - possible missing edges. (Counts symbols only; 106 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **37 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `install.sh script` connect `install.sh` to `palette.sh script`, `switch_theme.sh script`?**
-  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
 - **What connects `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE` to the rest of the system?**
   _8 weakly-connected nodes found - possible missing edges._
 - **Should `install.sh` be split into smaller, more focused modules?**
   _Cohesion score 0.1297134238310709 - nodes in this community are weakly interconnected._
 - **Why does `install_configs()` connect `install.sh` to `manifest.sh script`?**
-  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
 - **Should `shotcrop.py` be split into smaller, more focused modules?**
-  _Cohesion score 0.08888888888888889 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08064516129032258 - nodes in this community are weakly interconnected._
 - **Should `hyprland.lua` be split into smaller, more focused modules?**
   _Cohesion score 0.14285714285714285 - nodes in this community are weakly interconnected._
