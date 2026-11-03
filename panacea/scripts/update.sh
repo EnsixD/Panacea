@@ -417,7 +417,7 @@ fetch_repo() {
     }
     # Большой набор обоев не скачиваем при обновлении, но компактный
     # фирменный фон нужен установщику даже при --no-wallpapers.
-    local sparse=('/*' '!/wallpapers/*' '/wallpapers/nothing_orbit.png' '!/demo.mp4' '!/demo-poster.jpg' '!/docs/')
+    local sparse=('/*' '!/wallpapers/*' '/wallpapers/nothing_orbit.png' '/wallpapers/nothing_signal.png' '/wallpapers/nothing_slab.png' '/wallpapers/nothing_arc.png' '!/demo.mp4' '!/demo-poster.jpg' '!/docs/')
     if [ -d "$dir/.git" ]; then
         git -C "$dir" remote set-url origin "$GIT_URL" 2>/dev/null
         git -C "$dir" sparse-checkout set --no-cone "${sparse[@]}" >/dev/null 2>&1

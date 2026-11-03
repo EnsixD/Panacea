@@ -907,10 +907,12 @@ install_configs() {
     mkdir -p "$CONF/hypr/wallpaper/live"
     # Небольшой фирменный фон входит в оболочку и доставляется и при
     # обновлении с --no-wallpapers; существующий файл пользователя не менять.
-    if [ -f "$SRC/wallpapers/nothing_orbit.png" ]; then
-        mkdir -p "$CONF/hypr/wallpaper/shell"
-        cp -n "$SRC/wallpapers/nothing_orbit.png" "$CONF/hypr/wallpaper/shell/nothing_orbit.png"
-    fi
+    for wall in nothing_orbit.png nothing_signal.png nothing_slab.png nothing_arc.png; do
+        if [ -f "$SRC/wallpapers/$wall" ]; then
+            mkdir -p "$CONF/hypr/wallpaper/shell"
+            cp -n "$SRC/wallpapers/$wall" "$CONF/hypr/wallpaper/shell/$wall"
+        fi
+    done
 
     # Сочетания клавиш Hyprland читает только из lua/binds_data.lua, а окно
     # Super+/ пишет их в settings.json и пересобирает этот файл. Если файла

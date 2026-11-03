@@ -56,7 +56,7 @@ Item {
 
     focus: true
     Component.onCompleted: {
-        reload(); jumpToActive(); forceActiveFocus(); warmDelay.restart();
+        reload(); view.target = 0; forceActiveFocus(); warmDelay.restart();
     }
 
     Keys.onEscapePressed: view.sys.closeWalls()
@@ -100,10 +100,7 @@ Item {
         // Пока не листали — стоим на текущих обоях. Список обновляется и на
         // открытии, и после прогрева миниатюр, и раньше фокус после этого
         // уезжал в непонятное место.
-        if ((first || !view.userScrolled) && act >= 0) {
-            view.target = act;
-            view.pos = act;
-        } else if (view.target >= walls.count) {
+        if (view.target >= walls.count) {
             view.target = Math.max(0, walls.count - 1);
         }
     }
@@ -116,7 +113,11 @@ Item {
     // список брался от старой вкладки — картинки на «живых» и наоборот.
     function reload(liveOverride) {
         var isLive = liveOverride === undefined ? view.live : liveOverride;
-        var rows = (isLive ? view.sys.liveList : view.sys.wallList) || [];
+        var rows = ((isLive ? view.sys.liveList : view.sys.wallList) || []).slice();
+        if (!isLive) rows.sort(function(a, b) {
+            function priority(w) { return /^nothing/i.test(w.wName) ? 0 : 1; }
+            return priority(a) - priority(b);
+        });
         var act = -1;
         for (var i = 0; i < rows.length; i++) if (rows[i].wActive) act = i;
         view.applyRows(rows, act);
@@ -130,7 +131,7 @@ Item {
         var isLive = view.mode === "live";
         view.userScrolled = false;
         view.reload(isLive);
-        view.jumpToActive();
+        view.target = 0;
         if (isLive) liveWarmDelay.restart();
     }
 
@@ -198,7 +199,7 @@ Item {
     Connections {
         target: view.sys
         function onWallsOpenChanged() {
-            if (view.sys.wallsOpen) { view.userScrolled = false; view.jumpToActive(); }
+            if (view.sys.wallsOpen) { view.userScrolled = false; view.target = 0; }
             else                    resetAfterClose.restart();
         }
     }
@@ -298,16 +299,15 @@ Item {
 
     // ------------------------------------------------------------- заголовок
     ColumnLayout {
-        anchors.left: parent.left
-        anchors.leftMargin: Math.round(view.width * 0.07)
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.topMargin: Math.round(view.height * 0.07)
+        anchors.topMargin: Math.round(view.height * 0.075)
         spacing: 5
         opacity: view.open ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: view.sys.animMs } }
 
         Text {
-            Layout.alignment: Qt.AlignLeft
+            Layout.alignment: Qt.AlignHCenter
             text: view.live ? view.sys.tr("Живые обои") : view.sys.tr("Обои")
             color: "#f2f2f2"
             font {
@@ -318,7 +318,7 @@ Item {
         // Вкладки: картинки и видео. Карусель у них одна и та же — меняется
         // только источник строк и скрипт, который ставит фон.
         RowLayout {
-            Layout.alignment: Qt.AlignLeft
+            Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 12
             spacing: 8
 
@@ -365,7 +365,7 @@ Item {
         }
 
         Text {
-            Layout.alignment: Qt.AlignLeft
+            Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 6
             text: walls.count
                   ? (view.target + 1) + " / " + walls.count
