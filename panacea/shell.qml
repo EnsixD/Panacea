@@ -4791,6 +4791,18 @@ PanelWindow {
         id: capsule
         scale: 1 + (root.fileOverIsland ? 0.035 : 0) - root.fileAbsorb * 0.07
         Behavior on scale { NumberAnimation { duration: root.noMotion ? 0 : 150; easing.type: Easing.OutCubic } }
+        // Миниатюра втягивается в остров при отпускании файла.
+        Text {
+            z: 501
+            x: capsule.width * (0.18 + root.fileAbsorb * 0.30)
+            y: capsule.height * 0.5 - height * 0.5
+            text: "󰈙"
+            color: root.colOn
+            font { family: root.fontFam; pixelSize: 17 }
+            opacity: root.fileOverIsland ? 0.9 : (fileAbsorbAnimation.running ? Math.max(0, 1 - root.fileAbsorb) : 0)
+            scale: Math.max(0.2, 1 - root.fileAbsorb * 0.8)
+            visible: opacity > 0 && !root.expanded
+        }
         DropArea {
             anchors.fill: parent
             z: 500
