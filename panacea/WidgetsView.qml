@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 
@@ -877,6 +878,7 @@ Item {
                 // Верхний ряд: заголовок и статус
                 RowLayout {
                     Layout.fillWidth: true
+                    Layout.preferredHeight: 14
                     spacing: 6
 
                     Rectangle {
@@ -894,22 +896,33 @@ Item {
                         font.letterSpacing: 1.1
                     }
 
-                    // Анимированный мини-эквалайзер при воспроизведении
-                    Row {
-                        spacing: 2
+                    // Фиксированный контейнер: анимация не меняет геометрию строки.
+                    Item {
+                        Layout.preferredWidth: 18
+                        Layout.preferredHeight: 14
                         visible: musicCard.isPlaying
-                        Repeater {
-                            model: 4
-                            Rectangle {
-                                required property int index
-                                width: 2; radius: 1
-                                height: [6, 12, 8, 14][index]
-                                color: view.sys ? view.sys.colCrit : "#d71921"
-                                SequentialAnimation on height {
-                                    loops: Animation.Infinite
-                                    running: musicCard.isPlaying
-                                    NumberAnimation { to: [14, 6, 14, 7][index]; duration: 300 + index * 90; easing.type: Easing.InOutQuad }
-                                    NumberAnimation { to: [6, 12, 8, 14][index]; duration: 300 + index * 90; easing.type: Easing.InOutQuad }
+                        Row {
+                            anchors.bottom: parent.bottom
+                            anchors.right: parent.right
+                            spacing: 2
+                            Repeater {
+                                model: 4
+                                Item {
+                                    id: musicBarCell
+                                    required property int index
+                                    width: 2; height: 14
+                                    Rectangle {
+                                        anchors.bottom: parent.bottom
+                                        width: 2; radius: 1
+                                        height: [5, 10, 7, 12][musicBarCell.index]
+                                        color: view.sys ? view.sys.colCrit : "#d71921"
+                                        SequentialAnimation on height {
+                                            loops: Animation.Infinite
+                                            running: musicCard.isPlaying
+                                            NumberAnimation { to: [12, 5, 12, 6][musicBarCell.index]; duration: 300 + musicBarCell.index * 90; easing.type: Easing.InOutQuad }
+                                            NumberAnimation { to: [5, 10, 7, 12][musicBarCell.index]; duration: 300 + musicBarCell.index * 90; easing.type: Easing.InOutQuad }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -943,7 +956,6 @@ Item {
                                 duration: 5000
                                 loops: Animation.Infinite
                                 running: musicCard.isPlaying
-                                paused: !musicCard.isPlaying
                             }
 
                             // Основа винила (чёрный диск с бороздками)
@@ -974,30 +986,55 @@ Item {
                                     border.width: 1
                                 }
 
-                                // Центр винила: круглая обложка или фирменный хаб Nothing
+                                // Контрастная этикетка с круглой обложкой.
                                 Rectangle {
                                     id: vinylHub
                                     anchors.centerIn: parent
-                                    width: 26; height: 26; radius: 13
-                                    color: "#222224"
-                                    clip: true
+                                    width: 36; height: 36; radius: 18
+                                    color: "#373738"
+                                    border.color: Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: 1
 
                                     Image {
+                                        id: vinylArt
                                         anchors.fill: parent
+                                        anchors.margins: 2
                                         source: (view.sys && view.sys.mediaArt) ? view.sys.mediaArt : ""
                                         fillMode: Image.PreserveAspectCrop
-                                        visible: status === Image.Ready
+                                        asynchronous: true
+                                        visible: false
+                                        layer.enabled: true
                                     }
-
-                                    // Отверстие в центре пластинки
+                                    Item {
+                                        id: vinylMask
+                                        anchors.fill: vinylArt
+                                        visible: false
+                                        layer.enabled: true
+                                        Rectangle { anchors.fill: parent; radius: width / 2; color: "white" }
+                                    }
+                                    MultiEffect {
+                                        anchors.fill: vinylArt
+                                        source: vinylArt
+                                        maskEnabled: true
+                                        maskSource: vinylMask
+                                        visible: vinylArt.status === Image.Ready
+                                    }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: vinylArt.status !== Image.Ready
+                                        text: "󰝚"
+                                        color: view.sys ? view.sys.colMuted : "#888888"
+                                        font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 16 }
+                                    }
                                     Rectangle {
                                         anchors.centerIn: parent
-                                        width: 6; height: 6; radius: 3
-                                        color: musicCard.isPlaying ? (view.sys ? view.sys.colCrit : "#d71921") : "#111111"
-                                        border.color: "#333333"
+                                        width: 5; height: 5; radius: 2.5
+                                        color: "#171718"
+                                        border.color: Qt.rgba(1, 1, 1, 0.65)
                                         border.width: 1
                                     }
                                 }
+
                             }
                         }
                     }
