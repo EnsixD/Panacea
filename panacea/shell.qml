@@ -3473,9 +3473,8 @@ PanelWindow {
                                        : tr("Баланс")
 
     function setPowerProfile(name) {
-        // отражаем сразу, потом подтверждаем реальным значением от демона
-        root.powerProfile = name;
-        pPowerSet.command = ["sh", "-c", root.powerScript + " set \"$1\"", "_", name];
+        if (pPowerSet.running) return;
+        pPowerSet.command = ["bash", root.powerScript, "set", name];
         pPowerSet.running = true;
     }
 
