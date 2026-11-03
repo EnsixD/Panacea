@@ -67,63 +67,96 @@ Rectangle {
         }
     }
 
-    Rectangle {
-        id: cover
-        x: 14; y: 14; width: 82; height: 82; radius: 14
-        color: "#303034"
-        Image {
-            id: art
-            anchors.fill: parent
-            source: card.sys ? card.sys.mediaArt : ""
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            sourceSize.width: 164; sourceSize.height: 164
-            visible: false; layer.enabled: true
+    // Пластинка вращается вместе с круглой этикеткой и замирает на паузе.
+    Item {
+        id: record
+        x: 14; y: 17; width: 88; height: 88
+        RotationAnimation on rotation {
+            from: 0; to: 360; duration: 12000
+            loops: Animation.Infinite
+            running: card.visible
+            paused: !card.playing
         }
-        Item {
-            id: artMask
+        Rectangle {
             anchors.fill: parent
-            visible: false; layer.enabled: true
-            Rectangle { anchors.fill: parent; radius: 14; color: "white" }
-        }
-        MultiEffect {
-            anchors.fill: parent
-            source: art
-            maskEnabled: true
-            maskSource: artMask
-            visible: art.status === Image.Ready
-        }
-        Text {
-            anchors.centerIn: parent
-            visible: art.status !== Image.Ready
-            text: "󰝚"
-            color: "#a3a3a7"
-            font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 32 }
+            radius: width / 2
+            color: "#111113"
+            border.color: "#3a3a3d"; border.width: 1
+            Repeater {
+                model: 4
+                Rectangle {
+                    required property int index
+                    anchors.centerIn: parent
+                    width: parent.width - 10 - index * 7
+                    height: width; radius: width / 2
+                    color: "transparent"
+                    border.color: Qt.rgba(1, 1, 1, 0.07)
+                    border.width: 1
+                }
+            }
+            Rectangle {
+                id: label
+                anchors.centerIn: parent
+                width: 50; height: 50; radius: 25
+                color: "#39393c"
+                border.color: "#57575a"; border.width: 1
+                Image {
+                    id: art
+                    anchors.fill: parent; anchors.margins: 2
+                    source: card.sys ? card.sys.mediaArt : ""
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    sourceSize.width: 120; sourceSize.height: 120
+                    visible: false; layer.enabled: true
+                }
+                Item {
+                    id: artMask
+                    anchors.fill: art
+                    visible: false; layer.enabled: true
+                    Rectangle { anchors.fill: parent; radius: width / 2; color: "white" }
+                }
+                MultiEffect {
+                    anchors.fill: art
+                    source: art; maskEnabled: true; maskSource: artMask
+                    visible: art.status === Image.Ready
+                }
+                Text {
+                    anchors.centerIn: parent
+                    visible: art.status !== Image.Ready
+                    text: "󰝚"; color: "#b0b0b4"
+                    font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 22 }
+                }
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 5; height: 5; radius: 2.5
+                    color: "#171719"; border.color: "#dedede"; border.width: 1
+                }
+            }
         }
     }
 
-    Rectangle { x: 108; y: 16; width: 5; height: 5; radius: 3; color: card.playing ? "#e53c3c" : "#77777b" }
+    Rectangle { x: 120; y: 16; width: 5; height: 5; radius: 3; color: card.playing ? "#e53c3c" : "#77777b" }
     Text {
-        x: 119; y: 11; width: 164; height: 14
+        x: 131; y: 11; width: 150; height: 14
         text: card.playing ? "NOW PLAYING" : (card.hasTrack ? "PAUSED" : "NOTHING MUSIC")
         color: "#99999e"
         font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 8; bold: true; letterSpacing: 1.2 }
         elide: Text.ElideRight
     }
     Text {
-        x: 108; y: 32; width: 178; height: 20
+        x: 120; y: 32; width: 164; height: 20
         text: card.hasTrack ? card.player.trackTitle : (card.sys ? card.sys.tr("Нет музыки") : "No media")
         color: "#f4f4f4"; elide: Text.ElideRight
         font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 13; bold: true }
     }
     Text {
-        x: 108; y: 53; width: 178; height: 18
+        x: 120; y: 53; width: 164; height: 18
         text: card.hasTrack ? (card.player.trackArtist || "") : (card.sys ? card.sys.tr("Запустите плеер") : "Start playing")
         color: "#a1a1a6"; elide: Text.ElideRight
         font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 10 }
     }
     Row {
-        x: 108; y: 76; spacing: 8
+        x: 120; y: 76; spacing: 8
         Action { glyph: "󰒮"; available: card.player && card.player.canGoPrevious; onTriggered: card.player.previous() }
         Action { primary: true; glyph: card.playing ? "󰏤" : "󰐊"; available: card.player && card.player.canTogglePlaying; onTriggered: card.player.togglePlaying() }
         Action { glyph: "󰒭"; available: card.player && card.player.canGoNext; onTriggered: card.player.next() }
