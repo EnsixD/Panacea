@@ -15,3 +15,9 @@ fish/fish_history
 .missingdeps
 .obsoletedeps
 panacea/.version
+
+# Локальный кэш Graphify и конфигурация хуков конкретной машины
+.codex/
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/.graphify_*
