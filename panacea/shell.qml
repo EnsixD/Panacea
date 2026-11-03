@@ -2091,8 +2091,38 @@ PanelWindow {
     // Скриншот кладётся в буфер обмена, и по экрану этого не видно: рамка
     // выделения пропала — и всё. Уведомление здесь, а не в скрипте, потому
     // что текст переводится вместе с остальной оболочкой.
+    property string lastShotPath: ""
+    property bool   ocrBusy: false
+    Process {
+        id: pOcr
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.ocrBusy = false;
+                var txt = (text || "").trim();
+                if (txt.indexOf("ERROR_NOT_INSTALLED") === 0) {
+                    root.sayToast(root.tr("OCR"), root.tr("OCR: установите tesseract"));
+                } else if (txt.length === 0) {
+                    root.sayToast(root.tr("OCR"), root.tr("Текст не найден"));
+                } else {
+                    root.playSound("screenshot");
+                    var preview = txt.length > 50 ? txt.substring(0, 47) + "…" : txt;
+                    preview = preview.replace(/\r?\n/g, " ");
+                    root.sayToast(root.tr("Текст скопирован"), preview);
+                }
+            }
+        }
+    }
+    function extractTextOcr(path) {
+        if (!path || root.ocrBusy) return;
+        root.ocrBusy = true;
+        pOcr.command = ["sh", root.scriptDir + "/ocr.sh", path, "--copy"];
+        pOcr.running = false;
+        pOcr.running = true;
+    }
+
     Process { id: pShotSay }
     function shotCopied(path: string): void {
+        root.lastShotPath = String(path);
         // Значком берём сам снимок: уведомление показывает, что именно сняли,
         // и промах по рамке видно, не открывая файл.
         var name = String(path).split("/").pop();
@@ -2103,6 +2133,14 @@ PanelWindow {
         pShotSay.running = false;
         pShotSay.running = true;
         root.playSound("screenshot");
+    }
+
+    function sayToast(title, body) {
+        pShotSay.command = ["notify-send", "-a", "Panacea",
+                            "-h", "int:transient:1",
+                            String(title), String(body)];
+        pShotSay.running = false;
+        pShotSay.running = true;
     }
 
     // Настройки — единственная страница, которая отрывается от верхней кромки
@@ -2794,6 +2832,16 @@ PanelWindow {
             root.dismissToast();
             root.dropNotification(id);
             root.openSettingsAt("system");
+            return;
+        }
+
+        if (root.lastShotPath.length > 0 && n && (String(n.summary || "").indexOf("Скриншот") >= 0
+                                              || String(n.summary || "").indexOf("Screenshot") >= 0
+                                              || (String(n.appName || "") === "Panacea" && String(n.image || "").indexOf(".png") >= 0))) {
+            var shotToOpen = root.lastShotPath;
+            root.dismissToast();
+            if (id >= 0) root.dropNotification(id);
+            root.openMedia(shotToOpen);
             return;
         }
 
@@ -5138,6 +5186,52 @@ PanelWindow {
                     // Telegram присылал «<b>Паша брат</b>» прямо текстом.
                     textFormat: Text.StyledText
                     font { family: root.fontFam; pixelSize: root.fontSize - 3 }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: root.lastShotPath.length > 0
+                             && (root.notifSummary.indexOf(root.tr("Скриншот")) >= 0
+                                 || root.notifSummary.indexOf("Screenshot") >= 0
+                                 || root.notifSummary.indexOf("Скриншот") >= 0)
+                    spacing: 8
+
+                    Rectangle {
+                        Layout.preferredHeight: 22
+                        Layout.preferredWidth: rowOcr.implicitWidth + 14
+                        radius: 6
+                        color: ocrMa.containsMouse
+                               ? Qt.rgba(root.colOn.r, root.colOn.g, root.colOn.b, 0.35)
+                               : Qt.rgba(1, 1, 1, 0.12)
+                        border.color: Qt.rgba(root.colOn.r, root.colOn.g, root.colOn.b, 0.45)
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        RowLayout {
+                            id: rowOcr
+                            anchors.centerIn: parent
+                            spacing: 5
+                            Text {
+                                text: "󰚞"
+                                color: root.colOn
+                                font { family: root.fontFam; pixelSize: 11 }
+                            }
+                            Text {
+                                text: root.ocrBusy ? root.tr("Распознаю…") : root.tr("Копировать текст")
+                                color: root.colFg
+                                font { family: root.fontFam; pixelSize: 10; bold: true }
+                            }
+                        }
+
+                        MouseArea {
+                            id: ocrMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            enabled: !root.ocrBusy
+                            onClicked: root.extractTextOcr(root.lastShotPath)
+                        }
+                    }
                 }
             }
 

@@ -143,6 +143,47 @@ FocusScope {
         pSave.running = true;
     }
 
+    property bool ocrRunning: false
+    Process {
+        id: pMediaOcr
+        stdout: StdioCollector {
+            onStreamFinished: {
+                view.ocrRunning = false;
+                var txt = (text || "").trim();
+                if (txt.indexOf("ERROR_NOT_INSTALLED") === 0) {
+                    view.busyText = view.sys.tr("Установите tesseract");
+                } else if (txt.length === 0) {
+                    view.busyText = view.sys.tr("Текст не найден");
+                } else {
+                    view.sys.playSound("screenshot");
+                    view.busyText = view.sys.tr("Текст скопирован!");
+                }
+                busyTimer.restart();
+            }
+        }
+    }
+    Timer {
+        id: busyTimer
+        interval: 2500
+        onTriggered: view.busyText = ""
+    }
+
+    function copyOcrText() {
+        if (view.isVideo || view.ocrRunning) return;
+        view.ocrRunning = true;
+        view.busyText = view.sys.tr("Распознаю текст…");
+
+        var r = (view.cropMode && cropRect.valid) ? view.cropRegion() : null;
+        if (r) {
+            pMediaOcr.command = ["sh", view.sys.scriptDir + "/ocr.sh",
+                                 view.path, String(r.x), String(r.y), String(r.w), String(r.h), "--copy"];
+        } else {
+            pMediaOcr.command = ["sh", view.sys.scriptDir + "/ocr.sh", view.path, "--copy"];
+        }
+        pMediaOcr.running = false;
+        pMediaOcr.running = true;
+    }
+
     // ---------------------------------------------------------------- клавиши
     Keys.onEscapePressed: {
         if (view.cropMode) { view.sys.mediaCrop = false; return; }
@@ -763,6 +804,51 @@ FocusScope {
             }
 
             Item { Layout.fillWidth: true }
+
+            // Кнопка распознавания и копирования текста (OCR)
+            Rectangle {
+                Layout.preferredWidth: ocrText.implicitWidth + 34
+                Layout.preferredHeight: 40
+                radius: 14
+                visible: !view.isVideo
+                enabled: !view.ocrRunning
+                opacity: enabled ? 1 : 0.4
+                color: ocrMa.containsMouse
+                       ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.34)
+                       : Qt.rgba(1, 1, 1, 0.08)
+                border.color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4)
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: 8
+                    Text {
+                        text: "󰚞"
+                        color: view.sys.colOn
+                        font { family: view.sys.fontFam; pixelSize: 15 }
+                    }
+                    Text {
+                        id: ocrText
+                        text: view.ocrRunning
+                              ? view.sys.tr("Распознаю…")
+                              : (view.cropMode && cropRect.valid
+                                 ? view.sys.tr("Текст из области")
+                                 : view.sys.tr("Копировать текст"))
+                        color: view.sys.colFg
+                        font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2; bold: true }
+                    }
+                }
+
+                MouseArea {
+                    id: ocrMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled: parent.enabled
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: view.copyOcrText()
+                }
+            }
 
             Rectangle {
                 Layout.preferredWidth: saveText.implicitWidth + 34

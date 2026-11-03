@@ -113,6 +113,7 @@ DEPS=(
     "slurp|slurp|region select"
     "ffmpeg|ffmpeg|media player, trimming, thumbnails"
     "wf-recorder|wf-recorder|screen recording"
+    "tesseract|tesseract|OCR text extraction from screenshots"
     # Голос в текст по правому Alt. voxtype — офлайн push-to-talk демон, wtype
     # печатает распознанное в активное поле (виртуальная клавиатура Wayland).
     "voxtype|voxtype-bin|voice-to-text (push-to-talk, offline)"
