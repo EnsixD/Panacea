@@ -955,7 +955,7 @@ Item {
                                     height: parent.height - 12
                                     radius: width / 2
                                     color: "transparent"
-                                    border.color: "rgba(255, 255, 255, 0.05)"
+                                    border.color: Qt.rgba(1, 1, 1, 0.05)
                                     border.width: 1
                                 }
                                 Rectangle {
@@ -964,7 +964,7 @@ Item {
                                     height: parent.height - 24
                                     radius: width / 2
                                     color: "transparent"
-                                    border.color: "rgba(255, 255, 255, 0.07)"
+                                    border.color: Qt.rgba(1, 1, 1, 0.07)
                                     border.width: 1
                                 }
 
