@@ -50,8 +50,10 @@ while [ $# -gt 0 ]; do
 done
 
 TMP_CROP=""
+TMP_PREP=""
 cleanup() {
     [ -n "$TMP_CROP" ] && rm -f "$TMP_CROP"
+    [ -n "$TMP_PREP" ] && rm -f "$TMP_PREP"
 }
 trap cleanup EXIT INT TERM HUP
 
@@ -84,7 +86,35 @@ elif echo "$AVAILABLE_LANGS" | grep -qx "eng"; then
     LANG_ARG=(-l "eng")
 fi
 
-TEXT=$(tesseract "$IMG" stdout "${LANG_ARG[@]}" 2>/dev/null)
+# Интерфейсные скриншоты часто содержат очень мелкий и бледный текст.
+# Увеличиваем его с ограничением по памяти и усиливаем контраст. Для обычных
+# страниц оставляем автоматическое определение колонок Tesseract.
+PSM=3
+TMP_PREP=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}" ocr-prep.XXXXXX.png) || exit 3
+if mode=$(python3 - "$IMG" "$TMP_PREP" <<'PYCODE'
+import math
+import sys
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+
+with Image.open(sys.argv[1]) as source:
+    source = ImageOps.exif_transpose(source)
+    width, height = source.size
+    rgba = source.convert("RGBA")
+    image = Image.new("RGB", rgba.size, "white")
+    image.paste(rgba, mask=rgba.getchannel("A"))
+    scale = min(3.0, max(1.0, math.sqrt(12_000_000 / (width * height))))
+    if scale > 1.05:
+        image = image.resize((round(width * scale), round(height * scale)), Image.Resampling.LANCZOS)
+    image = ImageEnhance.Contrast(ImageOps.grayscale(image)).enhance(1.5)
+    image = image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=100, threshold=3))
+    image.save(sys.argv[2], dpi=(300, 300))
+    print(6 if height <= 500 and width >= 2 * height else 3)
+PYCODE
+); then
+    IMG="$TMP_PREP"
+    PSM="$mode"
+fi
+TEXT=$(tesseract "$IMG" stdout "${LANG_ARG[@]}" --psm "$PSM" 2>/dev/null)
 
 # Убираем пробелы и пустые строки по краям
 TEXT=$(printf '%s\n' "$TEXT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed -e '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
