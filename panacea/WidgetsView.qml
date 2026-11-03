@@ -984,6 +984,16 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    TapHandler {
+                        acceptedButtons: Qt.LeftButton
+                        onPressedChanged: {
+                            if (pressed) {
+                                view.scratchpadActive = true;
+                                Qt.callLater(function() { scratchEdit.forceActiveFocus(); });
+                            }
+                        }
+                    }
+
                     Flickable {
                         id: flick
                         anchors.fill: parent
