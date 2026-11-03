@@ -843,5 +843,296 @@ Item {
                 }
             }
         }
+
+        // ------------------------------------------------------ Ряд 4: Nothing Music Widget (300x120)
+        Card {
+            id: musicCard
+            visible: (view.sys && view.sys.cfg && view.sys.cfg.widgetMusic !== false)
+            Layout.preferredWidth: view.fullW
+            Layout.preferredHeight: 120
+            color: musicMa.containsMouse ? Qt.rgba(0.13, 0.13, 0.14, 0.98) : Qt.rgba(0.09, 0.09, 0.09, 0.96)
+            border.color: musicMa.containsMouse ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4) : Qt.rgba(1, 1, 1, 0.06)
+            Behavior on color { ColorAnimation { duration: 120 } }
+            Behavior on border.color { ColorAnimation { duration: 120 } }
+
+            readonly property var p: view.sys ? view.sys.player : null
+            readonly property bool hasTrack: p && p.trackTitle && String(p.trackTitle).trim().length > 0
+            readonly property bool isPlaying: p && p.isPlaying
+            readonly property real progressPct: {
+                if (!p || !p.length || p.length <= 0) return 0;
+                return Math.max(0, Math.min(1, p.position / p.length));
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 8
+
+                // Верхний ряд: заголовок и статус
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Rectangle {
+                        width: 6; height: 6; radius: 3
+                        color: musicCard.isPlaying ? (view.sys ? view.sys.colCrit : "#d71921")
+                                                   : (view.sys ? Qt.rgba(view.sys.colMuted.r, view.sys.colMuted.g, view.sys.colMuted.b, 0.4) : "#555555")
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                    }
+
+                    Caption {
+                        Layout.fillWidth: true
+                        text: "NOTHING MUSIC"
+                        font.bold: true
+                        font.pixelSize: 8
+                        font.letterSpacing: 1.1
+                    }
+
+                    // Анимированный мини-эквалайзер при воспроизведении
+                    Row {
+                        spacing: 2
+                        visible: musicCard.isPlaying
+                        Repeater {
+                            model: 4
+                            Rectangle {
+                                required property int index
+                                width: 2; radius: 1
+                                height: [6, 12, 8, 14][index]
+                                color: view.sys ? view.sys.colCrit : "#d71921"
+                                SequentialAnimation on height {
+                                    loops: Animation.Infinite
+                                    running: musicCard.isPlaying
+                                    NumberAnimation { to: [14, 6, 14, 7][index]; duration: 300 + index * 90; easing.type: Easing.InOutQuad }
+                                    NumberAnimation { to: [6, 12, 8, 14][index]; duration: 300 + index * 90; easing.type: Easing.InOutQuad }
+                                }
+                            }
+                        }
+                    }
+
+                    Caption {
+                        visible: !musicCard.isPlaying
+                        text: musicCard.hasTrack ? (view.sys ? view.sys.tr("ПАУЗА") : "PAUSED") : (view.sys ? view.sys.tr("ОЖИДАНИЕ") : "IDLE")
+                        font.pixelSize: 8
+                        color: view.sys ? view.sys.colMuted : "#888888"
+                    }
+                }
+
+                // Центральная часть: виниловая пластинка + название + кнопки
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    // Винил с обложкой по центру
+                    Item {
+                        Layout.preferredWidth: 64
+                        Layout.preferredHeight: 64
+
+                        // Крутящаяся пластинка
+                        Item {
+                            id: vinylDisc
+                            anchors.fill: parent
+
+                            RotationAnimation on rotation {
+                                from: 0; to: 360
+                                duration: 5000
+                                loops: Animation.Infinite
+                                running: musicCard.isPlaying
+                                paused: !musicCard.isPlaying
+                            }
+
+                            // Основа винила (чёрный диск с бороздками)
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: width / 2
+                                color: "#141415"
+                                border.color: "#28282a"
+                                border.width: 1
+
+                                // Бороздки (концентрические тонкие круги)
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 12
+                                    height: parent.height - 12
+                                    radius: width / 2
+                                    color: "transparent"
+                                    border.color: "rgba(255, 255, 255, 0.05)"
+                                    border.width: 1
+                                }
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 24
+                                    height: parent.height - 24
+                                    radius: width / 2
+                                    color: "transparent"
+                                    border.color: "rgba(255, 255, 255, 0.07)"
+                                    border.width: 1
+                                }
+
+                                // Центр винила: круглая обложка или фирменный хаб Nothing
+                                Rectangle {
+                                    id: vinylHub
+                                    anchors.centerIn: parent
+                                    width: 26; height: 26; radius: 13
+                                    color: "#222224"
+                                    clip: true
+
+                                    Image {
+                                        anchors.fill: parent
+                                        source: (view.sys && view.sys.mediaArt) ? view.sys.mediaArt : ""
+                                        fillMode: Image.PreserveAspectCrop
+                                        visible: status === Image.Ready
+                                    }
+
+                                    // Отверстие в центре пластинки
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 6; height: 6; radius: 3
+                                        color: musicCard.isPlaying ? (view.sys ? view.sys.colCrit : "#d71921") : "#111111"
+                                        border.color: "#333333"
+                                        border.width: 1
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Метаданные и кнопки управления
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: musicCard.hasTrack ? musicCard.p.trackTitle : (view.sys ? view.sys.tr("Нет музыки") : "No media")
+                            color: view.sys ? view.sys.colFg : "#ffffff"
+                            elide: Text.ElideRight
+                            font {
+                                family: view.sys ? view.sys.fontFam : "sans-serif"
+                                pixelSize: 12
+                                bold: true
+                            }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: (musicCard.hasTrack && musicCard.p.trackArtist) ? musicCard.p.trackArtist : (musicCard.hasTrack ? "" : (view.sys ? view.sys.tr("Запустите плеер") : "Start playing"))
+                            color: view.sys ? view.sys.colMuted : "#888888"
+                            elide: Text.ElideRight
+                            font {
+                                family: view.sys ? view.sys.fontFam : "sans-serif"
+                                pixelSize: 10
+                            }
+                        }
+
+                        // Кнопки управления
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            // Prev
+                            Rectangle {
+                                width: 26; height: 26; radius: 13
+                                color: prevMa.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, 0.05)
+                                border.color: Qt.rgba(1, 1, 1, 0.08)
+                                border.width: 1
+                                opacity: (musicCard.p && musicCard.p.canGoPrevious) ? 1.0 : 0.4
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰒮"
+                                    color: view.sys ? view.sys.colFg : "#ffffff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12 }
+                                }
+                                MouseArea {
+                                    id: prevMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    enabled: musicCard.p && musicCard.p.canGoPrevious
+                                    onClicked: if (musicCard.p) musicCard.p.previous()
+                                }
+                            }
+
+                            // Play / Pause
+                            Rectangle {
+                                width: 32; height: 26; radius: 13
+                                color: playMa.containsMouse
+                                       ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.4)
+                                       : Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.22)
+                                border.color: Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.5)
+                                border.width: 1
+                                opacity: (musicCard.p && musicCard.p.canTogglePlaying) ? 1.0 : 0.5
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: musicCard.isPlaying ? "󰏤" : "󰐊"
+                                    color: view.sys ? view.sys.colFg : "#ffffff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 13 }
+                                }
+                                MouseArea {
+                                    id: playMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    enabled: musicCard.p && musicCard.p.canTogglePlaying
+                                    onClicked: if (musicCard.p) musicCard.p.togglePlaying()
+                                }
+                            }
+
+                            // Next
+                            Rectangle {
+                                width: 26; height: 26; radius: 13
+                                color: nextMa.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, 0.05)
+                                border.color: Qt.rgba(1, 1, 1, 0.08)
+                                border.width: 1
+                                opacity: (musicCard.p && musicCard.p.canGoNext) ? 1.0 : 0.4
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰒭"
+                                    color: view.sys ? view.sys.colFg : "#ffffff"
+                                    font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12 }
+                                }
+                                MouseArea {
+                                    id: nextMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    enabled: musicCard.p && musicCard.p.canGoNext
+                                    onClicked: if (musicCard.p) musicCard.p.next()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Тонкая полоса прогресса трека
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 3
+                    radius: 1.5
+                    color: Qt.rgba(1, 1, 1, 0.08)
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: parent.width * musicCard.progressPct
+                        radius: 1.5
+                        color: view.sys ? view.sys.colOn : "#3b82f6"
+                    }
+                }
+            }
+
+            MouseArea {
+                id: musicMa
+                anchors.fill: parent
+                hoverEnabled: true
+                z: -1
+            }
+        }
     }
 }

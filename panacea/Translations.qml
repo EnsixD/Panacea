@@ -621,6 +621,13 @@ QtObject {
         "Активные": "Active",
         "История": "History",
         "Нет активных": "Nothing active",
+        "Виджет Nothing Music": "Nothing Music widget",
+        "Плеер в стиле Nothing с крутящимся винилом и управлением воспроизведением прямо на рабочем столе.":
+            "Nothing-style player with spinning vinyl and playback controls directly on the desktop.",
+        "ПАУЗА": "PAUSED",
+        "ОЖИДАНИЕ": "IDLE",
+        "Нет музыки": "No media",
+        "Запустите плеер": "Start player",
         "Уведомления": "Notifications",
         "Не беспокоить": "Do not disturb",
         "Очистить": "Clear",

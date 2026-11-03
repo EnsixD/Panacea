@@ -100,5 +100,6 @@
     "pillH": 38,
     "pillPos": "top",
     "themeId": "nothing",
-    "uiSounds": true
+    "uiSounds": true,
+    "widgetMusic": true
 }

@@ -216,6 +216,7 @@ PanelWindow {
             property string widgetClockMode: "analog"
             property string widgetRightMode: "weather"
             property string widgetProgressMode: "day"
+            property bool   widgetMusic: true
             // JSON string: {"Turkish":"TR","Russian":"RU"}
             property string keyboardLayoutMap: ""
 
@@ -431,6 +432,7 @@ PanelWindow {
         weatherKey: "", weatherCity: "", weatherUnits: "metric",
         weatherOnIsland: false, systemLoadOnIsland: false, keyboardLayoutMap: "", featWidgets: false,
         widgetClockMode: "analog", widgetRightMode: "weather", widgetProgressMode: "day",
+        widgetMusic: true,
         termAlpha: 0.90,
         uiSounds: true
     })

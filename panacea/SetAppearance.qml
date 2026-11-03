@@ -119,6 +119,15 @@ ColumnLayout {
             onPicked: id => { page.sys.cfg.widgetProgressMode = id; page.sys.saveCfg(); }
         }
 
+        SetToggle {
+            visible: page.sys.cfg.featWidgets && page.detailsOpen
+            sys: page.sys
+            label: page.sys.tr("Виджет Nothing Music")
+            sub: page.sys.tr("Плеер в стиле Nothing с крутящимся винилом и управлением воспроизведением прямо на рабочем столе.")
+            on: page.sys.cfg.widgetMusic !== false
+            onToggled: v => { page.sys.cfg.widgetMusic = v; page.sys.saveCfg(); }
+        }
+
         Text {
             Layout.fillWidth: true
             visible: page.sys.cfg.featWidgets
