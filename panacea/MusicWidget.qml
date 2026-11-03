@@ -13,7 +13,7 @@ Rectangle {
     readonly property real duration: player ? Math.max(0, player.length) : 0
     readonly property real progress: duration > 0 ? Math.max(0, Math.min(1, position / duration)) : 0
     implicitWidth: 300
-    implicitHeight: 156
+    implicitHeight: 180
     radius: 22
     color: "#171719"
     border.color: Qt.rgba(1, 1, 1, 0.08)
@@ -45,11 +45,11 @@ Rectangle {
         property bool available: false
         property bool primary: false
         signal triggered()
-        implicitWidth: primary ? 36 : 30
+        implicitWidth: primary ? 94 : 80
         implicitHeight: 30
-        radius: 15
+        radius: 10
         color: primary ? (hit.containsMouse ? "#eeeeef" : "#d8d8da")
-                       : (hit.containsMouse ? "#414144" : "#2b2b2e")
+                       : (hit.containsMouse ? "#3b3b3e" : "#262629")
         opacity: available ? 1 : 0.35
         Text {
             anchors.centerIn: parent
@@ -70,7 +70,7 @@ Rectangle {
     // Пластинка вращается вместе с круглой этикеткой и замирает на паузе.
     Item {
         id: record
-        x: 14; y: 17; width: 88; height: 88
+        x: 14; y: 39; width: 82; height: 82
         RotationAnimation on rotation {
             from: 0; to: 360; duration: 12000
             loops: Animation.Infinite
@@ -135,45 +135,53 @@ Rectangle {
         }
     }
 
-    Rectangle { x: 120; y: 16; width: 5; height: 5; radius: 3; color: card.playing ? "#e53c3c" : "#77777b" }
+    // Заголовок, метаданные и полоса не зависят от размеров анимации.
+    Rectangle { x: 16; y: 17; width: 5; height: 5; radius: 3; color: card.playing ? "#e84343" : "#77777b" }
     Text {
-        x: 131; y: 11; width: 150; height: 14
+        x: 28; y: 12; width: 164; height: 14
         text: card.playing ? "NOW PLAYING" : (card.hasTrack ? "PAUSED" : "NOTHING MUSIC")
-        color: "#99999e"
-        font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 8; bold: true; letterSpacing: 1.2 }
+        color: "#a8a8ad"
+        font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 9; bold: true; letterSpacing: 1.2 }
         elide: Text.ElideRight
     }
     Text {
-        x: 120; y: 32; width: 164; height: 20
+        anchors.right: parent.right; anchors.rightMargin: 16; y: 12
+        text: "33⅓ RPM"; color: "#66666c"
+        font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 9; letterSpacing: 0.5 }
+    }
+    Rectangle { x: 15; y: 30; width: card.width - 30; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+    Text {
+        x: 110; y: 40; width: card.width - 126; height: 22
         text: card.hasTrack ? card.player.trackTitle : (card.sys ? card.sys.tr("Нет музыки") : "No media")
-        color: "#f4f4f4"; elide: Text.ElideRight
-        font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 13; bold: true }
+        color: "#f5f5f5"; elide: Text.ElideRight
+        font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 14; bold: true }
     }
     Text {
-        x: 120; y: 53; width: 164; height: 18
+        x: 110; y: 63; width: card.width - 126; height: 17
         text: card.hasTrack ? (card.player.trackArtist || "") : (card.sys ? card.sys.tr("Запустите плеер") : "Start playing")
         color: "#a1a1a6"; elide: Text.ElideRight
         font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 10 }
     }
-    Row {
-        x: 120; y: 76; spacing: 8
-        Action { glyph: "󰒮"; available: card.player && card.player.canGoPrevious; onTriggered: card.player.previous() }
-        Action { primary: true; glyph: card.playing ? "󰏤" : "󰐊"; available: card.player && card.player.canTogglePlaying; onTriggered: card.player.togglePlaying() }
-        Action { glyph: "󰒭"; available: card.player && card.player.canGoNext; onTriggered: card.player.next() }
-    }
     Rectangle {
         id: progressTrack
-        x: 14; y: 124; width: card.width - 28; height: 3; radius: 1.5
+        x: 110; y: 91; width: card.width - 126; height: 3; radius: 1.5
         color: "#3a3a3e"
-        Rectangle { width: parent.width * card.progress; height: parent.height; radius: 1.5; color: "#e53c3c" }
+        Rectangle { width: parent.width * card.progress; height: parent.height; radius: 1.5; color: "#e84343" }
     }
     Text {
-        x: 14; y: 132; text: card.time(card.position); color: "#919196"
+        x: 110; y: 101; text: card.time(card.position); color: "#99999e"
         font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 9 }
     }
     Text {
-        anchors.right: parent.right; anchors.rightMargin: 14; y: 132
-        text: card.time(card.duration); color: "#919196"
+        anchors.right: parent.right; anchors.rightMargin: 16; y: 101
+        text: card.time(card.duration); color: "#99999e"
         font { family: card.sys ? card.sys.fontFam : "sans-serif"; pixelSize: 9 }
+    }
+    RowLayout {
+        x: 14; y: 137; width: card.width - 28; height: 30
+        spacing: 6
+        Action { Layout.fillWidth: true; glyph: "󰒮"; available: card.player && card.player.canGoPrevious; onTriggered: card.player.previous() }
+        Action { Layout.fillWidth: true; primary: true; glyph: card.playing ? "󰏤" : "󰐊"; available: card.player && card.player.canTogglePlaying; onTriggered: card.player.togglePlaying() }
+        Action { Layout.fillWidth: true; glyph: "󰒭"; available: card.player && card.player.canGoNext; onTriggered: card.player.next() }
     }
 }
