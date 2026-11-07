@@ -16,7 +16,7 @@ Item {
     implicitWidth: 920
     implicitHeight: 560
 
-    readonly property bool isEn: view.sys ? view.sys.languageCode !== "ru" : true
+    readonly property bool isEn: view?.sys?.isEn ?? false
 
     function dayName(dateStr, idx) {
         if (idx === 0) return view.isEn ? "Today" : "Сегодня";
