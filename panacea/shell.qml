@@ -673,6 +673,7 @@ PanelWindow {
 
     readonly property string localeId: String(cfg.lang || "en")
     readonly property string languageCode: localeId.split(/[_-]/)[0].toLowerCase()
+    readonly property bool isEn: languageCode !== "ru"
     function tr(k) {
         if (root.languageCode === "ru") return k;
         if (root.languageCode === "tr" && i18n.tr[k] !== undefined) return i18n.tr[k];

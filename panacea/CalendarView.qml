@@ -19,7 +19,7 @@ Item {
     property int viewYear:  today.getFullYear()
     property int viewMonth: today.getMonth()          // 0..11
 
-    readonly property bool isEn : (view.sys?.languageCode !== "ru") ?? true
+    readonly property bool isEn: view?.sys?.isEn ?? false
 
     function shift(delta) {
         var m = viewMonth + delta;
