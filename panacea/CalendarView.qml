@@ -19,6 +19,8 @@ Item {
     property int viewYear:  today.getFullYear()
     property int viewMonth: today.getMonth()          // 0..11
 
+    readonly property bool isEn : view.sys ? view.sys.languageCode !== "ru" : true
+
     function shift(delta) {
         var m = viewMonth + delta;
         var y = viewYear;
@@ -100,7 +102,7 @@ Item {
                 spacing: -2
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: (view.sys.isEn ? view.monthsEn : view.monthsRu)[view.viewMonth]
+                    text: (isEn ? view.monthsEn : view.monthsRu)[view.viewMonth]
                     color: view.sys.colFg
                     font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 2; bold: true }
                 }
@@ -120,7 +122,7 @@ Item {
             Layout.fillWidth: true
             spacing: 4
             Repeater {
-                model: view.sys.isEn ? view.dowEn : view.dowRu
+                model: isEn ? view.dowEn : view.dowRu
                 Text {
                     required property int index
                     required property string modelData
