@@ -6073,9 +6073,12 @@ PanelWindow {
                     implicitWidth: weatherrow.implicitWidth
 
                     RowLayout {
-                        id: weatherrow
+                       id: weatherrow
 
-                        Layout.leftMargin: 6
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 6
+
                         spacing: 5
                         visible: root.weatherReady && root.cfg.weatherOnIsland
 
