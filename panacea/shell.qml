@@ -6089,7 +6089,7 @@ PanelWindow {
 
                     MouseArea {
                         id: islWthMa2
-                        anchors.fill: parent
+                        Layout.alignment: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.openWeatherDetails()
