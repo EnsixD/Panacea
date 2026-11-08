@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 //@ pragma UseQApplication
 import QtQuick
 import QtQuick.Effects
@@ -110,7 +111,7 @@ ShellRoot {
 
     Component.onCompleted: {
         try {
-            var cfg = JSON.parse(settingsFile.text() || "{}");
+            let cfg = JSON.parse(settingsFile.text() || "{}");
             if (cfg && typeof cfg.lang === "string") root.isEn = cfg.lang !== "ru";
             if (cfg && typeof cfg.themeId === "string") root.themeId = cfg.themeId;
             if (cfg && typeof cfg.colOn === "string") root.cfgOn = cfg.colOn;
@@ -122,7 +123,7 @@ ShellRoot {
 
         var w = /^\$wallpaper\s*=\s*(.+)$/m.exec(wallFile.text() || "");
         if (w && !cached.length) {
-            var p = w[1].trim();
+            let p = w[1].trim();
             if (p.indexOf("~") === 0) p = Quickshell.env("HOME") + p.slice(1);
             root.wallpaper = (p === "black" || p.length === 0) ? "" : p;
         }

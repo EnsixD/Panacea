@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -509,7 +511,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: miniIcon.parent.parent.iconClicked()
+                    onClicked: tile.iconClicked()
                 }
             }
 
@@ -550,6 +552,8 @@ Item {
 
     // Мелкая плашка с цифрой на странице батареи
     component BattStat: Rectangle {
+        id: battstat
+
         property string label: ""
         property string value: ""
 
@@ -566,13 +570,13 @@ Item {
             spacing: 0
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: parent.parent.label
+                text: battstat.label
                 color: view.sys.colMuted
                 font { family: view.sys.fontFam; pixelSize: 10 }
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: parent.parent.value
+                text: battstat.value
                 color: view.sys.colFg
                 font { family: view.sys.fontFam; pixelSize: 12; bold: true }
             }
@@ -892,6 +896,8 @@ Item {
 
     // Шапка страницы-списка: назад + заголовок + обновить
     component Header: RowLayout {
+        id: rowlay
+
         property string title: ""
         property bool busy: false
         signal back()
@@ -913,7 +919,7 @@ Item {
             MouseArea {
                 id: backMa; anchors.fill: parent; hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: parent.parent.back()
+                onClicked: rowlay.back()
             }
         }
         Text {
@@ -933,7 +939,7 @@ Item {
                 color: view.sys.colFg
                 font { family: view.sys.fontFam; pixelSize: 13 }
                 RotationAnimator on rotation {
-                    running: refIcon.parent.parent.busy
+                    running: rowlay.busy
                     loops: Animation.Infinite
                     from: 0; to: 360; duration: 900
                 }
@@ -941,13 +947,15 @@ Item {
             MouseArea {
                 id: refMa; anchors.fill: parent; hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: parent.parent.refresh()
+                onClicked: rowlay.refresh()
             }
         }
     }
 
     // Строка списка
     component Row1: Rectangle {
+        id: row1id
+
         property string icon: ""
         property string title: ""
         property string sub: ""
@@ -970,8 +978,8 @@ Item {
             anchors.rightMargin: 11
             spacing: 10
             Text {
-                text: rowMa.parent.icon
-                color: rowMa.parent.highlight ? view.sys.colOn : view.sys.colFg
+                text: row1id.icon
+                color: row1id.highlight ? view.sys.colOn : view.sys.colFg
                 font { family: view.sys.fontFam; pixelSize: 15 }
             }
             ColumnLayout {
@@ -979,20 +987,20 @@ Item {
                 spacing: 0
                 Text {
                     Layout.fillWidth: true
-                    text: rowMa.parent.title
+                    text: row1id.title
                     color: view.sys.colFg
                     elide: Text.ElideRight
-                    font { family: view.sys.fontFam; pixelSize: 12; bold: rowMa.parent.highlight }
+                    font { family: view.sys.fontFam; pixelSize: 12; bold: row1id.highlight }
                 }
                 Text {
-                    text: rowMa.parent.sub
+                    text: row1id.sub
                     visible: text.length > 0
                     color: view.sys.colMuted
                     font { family: view.sys.fontFam; pixelSize: 10 }
                 }
             }
             Text {
-                visible: rowMa.parent.highlight
+                visible: row1id.highlight
                 text: "󰄬"
                 color: view.sys.colOn
                 font { family: view.sys.fontFam; pixelSize: 13 }
@@ -2111,6 +2119,8 @@ Item {
 
             // крупная строка состояния: процент и что происходит сейчас
             Rectangle {
+                id: reg
+
                 Layout.fillWidth: true
                 Layout.preferredHeight: 62
                 radius: 14
@@ -2142,7 +2152,7 @@ Item {
                         Layout.preferredWidth: 26
                         Layout.preferredHeight: 26
                         glyph: view.sys.batteryLevelIcon
-                        color: parent.parent.tint
+                        color: reg.tint
                         fontFam: view.sys.fontFam
                         size: view.sys.iconSize + 3
                     }
@@ -2152,7 +2162,7 @@ Item {
                         spacing: 1
                         Text {
                             text: view.sys.batteryPct + "%"
-                            color: parent.parent.parent.tint
+                            color: reg.tint
                             font { family: view.sys.fontFam; pixelSize: 18; bold: true }
                         }
                         Text {
@@ -2270,7 +2280,7 @@ Item {
             Header {
                 title: view.sys.tr("Сети Wi-Fi")
                 busy: view.sys.wifiBusy
-                onBack: { view.sys.page = "main"; passwordFor = ""; }
+                onBack: { view.sys.page = "main"; wifiPage.passwordFor = ""; }
                 onRefresh: view.sys.scanWifi()
             }
 

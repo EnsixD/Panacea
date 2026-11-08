@@ -1,6 +1,7 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Pipewire
@@ -35,7 +36,7 @@ Item {
                 // Не перезаписываем список, если пользователь прямо сейчас тянет ползунок
                 if (view.isUserDragging) return;
                 try {
-                    var parsed = JSON.parse(data.trim());
+                    let parsed = JSON.parse(data.trim());
                     if (Array.isArray(parsed)) {
                         view.streamsList = parsed;
                     }

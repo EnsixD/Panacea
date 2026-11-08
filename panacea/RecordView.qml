@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 
@@ -68,6 +70,8 @@ Item {
 
     // переключатель со строкой-подписью
     component Toggle: Rectangle {
+        id: tog
+
         property string label: ""
         property string glyph: ""
         property bool checked: false
@@ -89,31 +93,31 @@ Item {
             Glyph {
                 Layout.preferredWidth: 20
                 Layout.preferredHeight: 20
-                glyph: parent.parent.glyph
-                color: parent.parent.checked ? view.sys.colOn : view.sys.colMuted
+                glyph: tog.glyph
+                color: tog.checked ? view.sys.colOn : view.sys.colMuted
                 fontFam: view.sys.fontFam
                 size: view.sys.iconSize - 2
             }
             Text {
                 Layout.fillWidth: true
-                text: parent.parent.label
-                color: parent.parent.checked ? view.sys.colFg : view.sys.colMuted
+                text: tog.label
+                color: tog.checked ? view.sys.colFg : view.sys.colMuted
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
             }
             Rectangle {
                 Layout.preferredWidth: 38
                 Layout.preferredHeight: 21
                 radius: 11
-                color: parent.parent.checked ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.14)
+                color: tog.checked ? view.sys.colOn : Qt.rgba(1, 1, 1, 0.14)
                 Behavior on color { ColorAnimation { duration: 180 } }
                 Rectangle {
                     width: 17; height: 17; radius: 9
                     y: 2
-                    x: parent.parent.parent.checked ? parent.width - width - 2 : 2
+                    x: tog.checked ? parent.width - width - 2 : 2
                     // Включённая дорожка налита акцентом, и белый кружок на
                     // ней пропадает — тумблер выглядит просто белой плашкой.
                     // На выключенной дорожка тёмная, там белый и нужен.
-                    color: parent.parent.parent.checked
+                    color: tog.checked
                            ? view.sys.fgOn(view.sys.colOn) : "#ffffff"
                     Behavior on x {
                         NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
@@ -134,6 +138,8 @@ Item {
 
     // строка выбора микрофона
     component MicRow: Rectangle {
+        id: microw
+
         property string label: ""
         property string device: ""
         readonly property bool active: view.sys.cfg.recMicDevice === device
@@ -152,14 +158,14 @@ Item {
             spacing: 8
 
             Text {
-                text: String.fromCodePoint(parent.parent.active ? 0xF0765 : 0xF0766)
-                color: parent.parent.active ? view.sys.colOn : view.sys.colMuted
+                text: String.fromCodePoint(microw.active ? 0xF0765 : 0xF0766)
+                color: microw.active ? view.sys.colOn : view.sys.colMuted
                 font { family: view.sys.fontFam; pixelSize: 12 }
             }
             Text {
                 Layout.fillWidth: true
-                text: parent.parent.label
-                color: parent.parent.active ? view.sys.colFg : view.sys.colMuted
+                text: microw.label
+                color: microw.active ? view.sys.colFg : view.sys.colMuted
                 elide: Text.ElideRight
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
             }
@@ -179,6 +185,8 @@ Item {
     }
 
     component BigButton: Rectangle {
+        id: bigbutton
+
         property string glyph: ""
         property string label: ""
         property color tint: view.sys.colOn
@@ -202,13 +210,13 @@ Item {
             Glyph {
                 Layout.preferredWidth: 20
                 Layout.preferredHeight: 20
-                glyph: parent.parent.glyph
-                color: parent.parent.filled ? parent.parent.tint : view.sys.colFg
+                glyph: bigbutton.glyph
+                color: bigbutton.filled ? bigbutton.tint : view.sys.colFg
                 fontFam: view.sys.fontFam
                 size: view.sys.iconSize
             }
             Text {
-                text: parent.parent.label
+                text: bigbutton.label
                 color: view.sys.colFg
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2; bold: true }
             }

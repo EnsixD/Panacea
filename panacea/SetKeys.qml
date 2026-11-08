@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -457,6 +458,7 @@ ColumnLayout {
             Repeater {
                 model: 10
                 BindRow {
+                    required property int index
                     bindId: "workspace" + (index + 1)
                     label: page.sys.tr("Перейти на стол") + " " + (index + 1)
                 }
@@ -525,6 +527,7 @@ ColumnLayout {
             Repeater {
                 model: 10
                 BindRow {
+                    required property int index
                     bindId: "moveWorkspace" + (index + 1)
                     label: page.sys.tr("Перенести окно на стол") + " " + (index + 1)
                 }

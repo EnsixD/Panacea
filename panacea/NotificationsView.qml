@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -156,7 +157,7 @@ Item {
                             source: row.nImage
                             // не Ready — значит не открылась: пусть лучше будет
                             // свой значок, чем клетчатый прямоугольник Qt
-                            visible: source != "" && status === Image.Ready
+                            visible: source !== "" && status === Image.Ready
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                         }

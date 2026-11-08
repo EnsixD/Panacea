@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -37,7 +39,7 @@ Item {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    var d = JSON.parse(text);
+                    let d = JSON.parse(text);
                     view.agents = d.agents || [];
                     view.serverNow = d.now || Date.now();
                 } catch (e) {

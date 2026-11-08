@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -13,7 +15,7 @@ FocusScope {
 
     implicitHeight: col.implicitHeight
 
-    ListModel { id: model }
+    ListModel { id: clipmodel }
     property string query: ""
     property var pins: []
     property var pinnedLookup: ({})
@@ -130,8 +132,8 @@ FocusScope {
                 if (view.pinnedLookup[preview]) return;
                 if (view.query.length &&
                     preview.toLowerCase().indexOf(view.query.toLowerCase()) < 0) return;
-                if (model.count >= 60) return;
-                model.append({
+                if (list.model.count >= 60) return;
+                list.model.append({
                     cid: id,
                     preview: preview,
                     isPinned: false,
@@ -146,7 +148,7 @@ FocusScope {
     Process { id: pAction }
 
     function reload() {
-        model.clear();
+        list.model.clear();
         list.currentIndex = 0;
         var q = view.query.toLowerCase();
         var pinnedSet = {};
@@ -155,7 +157,7 @@ FocusScope {
             if (!p || !p.length) continue;
             pinnedSet[p] = true;
             if (q.length && p.toLowerCase().indexOf(q) < 0) continue;
-            model.append({
+            list.model.append({
                 cid: "",
                 preview: p,
                 isPinned: true,
@@ -168,8 +170,8 @@ FocusScope {
     }
 
     function copyAt(i) {
-        if (i < 0 || i >= model.count) return;
-        var item = model.get(i);
+        if (i < 0 || i >= list.model.count) return;
+        var item = list.model.get(i);
         if (item.isPinned) {
             pCopy.command = ["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", item.preview];
         } else {
@@ -238,7 +240,7 @@ FocusScope {
                         Keys.onEscapePressed: view.sys.collapse()
                         Keys.onReturnPressed: view.copyAt(list.currentIndex)
                         Keys.onDownPressed:
-                            if (list.currentIndex < model.count - 1) list.currentIndex++
+                            if (list.currentIndex < list.model.count - 1) list.currentIndex++
                         Keys.onUpPressed:
                             if (list.currentIndex > 0) list.currentIndex--
                     }
@@ -284,7 +286,7 @@ FocusScope {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(contentHeight, 320)
             clip: true
-            model: model
+            model: clipmodel
             spacing: 3
             boundsBehavior: Flickable.StopAtBounds
             flickDeceleration: 3000
@@ -296,17 +298,23 @@ FocusScope {
             }
 
             delegate: Rectangle {
+                required property int index
+                required property string cid
+                required property string preview
+                required property bool isPinned
+                required property bool isImage
+                
                 id: rowDelegate
                 width: list.width
                 height: 40
                 radius: 10
                 color: index === list.currentIndex ? Qt.rgba(1, 1, 1, 0.12)
                      : rowMa.containsMouse ? view.sys.colHover : "transparent"
-                border.color: model.isPinned ? Qt.rgba(1, 1, 1, 0.18) : "transparent"
-                border.width: model.isPinned ? 1 : 0
+                border.color: isPinned ? Qt.rgba(1, 1, 1, 0.18) : "transparent"
+                border.width: isPinned ? 1 : 0
                 Behavior on color { ColorAnimation { duration: 130 } }
 
-                readonly property string cType: view.detectType(model.preview)
+                readonly property string cType: view.detectType(preview)
                 readonly property bool isSelected: index === list.currentIndex || rowMa.containsMouse
 
                 RowLayout {
@@ -317,7 +325,7 @@ FocusScope {
 
                     // Индикатор закрепления (Pin)
                     Text {
-                        visible: model.isPinned
+                        visible: isPinned
                         text: "󰤱"
                         color: view.sys.colCrit
                         font { family: view.sys.fontFam; pixelSize: 13 }
@@ -334,7 +342,7 @@ FocusScope {
                             anchors.fill: parent
                             visible: rowDelegate.cType === "color"
                             radius: 4
-                            color: rowDelegate.cType === "color" ? model.preview.trim() : "transparent"
+                            color: rowDelegate.cType === "color" ? preview.trim() : "transparent"
                             border.width: 1
                             border.color: Qt.rgba(1, 1, 1, 0.3)
                         }
@@ -343,7 +351,7 @@ FocusScope {
                         Image {
                             anchors.fill: parent
                             visible: rowDelegate.cType === "image-file"
-                            source: rowDelegate.cType === "image-file" ? ("file://" + view.expandPath(model.preview.trim())) : ""
+                            source: rowDelegate.cType === "image-file" ? ("file://" + view.expandPath(preview.trim())) : ""
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                         }
@@ -352,7 +360,7 @@ FocusScope {
                         Text {
                             anchors.centerIn: parent
                             visible: rowDelegate.cType !== "color" && rowDelegate.cType !== "image-file"
-                            text: model.isImage ? "󰋩"
+                            text: isImage ? "󰋩"
                                 : rowDelegate.cType === "url" ? "󰖟"
                                 : rowDelegate.cType === "file" ? "󰉋"
                                 : "󰈙"
@@ -365,7 +373,7 @@ FocusScope {
                     Text {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
-                        text: model.isImage ? view.sys.tr("Изображение (Binary)") : model.preview
+                        text: isImage ? view.sys.tr("Изображение (Binary)") : preview
                         color: view.sys.colFg
                         elide: Text.ElideRight
                         font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
@@ -395,7 +403,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.copyDirect(view.hexToRgb(model.preview.trim()))
+                                onClicked: view.copyDirect(view.hexToRgb(preview.trim()))
                             }
                         }
 
@@ -417,7 +425,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.copyDirect(view.hexToHsl(model.preview.trim()))
+                                onClicked: view.copyDirect(view.hexToHsl(preview.trim()))
                             }
                         }
 
@@ -439,7 +447,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.openTarget(model.preview.trim())
+                                onClicked: view.openTarget(preview.trim())
                             }
                         }
 
@@ -461,7 +469,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.openTarget(view.expandPath(model.preview.trim()))
+                                onClicked: view.openTarget(view.expandPath(preview.trim()))
                             }
                         }
 
@@ -470,11 +478,11 @@ FocusScope {
                             Layout.preferredHeight: 22
                             Layout.preferredWidth: 26
                             radius: 5
-                            color: pinMa.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : (model.isPinned ? Qt.rgba(1, 0, 0, 0.16) : Qt.rgba(1, 1, 1, 0.08))
+                            color: pinMa.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : (isPinned ? Qt.rgba(1, 0, 0, 0.16) : Qt.rgba(1, 1, 1, 0.08))
                             Text {
                                 anchors.centerIn: parent
                                 text: "󰤱"
-                                color: model.isPinned ? view.sys.colCrit : (pinMa.containsMouse ? view.sys.colFg : view.sys.colMuted)
+                                color: isPinned ? view.sys.colCrit : (pinMa.containsMouse ? view.sys.colFg : view.sys.colMuted)
                                 font { family: view.sys.fontFam; pixelSize: 11 }
                             }
                             MouseArea {
@@ -482,7 +490,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.togglePin(model.preview)
+                                onClicked: view.togglePin(preview)
                             }
                         }
                     }
@@ -494,15 +502,15 @@ FocusScope {
                     anchors.rightMargin: rowDelegate.isSelected ? 110 : 0
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onEntered: list.currentIndex = index
-                    onClicked: view.copyAt(index)
+                    onEntered: list.currentIndex = rowDelegate.index
+                    onClicked: view.copyAt(rowDelegate.index)
                 }
             }
         }
 
         Text {
             Layout.fillWidth: true
-            visible: model.count === 0
+            visible: list.model.count === 0
             text: view.query.length ? view.sys.tr("Ничего не найдено") : view.sys.tr("Буфер пуст")
             color: view.sys.colMuted
             horizontalAlignment: Text.AlignHCenter

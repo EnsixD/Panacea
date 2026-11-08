@@ -1,6 +1,6 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Io
 
 // Меню питания (Super+N) в стиле пилюли.
 // Первое нажатие выделяет действие, второе подтверждает — чтобы
@@ -104,6 +104,8 @@ Item {
                 model: view.actions
 
                 Rectangle {
+                    id: rectang
+
                     required property int index
                     required property var modelData
 
@@ -122,7 +124,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         radius: parent.radius
-                        color: modelData.accent
+                        color: rectang.modelData.accent
                         opacity: parent.isArmed ? 0.22 : 0
                         Behavior on opacity { NumberAnimation { duration: 180 } }
                     }
@@ -147,11 +149,13 @@ Item {
                         // которой стоит: два вложенных выделения одного и того
                         // же действия. Взведённость показывает сама плитка.
                         Item {
+                            id: itemrt
+
                             Layout.alignment: Qt.AlignHCenter
                             Layout.preferredWidth: 40
                             Layout.preferredHeight: 40
 
-                            readonly property color ink: modelData.accent
+                            readonly property color ink: rectang.modelData.accent
 
                             // Сон рисуется буквами, а не глифом: у месяца в
                             // Nerd Font нет пары к остальным — он про ночь, а
@@ -159,32 +163,32 @@ Item {
                             // как погода. Три «z» треугольником говорят прямо.
                             Item {
                                 anchors.fill: parent
-                                visible: modelData.id === "sleep"
+                                visible: rectang.modelData.id === "sleep"
 
                                 Text {
                                     x: 1; y: 15
                                     text: "Z"
-                                    color: parent.parent.ink
+                                    color: itemrt.ink
                                     font { family: view.sys.fontBody; pixelSize: 19; bold: true }
                                 }
                                 Text {
                                     x: 17; y: 1
                                     text: "z"
-                                    color: parent.parent.ink
+                                    color: itemrt.ink
                                     font { family: view.sys.fontBody; pixelSize: 10; bold: true }
                                 }
                                 Text {
                                     x: 24; y: 8
                                     text: "z"
-                                    color: parent.parent.ink
+                                    color: itemrt.ink
                                     font { family: view.sys.fontBody; pixelSize: 14; bold: true }
                                 }
                             }
 
                             Glyph {
                                 anchors.fill: parent
-                                visible: modelData.id !== "sleep"
-                                glyph: modelData.icon
+                                visible: rectang.modelData.id !== "sleep"
+                                glyph: rectang.modelData.icon
                                 color: parent.ink
                                 fontFam: view.sys.fontFam
                                 size: view.sys.iconSize + 8
@@ -193,12 +197,12 @@ Item {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: body.parent.isArmed ? view.sys.tr("Подтвердите") : modelData.label
-                            color: body.parent.isArmed ? view.sys.colFg : view.sys.colMuted
+                            text: rectang.isArmed ? view.sys.tr("Подтвердите") : rectang.modelData.label
+                            color: rectang.isArmed ? view.sys.colFg : view.sys.colMuted
                             font {
                                 family: view.sys.fontFam
                                 pixelSize: view.sys.fontSize - 4
-                                bold: body.parent.isArmed
+                                bold: rectang.isArmed
                             }
                             Behavior on color { ColorAnimation { duration: 160 } }
                         }
@@ -209,8 +213,8 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onEntered: { view.current = index; view.forceActiveFocus() }
-                        onClicked: view.trigger(index)
+                        onEntered: { view.current = rectang.index; view.forceActiveFocus() }
+                        onClicked: view.trigger(rectang.index)
                     }
                 }
             }

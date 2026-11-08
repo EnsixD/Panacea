@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Effects
 import Quickshell
@@ -1477,6 +1479,8 @@ FocusScope {
             Repeater {
                 model: menu.items
                 delegate: Rectangle {
+                    id: deleg
+
                     required property var modelData
                     width: menuCol.width
                     height: 32
@@ -1489,7 +1493,7 @@ FocusScope {
                         anchors.right: parent.right
                         anchors.rightMargin: 10
                         elide: Text.ElideRight
-                        text: modelData.label
+                        text: deleg.modelData.label
                         color: view.sys.colFg
                         font { family: view.sys.fontFam; pixelSize: 12 }
                     }
@@ -1498,7 +1502,7 @@ FocusScope {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: { menu.close(); modelData.act(); }
+                        onClicked: { menu.close(); deleg.modelData.act(); }
                     }
                 }
             }

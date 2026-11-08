@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import Quickshell.Io
@@ -305,6 +307,9 @@ ColumnLayout {
 
                 Rectangle {
                     id: sndBtn
+
+                    required property var modelData
+
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
                     radius: 8
@@ -318,12 +323,12 @@ ColumnLayout {
                         anchors.centerIn: parent
                         spacing: 6
                         Text {
-                            text: modelData.icon
+                            text: sndBtn.modelData.icon
                             color: sndMa.containsMouse ? page.sys.colOn : page.sys.colMuted
                             font { family: page.sys.fontFam; pixelSize: 13 }
                         }
                         Text {
-                            text: modelData.label
+                            text: sndBtn.modelData.label
                             color: sndMa.containsMouse ? page.sys.colFg : page.sys.colMuted
                             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }
                             elide: Text.ElideRight
@@ -335,7 +340,7 @@ ColumnLayout {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: page.sys.playSound(modelData.id)
+                        onClicked: page.sys.playSound(sndBtn.modelData.id)
                     }
                 }
             }

@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -968,6 +970,8 @@ Item {
 
     // ------------------------------------------------------ контекстное меню
     component MenuItem: Rectangle {
+        id: menuitem
+
         property string glyph: ""
         property string label: ""
         property bool danger: false
@@ -991,14 +995,14 @@ Item {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: parent.parent.glyph
-                color: parent.parent.danger ? view.sys.colCrit : view.sys.colMuted
+                text: menuitem.glyph
+                color: menuitem.danger ? view.sys.colCrit : view.sys.colMuted
                 font { family: view.sys.fontFam; pixelSize: 14 }
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: parent.parent.label
-                color: parent.parent.danger ? view.sys.colCrit : view.sys.colFg
+                text: menuitem.label
+                color: menuitem.danger ? view.sys.colCrit : view.sys.colFg
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
             }
         }
@@ -1451,6 +1455,8 @@ Item {
                     spacing: 6
 
                     component SortBtn: Rectangle {
+                        id: sortbtn
+                        
                         property string key: ""
                         property string label: ""
                         readonly property bool on: view.sortBy === key
@@ -1469,17 +1475,17 @@ Item {
                             spacing: 4
                             Text {
                                 id: sortTxt
-                                text: parent.parent.label
-                                color: parent.parent.on ? view.sys.colFg : view.sys.colMuted
+                                text: sortbtn.label
+                                color: sortbtn.on ? view.sys.colFg : view.sys.colMuted
                                 font {
                                     family: view.sys.fontFam
                                     pixelSize: view.sys.fontSize - 4
-                                    bold: parent.parent.on
+                                    bold: sortbtn.on
                                 }
                             }
                             // стрелка показывает направление и переключает его
                             Text {
-                                visible: parent.parent.on
+                                visible: sortbtn.on
                                 text: view.sortDesc ? "󰄼" : "󰄿"
                                 color: view.sys.colOn
                                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 4 }
@@ -2885,6 +2891,8 @@ Item {
         readonly property bool isDir: String(view.propsData.kind || "") === "inode/directory"
 
         component PropRow: RowLayout {
+            id: proprow
+
             property string k: ""
             property string v: ""
             visible: v.length > 0
@@ -2892,13 +2900,13 @@ Item {
             spacing: 12
             Text {
                 Layout.preferredWidth: 130
-                text: k
+                text: proprow.k
                 color: view.sys.colMuted
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
             }
             Text {
                 Layout.fillWidth: true
-                text: v
+                text: proprow.v
                 color: view.sys.colFg
                 wrapMode: Text.WrapAnywhere
                 font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }

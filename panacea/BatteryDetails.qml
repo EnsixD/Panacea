@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -57,24 +59,24 @@ ColumnLayout {
         }
         Text {
             anchors.centerIn: parent; visible: view.history.length < 2
-            text: sys.tr("История накапливается во время работы оболочки")
-            color: sys.colMuted
-            font { family: sys.fontFam; pixelSize: 10 }
+            text: view.sys.tr("История накапливается во время работы оболочки")
+            color: view.sys.colMuted
+            font { family: view.sys.fontFam; pixelSize: 10 }
         }
     }
     Text {
         Layout.fillWidth: true
-        visible: info.cycle !== null && info.cycle !== undefined && info.cycle >= 0
-        text: sys.tr("Циклы зарядки: ") + info.cycle
-        color: sys.colMuted; font { family: sys.fontFam; pixelSize: 10 }
+        visible: view.info.cycle !== null && view.info.cycle !== undefined && view.info.cycle >= 0
+        text: view.sys.tr("Циклы зарядки: ") + view.info.cycle
+        color: view.sys.colMuted; font { family: view.sys.fontFam; pixelSize: 10 }
     }
     ColumnLayout {
         Layout.fillWidth: true; spacing: 5
-        visible: info.start !== null && info.start !== undefined && info.end !== null && info.end !== undefined
+        visible: view.info.start !== null && view.info.start !== undefined && view.info.end !== null && view.info.end !== undefined
         Text {
             Layout.fillWidth: true
-            text: sys.tr("Пороги зарядки: ") + info.start + "–" + info.end + "%"
-            color: sys.colFg; font { family: sys.fontFam; pixelSize: 11; bold: true }
+            text: view.sys.tr("Пороги зарядки: ") + view.info.start + "–" + view.info.end + "%"
+            color: view.sys.colFg; font { family: view.sys.fontFam; pixelSize: 11; bold: true }
         }
         RowLayout {
             Layout.fillWidth: true
@@ -88,32 +90,32 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
                     radius: 10
-                    color: selected ? Qt.rgba(sys.colOn.r, sys.colOn.g, sys.colOn.b, 0.18)
+                    color: selected ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.18)
                                     : hit.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05)
                     border.width: 1
-                    border.color: selected ? Qt.rgba(sys.colOn.r, sys.colOn.g, sys.colOn.b, 0.55) : sys.colLine
-                    Behavior on color { ColorAnimation { duration: sys.animFast } }
-                    Behavior on border.color { ColorAnimation { duration: sys.animFast } }
+                    border.color: selected ? Qt.rgba(view.sys.colOn.r, view.sys.colOn.g, view.sys.colOn.b, 0.55) : view.sys.colLine
+                    Behavior on color { ColorAnimation { duration: view.sys.animFast } }
+                    Behavior on border.color { ColorAnimation { duration: view.sys.animFast } }
                     Text {
                         anchors.centerIn: parent
                         text: preset.modelData.start + "–" + preset.modelData.end + "%"
-                        color: preset.selected || hit.containsMouse ? sys.colFg : sys.colMuted
-                        font { family: sys.fontFam; pixelSize: 11; bold: preset.selected }
+                        color: preset.selected || hit.containsMouse ? view.sys.colFg : view.sys.colMuted
+                        font { family: view.sys.fontFam; pixelSize: 11; bold: preset.selected }
                     }
                     MouseArea {
                         id: hit
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: sys.setBatteryThreshold(preset.modelData.start, preset.modelData.end)
+                        onClicked: view.sys.setBatteryThreshold(preset.modelData.start, preset.modelData.end)
                     }
                 }
             }
         }
         Text {
             Layout.fillWidth: true; wrapMode: Text.WordWrap
-            text: sys.tr("Изменение требует прав администратора; TLP может восстановить свои настройки.")
-            color: sys.colMuted; font { family: sys.fontFam; pixelSize: 10 }
+            text: view.sys.tr("Изменение требует прав администратора; TLP может восстановить свои настройки.")
+            color: view.sys.colMuted; font { family: view.sys.fontFam; pixelSize: 10 }
         }
     }
 }
