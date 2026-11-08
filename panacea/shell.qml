@@ -4648,23 +4648,6 @@ PanelWindow {
         pCloseWin.running = true;
     }
 
-    // Закрытие раскрытой панели по Escape или Super+Q / Meta+W
-    Keys.onPressed: event => {
-        if (event.key === Qt.Key_Escape) {
-            root.collapse();
-            event.accepted = true;
-            return;
-        }
-        if ((event.key === Qt.Key_Q || event.key === Qt.Key_W) && (event.modifiers & Qt.MetaModifier)) {
-            if (root.cfg.closePanaceaFirst) {
-                root.collapse();
-            } else {
-                root.closeActiveWindow();
-            }
-            event.accepted = true;
-            return;
-        }
-    }
     // клики ловим только там, где нарисована пилюля
     // Пока открыта закреплённая страница, ввод принимает всё окно:
     // иначе клики по панели (особенно по центрированным настройкам)
@@ -6555,6 +6538,16 @@ PanelWindow {
                 var it = contentLoader.item;
                 if (it && typeof it.goBack === "function" && it.goBack()) return;
                 root.collapse();
+            }
+            Keys.onPressed: event => {
+                if ((event.key === Qt.Key_Q || event.key === Qt.Key_W) &&
+                    (event.modifiers & Qt.MetaModifier)) {
+                    if (root.cfg.closePanaceaFirst)
+                        root.collapse();
+                    else
+                        root.closeActiveWindow();
+                    event.accepted = true;
+                }
             }
             opacity: root.expanded ? 1 : 0
             Behavior on opacity {
