@@ -6086,15 +6086,14 @@ PanelWindow {
                         color: islWthMa2.containsMouse ? root.colOn : root.colFg
                         font { family: root.fontFam; pixelSize: root.fontSize }
                     }
-
-                    MouseArea {
-                        id: islWthMa2
-                        Layout.alignment: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.openWeatherDetails()
-                    }
                 }
+            }
+            MouseArea {
+                id: islWthMa2
+                anchors.fill: nothingCapsule
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.openWeatherDetails()
             }
 
             // --------------------------------------------- центр: часы
