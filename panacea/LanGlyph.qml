@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 
 // Значок проводной сети: три квадрата, соединённых деревом.

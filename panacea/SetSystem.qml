@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -554,6 +555,7 @@ ColumnLayout {
         SetLabel { sys: page.sys; text: page.sys.tr("Машина") }
 
         component Fact: RowLayout {
+            id: rowlays
             property string k: ""
             property string v: ""
 
@@ -562,14 +564,14 @@ ColumnLayout {
             spacing: 12
 
             Text {
-                text: k
+                text: rowlays.k
                 color: page.sys.colMuted
                 font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 3 }
             }
             Text {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
-                text: v
+                text: rowlays.v
                 color: page.sys.colFg
                 elide: Text.ElideRight
                 font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 3 }

@@ -24,8 +24,8 @@ Rectangle {
 
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            width: 58
-            height: 58
+            Layout.preferredWidth: 58
+            Layout.preferredHeight: 58
             radius: 29
             color: Qt.rgba(head.sys.colOn.r, head.sys.colOn.g, head.sys.colOn.b, 0.16)
 

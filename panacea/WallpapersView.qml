@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
@@ -666,6 +667,7 @@ Item {
                 { k: "Esc",   t: view.sys.tr("закрыть") }
             ]
             RowLayout {
+                id: rowlayout
                 required property var modelData
                 spacing: 7
                 Rectangle {
@@ -676,13 +678,13 @@ Item {
                     Text {
                         id: hintKey
                         anchors.centerIn: parent
-                        text: modelData.k
+                        text: rowlayout.modelData.k
                         color: view.sys.colFg
                         font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
                     }
                 }
                 Text {
-                    text: modelData.t
+                    text: rowlayout.modelData.t
                     color: view.sys.colMuted
                     font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
                 }

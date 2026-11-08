@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -7187,6 +7188,7 @@ Instantiator {
     model: filesWindows
 
     FloatingWindow {
+        id: floatingwin
         required property var model
         title: "Panacea · " + root.tr("Проводник")
         color: root.colBg
@@ -7194,17 +7196,17 @@ Instantiator {
         minimumSize.height: 460
         visible: true
         // крестик в заголовке — окно должно уйти и из списка
-        onVisibleChanged: if (!visible) root.closeFilesWindow(model.wid)
+        onVisibleChanged: if (!visible) root.closeFilesWindow(floatingwin.model.wid)
 
         FilesView {
             anchors.fill: parent
             anchors.margins: 15
             sys: root
             // папка, с которой окно открылось (пусто — домашняя)
-            dir: model.startDir
+            dir: floatingwin.model.startDir
             // в оконном режиме закрывать надо своё окно, а не пилюлю
             windowMode: true
-            windowId: model.wid
+            windowId: floatingwin.model.wid
         }
     }
 }

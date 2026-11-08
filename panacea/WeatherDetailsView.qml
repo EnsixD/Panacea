@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 
@@ -123,7 +124,7 @@ Item {
 
                     Text {
                         text: (view.isEn ? "Weather forecast" : "Прогноз погоды") +
-                              (activeDay ? " · " + view.dayName(activeDay.date, selectedDayIndex) : "")
+                              (view.activeDay ? " · " + view.dayName(view.activeDay.date, view.selectedDayIndex) : "")
                         color: view.sys ? view.sys.colMuted : "#888888"
                         font {
                             family: view.sys ? view.sys.fontFam : "sans-serif"
@@ -219,7 +220,7 @@ Item {
                             spacing: 14
 
                             Text {
-                                text: view.iconGlyph(activeDay ? activeDay.icon : (currentObj ? currentObj.icon : (view.sys ? view.sys.weatherIcon : "03d")))
+                                text: view.iconGlyph(view.activeDay ? view.activeDay.icon : (view.currentObj ? view.currentObj.icon : (view.sys ? view.sys.weatherIcon : "03d")))
                                 color: view.sys ? view.sys.colFg : "#ffffff"
                                 font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 42 }
                             }
@@ -231,14 +232,14 @@ Item {
                                 RowLayout {
                                     spacing: 10
                                     Text {
-                                        text: (activeDay ? activeDay.tempMax : (currentObj ? currentObj.temp : (view.sys && view.sys.weatherTemp ? view.sys.weatherTemp : "--"))) + "°"
+                                        text: (view.activeDay ? view.activeDay.tempMax : (view.currentObj ? view.currentObj.temp : (view.sys && view.sys.weatherTemp ? view.sys.weatherTemp : "--"))) + "°"
                                         color: view.sys ? view.sys.colFg : "#ffffff"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 36; bold: true }
                                     }
 
                                     // Плашка диапазона температур дня
                                     Rectangle {
-                                        visible: activeDay !== null
+                                        visible: view.activeDay !== null
                                         Layout.alignment: Qt.AlignVCenter
                                         radius: 6
                                         color: Qt.rgba(1, 1, 1, 0.06)
@@ -247,7 +248,7 @@ Item {
                                         Text {
                                             id: rangeText
                                             anchors.centerIn: parent
-                                            text: activeDay ? (activeDay.tempMin + "° … " + activeDay.tempMax + "°") : ""
+                                            text: view.activeDay ? (view.activeDay.tempMin + "° … " + view.activeDay.tempMax + "°") : ""
                                             color: view.sys ? view.sys.colMuted : "#888"
                                             font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; bold: true }
                                         }
@@ -255,9 +256,9 @@ Item {
                                 }
 
                                 Text {
-                                    text: activeDay
-                                          ? activeDay.desc
-                                          : (currentObj ? currentObj.desc : (view.sys && view.sys.weatherDesc ? view.sys.weatherDesc : "—"))
+                                    text: view.activeDay
+                                          ? view.activeDay.desc
+                                          : (view.currentObj ? view.currentObj.desc : (view.sys && view.sys.weatherDesc ? view.sys.weatherDesc : "—"))
                                     color: view.sys ? view.sys.colFg : "#ffffff"
                                     font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12; bold: true }
                                     elide: Text.ElideRight
@@ -302,7 +303,7 @@ Item {
                                     }
                                 }
                                 Text {
-                                    text: (activeDay ? activeDay.feelsMax : (currentObj ? currentObj.feels : (view.sys && view.sys.weatherTemp ? view.sys.weatherTemp : "--"))) + "°"
+                                    text: (view.activeDay ? view.activeDay.feelsMax : (view.currentObj ? view.currentObj.feels : (view.sys && view.sys.weatherTemp ? view.sys.weatherTemp : "--"))) + "°"
                                     color: view.sys ? view.sys.colFg : "#fff"
                                     font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
                                 }
@@ -325,19 +326,19 @@ Item {
                                 RowLayout {
                                     spacing: 6
                                     Text {
-                                        text: activeDay ? "󰖖" : "󰖉"
+                                        text: view.activeDay ? "󰖖" : "󰖉"
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 15 }
                                     }
                                     Text {
-                                        text: activeDay ? (view.isEn ? "RAIN" : "ОСАДКИ") : (view.isEn ? "HUMIDITY" : "ВЛАЖНОСТЬ")
+                                        text: view.activeDay ? (view.isEn ? "RAIN" : "ОСАДКИ") : (view.isEn ? "HUMIDITY" : "ВЛАЖНОСТЬ")
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 11; letterSpacing: 0.9; bold: true }
                                     }
                                 }
                                 Text {
-                                    text: activeDay ? (activeDay.pop + "%") : ((currentObj ? currentObj.humidity : (view.sys && view.sys.weatherHumidity ? view.sys.weatherHumidity : "--")) + "%")
-                                    color: (activeDay && activeDay.pop > 40) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
+                                    text: view.activeDay ? (view.activeDay.pop + "%") : ((view.currentObj ? view.currentObj.humidity : (view.sys && view.sys.weatherHumidity ? view.sys.weatherHumidity : "--")) + "%")
+                                    color: (view.activeDay && view.activeDay.pop > 40) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
                                     font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
                                 }
                             }
@@ -372,7 +373,7 @@ Item {
                                 RowLayout {
                                     spacing: 4
                                     Text {
-                                        text: String(activeDay ? activeDay.wind : (currentObj ? currentObj.wind : (view.sys && view.sys.weatherWind ? view.sys.weatherWind : "--")))
+                                        text: String(view.activeDay ? view.activeDay.wind : (view.currentObj ? view.currentObj.wind : (view.sys && view.sys.weatherWind ? view.sys.weatherWind : "--")))
                                         color: view.sys ? view.sys.colFg : "#fff"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
                                     }
@@ -415,7 +416,7 @@ Item {
                                 RowLayout {
                                     spacing: 4
                                     Text {
-                                        text: currentObj ? String(currentObj.pressure) : "--"
+                                        text: view.currentObj ? String(view.currentObj.pressure) : "--"
                                         color: view.sys ? view.sys.colFg : "#fff"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
                                     }
@@ -458,14 +459,14 @@ Item {
                                 RowLayout {
                                     spacing: 8
                                     Text {
-                                        text: activeDay ? String(activeDay.uv) : "--"
-                                        color: (activeDay && activeDay.uv >= 6) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
+                                        text: view.activeDay ? String(view.activeDay.uv) : "--"
+                                        color: (view.activeDay && view.activeDay.uv >= 6) ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colFg : "#fff")
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 26; bold: true }
                                     }
                                     Text {
                                         Layout.alignment: Qt.AlignBaseline
-                                        visible: activeDay !== null
-                                        text: (activeDay && activeDay.uv >= 6) ? (view.isEn ? "High" : "Высокий") : (view.isEn ? "Moderate" : "Умерен.")
+                                        visible: view.activeDay !== null
+                                        text: (view.activeDay && view.activeDay.uv >= 6) ? (view.isEn ? "High" : "Высокий") : (view.isEn ? "Moderate" : "Умерен.")
                                         color: view.sys ? view.sys.colMuted : "#888"
                                         font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12; bold: true }
                                     }
@@ -503,7 +504,7 @@ Item {
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignHCenter
                                     horizontalAlignment: Text.AlignHCenter
-                                    text: (activeDay && activeDay.sunrise && activeDay.sunset) ? (activeDay.sunrise + " / " + activeDay.sunset) : "--:--"
+                                    text: (view.activeDay && view.activeDay.sunrise && view.activeDay.sunset) ? (view.activeDay.sunrise + " / " + view.activeDay.sunset) : "--:--"
                                     color: view.sys ? view.sys.colFg : "#fff"
                                     font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 17; bold: true }
                                 }
@@ -559,16 +560,17 @@ Item {
                                 height: parent.height
 
                                 Repeater {
-                                    model: hourlyList
+                                    model: view.hourlyList
                                     Rectangle {
+                                        id: superreg
                                         required property var modelData
                                         required property int index
                                         width: 66
                                         height: 100
                                         radius: 13
-                                        color: index === 0 ? Qt.rgba(1, 1, 1, 0.10)
+                                        color: superreg.index === 0 ? Qt.rgba(1, 1, 1, 0.10)
                                                            : (hMa.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.025))
-                                        border.color: index === 0 ? (view.sys ? view.sys.colCrit : "#d71921") : Qt.rgba(1, 1, 1, 0.06)
+                                        border.color: superreg.index === 0 ? (view.sys ? view.sys.colCrit : "#d71921") : Qt.rgba(1, 1, 1, 0.06)
                                         border.width: 1
                                         Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -578,29 +580,29 @@ Item {
 
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
-                                                text: index === 0 ? (view.isEn ? "Now" : "Сейчас") : modelData.time
-                                                color: index === 0 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888")
-                                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; bold: index === 0 }
+                                                text: superreg.index === 0 ? (view.isEn ? "Now" : "Сейчас") : superreg.modelData.time
+                                                color: superreg.index === 0 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888")
+                                                font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 10; bold: superreg.index === 0 }
                                             }
 
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
-                                                text: view.iconGlyph(modelData.icon)
+                                                text: view.iconGlyph(superreg.modelData.icon)
                                                 color: view.sys ? view.sys.colFg : "#ffffff"
                                                 font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 18 }
                                             }
 
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
-                                                text: modelData.temp + "°"
+                                                text: superreg.modelData.temp + "°"
                                                 color: view.sys ? view.sys.colFg : "#ffffff"
                                                 font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 12; bold: true }
                                             }
 
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
-                                                text: modelData.pop > 0 ? ("💧" + modelData.pop + "%") : " "
-                                                color: modelData.pop > 40 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888")
+                                                text: superreg.modelData.pop > 0 ? ("💧" + superreg.modelData.pop + "%") : " "
+                                                color: superreg.modelData.pop > 40 ? (view.sys ? view.sys.colCrit : "#d71921") : (view.sys ? view.sys.colMuted : "#888")
                                                 font { family: view.sys ? view.sys.fontFam : "sans-serif"; pixelSize: 9 }
                                             }
                                         }
@@ -637,7 +639,7 @@ Item {
                         spacing: 6
 
                         Repeater {
-                            model: dailyList
+                            model:  view.dailyList
 
                             Rectangle {
                                 id: dayItem

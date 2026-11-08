@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 
@@ -102,7 +104,7 @@ Item {
                 spacing: -2
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: (isEn ? view.monthsEn : view.monthsRu)[view.viewMonth]
+                    text: (view.isEn ? view.monthsEn : view.monthsRu)[view.viewMonth]
                     color: view.sys.colFg
                     font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 2; bold: true }
                 }
@@ -122,7 +124,7 @@ Item {
             Layout.fillWidth: true
             spacing: 4
             Repeater {
-                model: isEn ? view.dowEn : view.dowRu
+                model: view.isEn ? view.dowEn : view.dowRu
                 Text {
                     required property int index
                     required property string modelData
