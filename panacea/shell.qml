@@ -6065,35 +6065,46 @@ PanelWindow {
                 // Погода сразу за точками. Значок и градусы, без города и
                 // слов: город человек и так знает, а описание словами на
                 // острове не помещается — оно есть в карточке на обоях.
-                RowLayout {
-                    Layout.leftMargin: 6
-                    spacing: 5
-                    visible: root.weatherReady && root.cfg.weatherOnIsland
 
-                    DotIcon {
-                        Layout.alignment: Qt.AlignVCenter
-                        code: root.weatherIcon
-                        size: root.dotHClock
-                        color: islWthMa2.containsMouse ? root.colOn : root.colFg
+                Item  {
+                    id: weatheritem
+
+                    implicitHeight: weatherrow.implicitHeight
+                    implicitWidth: weatherrow.implicitWidth
+
+                    RowLayout {
+                        id: weatherrow
+
+                        Layout.leftMargin: 6
+                        spacing: 5
+                        visible: root.weatherReady && root.cfg.weatherOnIsland
+
+                        DotIcon {
+                            Layout.alignment: Qt.AlignVCenter
+                            code: root.weatherIcon
+                            size: root.dotHClock
+                            color: islWthMa2.containsMouse ? root.colOn : root.colFg
+                        }
+                        // Градусы обычным шрифтом. Точки оставлены часам и
+                        // столам — тому, что на этой теме и должно быть набрано
+                        // ими. Знак градуса в точечной сетке выходит квадратным
+                        // кружком из четырёх точек, а он должен быть гладким.
+                        Text {
+                            Layout.alignment: Qt.AlignVCenter
+                            text: root.weatherTemp + "°"
+                            color: islWthMa2.containsMouse ? root.colOn : root.colFg
+                            font { family: root.fontFam; pixelSize: root.fontSize }
+                        }
                     }
-                    // Градусы обычным шрифтом. Точки оставлены часам и
-                    // столам — тому, что на этой теме и должно быть набрано
-                    // ими. Знак градуса в точечной сетке выходит квадратным
-                    // кружком из четырёх точек, а он должен быть гладким.
-                    Text {
-                        Layout.alignment: Qt.AlignVCenter
-                        text: root.weatherTemp + "°"
-                        color: islWthMa2.containsMouse ? root.colOn : root.colFg
-                        font { family: root.fontFam; pixelSize: root.fontSize }
+                    
+                    MouseArea {
+                        id: islWthMa2
+                        anchors.fill: weatheritem
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.openWeatherDetails()
                     }
                 }
-            }
-            MouseArea {
-                id: islWthMa2
-                anchors.fill: nothingCapsule
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.openWeatherDetails()
             }
 
             // --------------------------------------------- центр: часы
