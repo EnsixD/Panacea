@@ -6523,7 +6523,7 @@ PanelWindow {
         Loader {
             id: contentLoader
             z: 10
-            parent: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
+            parent: (root.cfg.pillKeepVisible && !root.settingsMode && (root.expanded || !detachedPanel.opacity > 0.005)) ? detachedPanel : capsule
             anchors.top: parent ? parent.top : undefined
             anchors.topMargin: 15
             anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
