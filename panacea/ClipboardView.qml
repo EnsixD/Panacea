@@ -299,17 +299,22 @@ FocusScope {
 
             delegate: Rectangle {
                 required property int index
+                required property string cid
+                required property string preview
+                required property bool isPinned
+                required property bool isImage
+                
                 id: rowDelegate
                 width: list.width
                 height: 40
                 radius: 10
                 color: index === list.currentIndex ? Qt.rgba(1, 1, 1, 0.12)
                      : rowMa.containsMouse ? view.sys.colHover : "transparent"
-                border.color: list.model.isPinned ? Qt.rgba(1, 1, 1, 0.18) : "transparent"
-                border.width: list.model.isPinned ? 1 : 0
+                border.color: isPinned ? Qt.rgba(1, 1, 1, 0.18) : "transparent"
+                border.width: isPinned ? 1 : 0
                 Behavior on color { ColorAnimation { duration: 130 } }
 
-                readonly property string cType: view.detectType(list.model.preview)
+                readonly property string cType: view.detectType(preview)
                 readonly property bool isSelected: index === list.currentIndex || rowMa.containsMouse
 
                 RowLayout {
@@ -320,7 +325,7 @@ FocusScope {
 
                     // Индикатор закрепления (Pin)
                     Text {
-                        visible: list.model.isPinned
+                        visible: isPinned
                         text: "󰤱"
                         color: view.sys.colCrit
                         font { family: view.sys.fontFam; pixelSize: 13 }
@@ -337,7 +342,7 @@ FocusScope {
                             anchors.fill: parent
                             visible: rowDelegate.cType === "color"
                             radius: 4
-                            color: rowDelegate.cType === "color" ? list.model.preview.trim() : "transparent"
+                            color: rowDelegate.cType === "color" ? preview.trim() : "transparent"
                             border.width: 1
                             border.color: Qt.rgba(1, 1, 1, 0.3)
                         }
@@ -346,7 +351,7 @@ FocusScope {
                         Image {
                             anchors.fill: parent
                             visible: rowDelegate.cType === "image-file"
-                            source: rowDelegate.cType === "image-file" ? ("file://" + view.expandPath(list.model.preview.trim())) : ""
+                            source: rowDelegate.cType === "image-file" ? ("file://" + view.expandPath(preview.trim())) : ""
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                         }
@@ -355,7 +360,7 @@ FocusScope {
                         Text {
                             anchors.centerIn: parent
                             visible: rowDelegate.cType !== "color" && rowDelegate.cType !== "image-file"
-                            text: list.model.isImage ? "󰋩"
+                            text: isImage ? "󰋩"
                                 : rowDelegate.cType === "url" ? "󰖟"
                                 : rowDelegate.cType === "file" ? "󰉋"
                                 : "󰈙"
@@ -368,7 +373,7 @@ FocusScope {
                     Text {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
-                        text: list.model.isImage ? view.sys.tr("Изображение (Binary)") : list.model.preview
+                        text: isImage ? view.sys.tr("Изображение (Binary)") : preview
                         color: view.sys.colFg
                         elide: Text.ElideRight
                         font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 2 }
@@ -398,7 +403,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.copyDirect(view.hexToRgb(list.model.preview.trim()))
+                                onClicked: view.copyDirect(view.hexToRgb(preview.trim()))
                             }
                         }
 
@@ -420,7 +425,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.copyDirect(view.hexToHsl(list.model.preview.trim()))
+                                onClicked: view.copyDirect(view.hexToHsl(preview.trim()))
                             }
                         }
 
@@ -442,7 +447,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.openTarget(list.model.preview.trim())
+                                onClicked: view.openTarget(preview.trim())
                             }
                         }
 
@@ -464,7 +469,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.openTarget(view.expandPath(list.model.preview.trim()))
+                                onClicked: view.openTarget(view.expandPath(preview.trim()))
                             }
                         }
 
@@ -473,11 +478,11 @@ FocusScope {
                             Layout.preferredHeight: 22
                             Layout.preferredWidth: 26
                             radius: 5
-                            color: pinMa.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : (list.model.isPinned ? Qt.rgba(1, 0, 0, 0.16) : Qt.rgba(1, 1, 1, 0.08))
+                            color: pinMa.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : (isPinned ? Qt.rgba(1, 0, 0, 0.16) : Qt.rgba(1, 1, 1, 0.08))
                             Text {
                                 anchors.centerIn: parent
                                 text: "󰤱"
-                                color: list.model.isPinned ? view.sys.colCrit : (pinMa.containsMouse ? view.sys.colFg : view.sys.colMuted)
+                                color: isPinned ? view.sys.colCrit : (pinMa.containsMouse ? view.sys.colFg : view.sys.colMuted)
                                 font { family: view.sys.fontFam; pixelSize: 11 }
                             }
                             MouseArea {
@@ -485,7 +490,7 @@ FocusScope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: view.togglePin(list.model.preview)
+                                onClicked: view.togglePin(preview)
                             }
                         }
                     }
