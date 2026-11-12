@@ -1,17 +1,17 @@
 # Graph Report - Panacea  (2026-11-12)
 
 ## Corpus Check
-- 84 files · ~56,073 words
+- 84 files · ~56,145 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 127 file(s) not represented in the graph (top: .qml 71, .fish 16, .conf 16)
 
 ## Summary
-- 384 nodes · 661 edges · 60 communities (23 shown, 37 thin omitted)
+- 384 nodes · 666 edges · 60 communities (23 shown, 37 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `cc583623`
+- Built from commit: `0281db52`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -100,7 +100,7 @@ Cohesion: 0.13
 Nodes (47): ask(), aur_helper(), backup(), check_aur_helper(), check_deps(), check_grub_prefix(), copy_into_config(), detect_distro() (+39 more)
 
 ### Community 1 - "os"
-Cohesion: 0.07
+Cohesion: 0.06
 Nodes (13): check_amd_s2idle(), DistroPackage, get_distro(), is_root(), PipxPackage, read_file(), relaunch_sudo(), agent_is_in_focused_window() (+5 more)
 
 ### Community 2 - "brightness.sh"
@@ -120,7 +120,7 @@ Cohesion: 0.37
 Nodes (13): active_iface(), autoconnect(), current_quality(), current_ssid(), find_available_known(), iface_list(), known_iwd(), known_networks() (+5 more)
 
 ### Community 7 - "make_assets.py"
-Cohesion: 0.16
+Cohesion: 0.29
 Nodes (5): build_background(), build_boxes(), cover(), rounded(), slice9()
 
 ### Community 8 - "record.sh"
@@ -204,6 +204,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `install_configs()` connect `install.sh` to `manifest.sh script`?**
   _High betweenness centrality (0.007) - this node is a cross-community bridge._
 - **Should `os` be split into smaller, more focused modules?**
-  _Cohesion score 0.06787330316742081 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.062310949788263764 - nodes in this community are weakly interconnected._
 - **Should `hyprland.lua` be split into smaller, more focused modules?**
   _Cohesion score 0.14285714285714285 - nodes in this community are weakly interconnected._
