@@ -2037,6 +2037,7 @@ PanelWindow {
 
     function collapse() {
         expanded = false;
+        chatFilePickerOpen = false;
         holdOpen = false;
         weatherDetailsOpen = false;
         pageResetTimer.restart();
