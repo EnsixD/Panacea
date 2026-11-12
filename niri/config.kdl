@@ -117,7 +117,7 @@ window-rule {
 // -----------------------------------------------------------------------------
 spawn-sh-at-startup "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP; dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=niri"
 spawn-at-startup "foot" "--server"
-spawn-sh-at-startup "sleep 0.4; qs -c ~/.config/panacea"
+spawn-sh-at-startup "sleep 0.4; ~/.config/panacea/scripts/start.sh"
 spawn-sh-at-startup "wl-paste --type text --watch cliphist store"
 spawn-sh-at-startup "wl-paste --type image --watch cliphist store"
 spawn-at-startup "udiskie" "--no-notify"

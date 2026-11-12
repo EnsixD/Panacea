@@ -1768,7 +1768,7 @@ elif command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-
     # таймера в 16 мс — 60 кадров на любом мониторе. Здесь она нужна отдельно:
     # оболочку после установки запускает этот скрипт, а не автозапуск, и до
     # следующего входа остров шёл бы рывками.
-    (setsid env QSG_RENDER_LOOP=threaded qs -c "$CONF/panacea" >/dev/null 2>&1 &)
+    (setsid "$CONF/panacea/scripts/start.sh" >/dev/null 2>&1 &)
     ok "reloaded Hyprland and started the pill"
 else
     warn "Hyprland isn't running here — everything comes up at next login"

@@ -704,7 +704,7 @@ EOF
                 && "'"$CONF"'/hypr/scripts/switch_theme.sh" --restore >/dev/null 2>&1
             pkill -x qs >/dev/null 2>&1
             sleep 1
-            exec qs -c "'"$CONF"'/panacea"
+            exec "'"$CONF"'/panacea/scripts/start.sh"
         ' >/dev/null 2>&1 &
     elif [ -n "${NIRI_SOCKET:-}" ] || [ "${XDG_CURRENT_DESKTOP,,}" = "niri" ]; then
         setsid sh -c '
@@ -712,14 +712,14 @@ EOF
             command -v niri >/dev/null 2>&1 && niri msg action load-config >/dev/null 2>&1
             pkill -x qs >/dev/null 2>&1
             sleep 1
-            exec qs -c "'"$CONF"'/panacea"
+            exec "'"$CONF"'/panacea/scripts/start.sh"
         ' >/dev/null 2>&1 &
     else
         setsid sh -c '
             sleep 1
             pkill -x qs >/dev/null 2>&1
             sleep 1
-            exec qs -c "'"$CONF"'/panacea"
+            exec "'"$CONF"'/panacea/scripts/start.sh"
         ' >/dev/null 2>&1 &
     fi
 }

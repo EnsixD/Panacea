@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Io
 
 Item {
@@ -86,9 +87,8 @@ Item {
             Loader {
                 id: webLoader
                 anchors.fill: parent
-                // Quickshell 0.3 starts Qt without argv; QtWebEngine aborts the
-                // entire shell when loaded. Keep the external-browser fallback.
-                active: false
+                // The startup wrapper supplies the argv workaround required by QtWebEngine.
+                active: view.service !== "chat" && Quickshell.env("PANACEA_WEBENGINE_READY") === "1"
                 source: "IslandWebView.qml"
                 onLoaded: { item.url = view.services[view.service]; }
             }
