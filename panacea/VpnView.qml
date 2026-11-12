@@ -32,8 +32,7 @@ Item {
                 if (d.ok) {
                     view.profiles = d.profiles || [];
                     view.sys.vpnActiveIds = view.profiles.filter(p => p.active).map(p => p.id); view.sys.vpnConnected = view.sys.vpnActiveIds.length > 0;
-                    view.sys.refreshVpnGeo();
-                    notify.command = ["notify-send", "--app-name", "Panacea VPN", view.pending === "up" ? view.sys.tr("VPN подключён") : view.sys.tr("VPN отключён"), view.sys.tr("Регион обновится после проверки соединения")]; notify.running = true;
+                    view.sys.announceVpnChange(view.pending);
                 } else { notify.command = ["notify-send", "--app-name", "Panacea VPN", view.sys.tr("Ошибка VPN"), view.error]; notify.running = true; }
             } catch(e) { view.error = String(e); }
         } }

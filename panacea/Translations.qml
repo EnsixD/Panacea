@@ -10,6 +10,7 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        "Регион недоступен": "Region unavailable",
         "VPN и регион": "VPN and region",
         "Выберите профиль: он запомнится для быстрого подключения.": "Choose a profile to save it for quick connection.",
         "VPN-профили NetworkManager не найдены.": "No NetworkManager VPN profiles found.",
@@ -978,6 +979,7 @@ QtObject {
         "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Your edits were kept (new versions next to them — *.panacea-new)",
     })
     readonly property var tr: ({
+        "Регион недоступен": "Bölge kullanılamıyor",
         "VPN и регион": "VPN ve bölge",
         "Выберите профиль: он запомнится для быстрого подключения.": "Hızlı bağlantı için bir profil seçin.",
         "VPN-профили NetworkManager не найдены.": "NetworkManager VPN profili bulunamadı.",

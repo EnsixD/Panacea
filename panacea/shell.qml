@@ -1583,6 +1583,8 @@ PanelWindow {
     property bool vpnConnected: false
     property var vpnActiveIds: []
     property string vpnQuickAction: ""
+    property string vpnAnnouncement: ""
+    function announceVpnChange(action) { vpnAnnouncement = action; vpnGeoDelay.restart(); }
     function refreshVpnGeo() { if (!vpnGeo.running) vpnGeo.running = true; }
     function refreshVpnStatus() { if (!vpnStatus.running) vpnStatus.running = true; }
     function togglePreferredVpn() {
@@ -1599,15 +1601,23 @@ PanelWindow {
     Process {
         id: vpnGeo
         command: ["python3", root.scriptDir + "/vpn.py", "geo"]
-        stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(text); if (d.country) { root.vpnCountry = d.country; root.vpnCountryName = d.name || ""; } } catch(e) {} } }
+        stdout: StdioCollector { onStreamFinished: {
+            var d = {}; try { d = JSON.parse(text); } catch(e) {}
+            if (d.country) { root.vpnCountry = d.country; root.vpnCountryName = d.name || ""; }
+            if (root.vpnAnnouncement) {
+                var title = root.vpnAnnouncement === "up" ? root.tr("VPN подключён") : root.tr("VPN отключён");
+                vpnNotify.command = ["notify-send", "--app-name", "Panacea VPN", title,
+                    d.country ? (String(d.name || d.country) + " · " + d.country) : root.tr("Регион недоступен")];
+                vpnNotify.running = true; root.vpnAnnouncement = "";
+            }
+        } }
     }
     Process {
         id: vpnQuick
         stdout: StdioCollector { onStreamFinished: { try {
             var d = JSON.parse(text);
-            if (d.ok) { root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0; vpnGeoDelay.restart(); vpnNotify.command = ["notify-send", "--app-name", "Panacea VPN", root.vpnQuickAction === "up" ? root.tr("VPN подключён") : root.tr("VPN отключён")]; }
-            else { vpnNotify.command = ["notify-send", "--app-name", "Panacea VPN", root.tr("Ошибка VPN"), String(d.error || "")]; }
-            vpnNotify.running = true;
+            if (d.ok) { root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0; root.announceVpnChange(root.vpnQuickAction); }
+            else { vpnNotify.command = ["notify-send", "--app-name", "Panacea VPN", root.tr("Ошибка VPN"), String(d.error || "")]; vpnNotify.running = true; }
         } catch(e) {} } }
     }
     Process { id: vpnNotify }
