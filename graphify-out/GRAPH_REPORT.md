@@ -1,17 +1,17 @@
 # Graph Report - Panacea  (2026-11-12)
 
 ## Corpus Check
-- 84 files · ~56,145 words
+- 85 files · ~56,284 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 127 file(s) not represented in the graph (top: .qml 71, .fish 16, .conf 16)
 
 ## Summary
-- 384 nodes · 666 edges · 60 communities (23 shown, 37 thin omitted)
+- 386 nodes · 675 edges · 59 communities (22 shown, 37 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0281db52`
+- Built from commit: `35651803`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -19,10 +19,9 @@
 - install.sh
 - os
 - brightness.sh
-- browser_pw.py
+- amd_s2idle.py
 - update.sh
 - wifi.sh
-- make_assets.py
 - record.sh
 - start.sh
 - files.sh
@@ -93,23 +92,23 @@
 ## Import Cycles
 - None detected.
 
-## Communities (60 total, 37 thin omitted)
+## Communities (59 total, 37 thin omitted)
 
 ### Community 0 - "install.sh"
 Cohesion: 0.13
 Nodes (47): ask(), aur_helper(), backup(), check_aur_helper(), check_deps(), check_grub_prefix(), copy_into_config(), detect_distro() (+39 more)
 
 ### Community 1 - "os"
-Cohesion: 0.06
-Nodes (13): check_amd_s2idle(), DistroPackage, get_distro(), is_root(), PipxPackage, read_file(), relaunch_sudo(), agent_is_in_focused_window() (+5 more)
+Cohesion: 0.09
+Nodes (14): agent_is_in_focused_window(), chromium_decrypt(), chromium_key(), collect_chromium(), collect_firefox(), firefox_profiles(), log(), main() (+6 more)
 
 ### Community 2 - "brightness.sh"
 Cohesion: 0.22
 Nodes (20): backend(), backlight_dev(), bl_get(), bl_set(), clamp(), cmd_detect(), cmd_get(), cmd_list() (+12 more)
 
-### Community 3 - "browser_pw.py"
-Cohesion: 0.26
-Nodes (8): chromium_decrypt(), chromium_key(), collect_chromium(), collect_firefox(), firefox_profiles(), log(), main(), NSS
+### Community 3 - "amd_s2idle.py"
+Cohesion: 0.14
+Nodes (7): check_amd_s2idle(), DistroPackage, get_distro(), is_root(), PipxPackage, read_file(), relaunch_sudo()
 
 ### Community 4 - "update.sh"
 Cohesion: 0.25
@@ -118,10 +117,6 @@ Nodes (16): changelog_filter(), cmd_apply(), cmd_check(), current(), current_ver
 ### Community 6 - "wifi.sh"
 Cohesion: 0.37
 Nodes (13): active_iface(), autoconnect(), current_quality(), current_ssid(), find_available_known(), iface_list(), known_iwd(), known_networks() (+5 more)
-
-### Community 7 - "make_assets.py"
-Cohesion: 0.29
-Nodes (5): build_background(), build_boxes(), cover(), rounded(), slice9()
 
 ### Community 8 - "record.sh"
 Cohesion: 0.35
@@ -184,8 +179,8 @@ Cohesion: 0.83
 Nodes (3): find_vox(), ipc(), voxtype.sh script
 
 ### Community 59 - "shotcrop.py"
-Cohesion: 0.29
-Nodes (5): die(), encode_png(), main(), parse_geom(), read_ppm()
+Cohesion: 0.10
+Nodes (11): build_background(), build_boxes(), cover(), rounded(), slice9(), die(), encode_png(), layout_frame() (+3 more)
 
 ## Knowledge Gaps
 - **8 isolated node(s):** `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE`, `QT_QPA_PLATFORM`, `GDK_BACKEND` (+3 more)
@@ -204,6 +199,8 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `install_configs()` connect `install.sh` to `manifest.sh script`?**
   _High betweenness centrality (0.007) - this node is a cross-community bridge._
 - **Should `os` be split into smaller, more focused modules?**
-  _Cohesion score 0.062310949788263764 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09219858156028368 - nodes in this community are weakly interconnected._
+- **Should `amd_s2idle.py` be split into smaller, more focused modules?**
+  _Cohesion score 0.14035087719298245 - nodes in this community are weakly interconnected._
 - **Should `hyprland.lua` be split into smaller, more focused modules?**
   _Cohesion score 0.14285714285714285 - nodes in this community are weakly interconnected._
