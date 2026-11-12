@@ -80,7 +80,10 @@ Item {
                     Text { text: view.sys.tr("VPN и регион").toUpperCase(); color: view.sys.colMuted; font { family: view.sys.fontBody; pixelSize: 10; letterSpacing: 2 } }
                     Row {
                         spacing: 12
-                        DotText { value: view.sys.vpnCountry; size: 30; color: view.sys.colFg }
+                        Rectangle {
+                            width: 42; height: 42; radius: 21; color: view.sys.vpnConnected ? view.sys.colFg : "#303135"
+                            Text { anchors.centerIn: parent; text: view.sys.vpnCountry; color: view.sys.vpnConnected ? view.sys.colBg : view.sys.colFg; font { family: view.sys.fontDisplay; pixelSize: 15; bold: true } }
+                        }
                         Text { anchors.verticalCenter: parent.verticalCenter; text: view.sys.vpnBusy ? view.sys.tr("Ожидание ответа клиента…") : (view.sys.vpnConnected ? view.sys.tr("Подключено") : view.sys.tr("Отключено")); color: view.sys.colFg; font { family: view.sys.fontBody; pixelSize: 11 } }
                     }
                 }
