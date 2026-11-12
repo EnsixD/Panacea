@@ -21,7 +21,7 @@ DIRS=(panacea hypr niri foot fish fastfetch)
 # ведёт сама оболочка (или их сохраняет update.sh отдельным списком).
 skip() {
     case "$1" in
-        *.bak*|*.panacea-new|*/.git/*|*/__pycache__/*) return 0 ;;
+        */.git/*|*/__pycache__/*) return 0 ;;
         hypr/wallpaper/*|panacea/assets/*) return 0 ;;
         panacea/.version|panacea/VERSION|panacea/.whatsnew|panacea/.missingdeps|panacea/.obsoletedeps) return 0 ;;
         panacea/.keptedits|panacea/.vibrance|panacea/settings.json|panacea/clipboard_pins.json) return 0 ;;
@@ -93,7 +93,13 @@ restore)
         # та же заводская, что человек уже поправил под себя
         if [ -f "$CONF/$rel" ] && ! cmp -s "$out/$rel" "$CONF/$rel" \
            && [ "$(sha256sum < "$CONF/$rel" | cut -d' ' -f1)" != "$old" ]; then
-            mv -f "$CONF/$rel" "$CONF/$rel.panacea-new"
+            candidate="$rel.panacea-new"
+            i=1
+            while [ -e "$CONF/$candidate" ] || [ -L "$CONF/$candidate" ] || [ -e "$out/$candidate" ] || [ -L "$out/$candidate" ]; do
+                candidate="$rel.panacea-new.$i"
+                i=$((i + 1))
+            done
+            mv "$CONF/$rel" "$CONF/$candidate"
         fi
         cp -a "$out/$rel" "$CONF/$rel"
         echo "kept $rel"
