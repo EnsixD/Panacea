@@ -10,6 +10,17 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        "VPN и регион": "VPN and region",
+        "Выберите профиль: он запомнится для быстрого подключения.": "Choose a profile to save it for quick connection.",
+        "VPN-профили NetworkManager не найдены.": "No NetworkManager VPN profiles found.",
+        "Другие VPN-приложения": "Other VPN applications",
+        "Регион обновится после проверки соединения": "The region will update after checking the connection",
+        "VPN подключён": "VPN connected",
+        "VPN отключён": "VPN disconnected",
+        "Ошибка VPN": "VPN error",
+        "Выберите VPN-профиль в острове; он сохранится для быстрого включения.": "Choose a VPN profile in the island to save it for quick connection.",
+        "Выбрать VPN": "Choose VPN",
+
         "Главная": "Home",
         "Чат": "Chat",
         "Встроенный браузер недоступен. Откройте сервис в обычном браузере.": "The embedded browser is unavailable. Open the service in your browser.",
@@ -967,6 +978,17 @@ QtObject {
         "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Your edits were kept (new versions next to them — *.panacea-new)",
     })
     readonly property var tr: ({
+        "VPN и регион": "VPN ve bölge",
+        "Выберите профиль: он запомнится для быстрого подключения.": "Hızlı bağlantı için bir profil seçin.",
+        "VPN-профили NetworkManager не найдены.": "NetworkManager VPN profili bulunamadı.",
+        "Другие VPN-приложения": "Diğer VPN uygulamaları",
+        "Регион обновится после проверки соединения": "Bağlantı kontrolünden sonra bölge güncellenecek",
+        "VPN подключён": "VPN bağlandı",
+        "VPN отключён": "VPN bağlantısı kesildi",
+        "Ошибка VPN": "VPN hatası",
+        "Выберите VPN-профиль в острове; он сохранится для быстрого включения.": "Hızlı bağlantı için adada bir VPN profili seçin.",
+        "Выбрать VPN": "VPN seç",
+
         "Главная": "Ana sayfa",
         "Чат": "Sohbet",
         "Встроенный браузер недоступен. Откройте сервис в обычном браузере.": "Yerleşik tarayıcı kullanılamıyor. Servisi tarayıcıda açın.",

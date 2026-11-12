@@ -61,7 +61,7 @@ Item {
         { id: "input",   title: view.sys.tr("Ввод"),           g: 0xF037D, page: "SetInput.qml",
           sub: view.sys.tr("Скорость указателя и разгон."),
           keys: "mouse keyboard layouts xkb pointer cursor sensitivity speed accel acceleration raw input flat "
-                + "мышь клавиатура раскладки указатель курсор скорость сенса чувствительность разгон ввод" },
+                + "мышь клавиатура раскладки указатель курсор скорость сенса чувствительность разгон ввод vpn впн" },
         { id: "system",  title: view.sys.tr("Система"),         g: 0xF0493, page: "SetSystem.qml",
           sub: view.sys.tr("Из чего собрана машина и чем она сейчас занята."),
           keys: "about system cpu ram temperature система озу температура процессы" }

@@ -19,6 +19,13 @@ ColumnLayout {
 
     SetCard {
         sys: page.sys
+        SetLabel { sys: page.sys; text: page.sys.tr("VPN") }
+        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: page.sys.colMuted; text: page.sys.tr("Выберите VPN-профиль в острове; он сохранится для быстрого включения.") }
+        SetButton { sys: page.sys; text: page.sys.tr("Выбрать VPN"); onClicked: { page.sys.page = "vpn"; page.sys.holdOpen = true; } }
+    }
+
+    SetCard {
+        sys: page.sys
         visible: Compositor.isHyprland
 
         SetLabel { sys: page.sys; text: page.sys.tr("Раскладки клавиатуры") }

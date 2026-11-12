@@ -103,6 +103,7 @@ PanelWindow {
 
             // ---------------------------------------------- Motion
             // Полный отказ от анимаций: все длительности считаются нулевыми.
+            property string vpnPreferred: ""
             property bool   mascotEnabled: true
             property bool   reduceMotion: false
             property int    animMove: 230      // размер и положение, мс
@@ -1577,6 +1578,42 @@ PanelWindow {
     // battery — режимы питания и состояние заряда
     // Отдельной страницы плеера нет: играющий трек с кнопками и полосами
     // живёт карточкой на главной, там же, где всё остальное.
+    property string vpnCountry: "--"
+    property string vpnCountryName: ""
+    property bool vpnConnected: false
+    property var vpnActiveIds: []
+    property string vpnQuickAction: ""
+    function refreshVpnGeo() { if (!vpnGeo.running) vpnGeo.running = true; }
+    function refreshVpnStatus() { if (!vpnStatus.running) vpnStatus.running = true; }
+    function togglePreferredVpn() {
+        if (!cfg.vpnPreferred || vpnQuick.running) { page = "vpn"; expanded = true; holdOpen = true; return; }
+        vpnQuickAction = vpnActiveIds.indexOf(cfg.vpnPreferred) >= 0 ? "down" : "up";
+        vpnQuick.command = ["python3", root.scriptDir + "/vpn.py", vpnQuickAction, cfg.vpnPreferred];
+        vpnQuick.running = true;
+    }
+    Process {
+        id: vpnStatus
+        command: ["python3", root.scriptDir + "/vpn.py", "list"]
+        stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(text); root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0; } catch(e) {} } }
+    }
+    Process {
+        id: vpnGeo
+        command: ["python3", root.scriptDir + "/vpn.py", "geo"]
+        stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(text); if (d.country) { root.vpnCountry = d.country; root.vpnCountryName = d.name || ""; } } catch(e) {} } }
+    }
+    Process {
+        id: vpnQuick
+        stdout: StdioCollector { onStreamFinished: { try {
+            var d = JSON.parse(text);
+            if (d.ok) { root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0; vpnGeoDelay.restart(); vpnNotify.command = ["notify-send", "--app-name", "Panacea VPN", root.vpnQuickAction === "up" ? root.tr("VPN подключён") : root.tr("VPN отключён")]; }
+            else { vpnNotify.command = ["notify-send", "--app-name", "Panacea VPN", root.tr("Ошибка VPN"), String(d.error || "")]; }
+            vpnNotify.running = true;
+        } catch(e) {} } }
+    }
+    Process { id: vpnNotify }
+    Timer { id: vpnGeoDelay; interval: 3000; onTriggered: root.refreshVpnGeo() }
+    Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnStatus() }
+    Timer { interval: 180000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnGeo() }
     property var islandChatMessages: []
     property var islandAgentEvents: []
     property string page: "main"
@@ -5010,7 +5047,7 @@ PanelWindow {
         function applyContentH() {
             var it = contentLoader.item;
             if (!it || it.implicitHeight <= 40) return;
-            var target = it.implicitHeight + ((root.page === "main" || root.page === "chat") && !root.settingsMode ? 75 : 30);
+            var target = it.implicitHeight + ((root.page === "main" || root.page === "chat" || root.page === "vpn") && !root.settingsMode ? 75 : 30);
             // Мелкие колебания раскладки цель не двигают. Высота идёт через
             // Behavior, а тот на каждое изменение цели начинает анимацию
             // заново — с текущей точки и на полную длительность. Пока страница
@@ -6627,7 +6664,7 @@ PanelWindow {
             anchors.leftMargin: 16
             z: 65
             spacing: 6
-            visible: root.expanded && !root.settingsMode && (root.page === "main" || root.page === "chat")
+            visible: root.expanded && !root.settingsMode && (root.page === "main" || root.page === "chat" || root.page === "vpn")
             Repeater {
                 model: [{page:"main", title:root.tr("Главная"), icon:0xF02DC}, {page:"chat", title:root.tr("Чат"), icon:0xF0181}]
                 delegate: Rectangle {
@@ -6645,13 +6682,31 @@ PanelWindow {
             }
         }
 
+        Rectangle {
+            id: vpnTab
+            parent: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
+            anchors.top: parent.top; anchors.topMargin: 12
+            anchors.right: parent.right; anchors.rightMargin: 18
+            z: 65; width: 52; height: 34; radius: 17
+            visible: root.expanded && !root.settingsMode && (root.page === "main" || root.page === "chat" || root.page === "vpn")
+            color: root.page === "vpn" ? Qt.rgba(1,1,1,0.12) : "transparent"
+            Text { anchors.centerIn: parent; text: root.vpnCountry; color: root.vpnConnected ? "#90d9a6" : root.colFg; font { family: root.fontBody; pixelSize: 12; bold: true } }
+            MouseArea {
+                anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
+                onClicked: mouse => {
+                    if (mouse.button === Qt.RightButton || !root.cfg.vpnPreferred) { root.page = "vpn"; root.holdOpen = true; }
+                    else root.togglePreferredVpn();
+                }
+            }
+        }
+
         // --------------------------------------------------- раскрытая панель
         Loader {
             id: contentLoader
             z: 10
             parent: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
             anchors.top: parent ? parent.top : undefined
-            anchors.topMargin: (root.page === "main" || root.page === "chat") && !root.settingsMode ? 55 : 15
+            anchors.topMargin: (root.page === "main" || root.page === "chat" || root.page === "vpn") && !root.settingsMode ? 55 : 15
             anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
             // Ширина берётся у ЦЕЛЕВОЙ панели, а не у анимируемой капсулы:
             // иначе содержимое переливалось по ширине на каждом кадре
@@ -6685,7 +6740,8 @@ PanelWindow {
                 NumberAnimation { duration: root.expanded ? root.animFast : 90; easing.type: Easing.OutCubic }
             }
 
-            sourceComponent: root.page === "chat" ? chatComp
+            sourceComponent: root.page === "vpn" ? vpnComp
+                           : root.page === "chat" ? chatComp
                            : root.page === "launcher" ? launcherComp
                            : root.page === "settings" ? settingsComp
                            : root.page === "clip"     ? clipComp
@@ -6704,6 +6760,7 @@ PanelWindow {
                                                       : controlsComp
         }
 
+        Component { id: vpnComp; VpnView { sys: root } }
         Component { id: chatComp; ChatView { sys: root } }
         Component { id: controlsComp; ControlsView { sys: root } }
         Component { id: launcherComp; LauncherView { sys: root } }
