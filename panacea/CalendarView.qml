@@ -21,7 +21,8 @@ Item {
     property int viewYear:  today.getFullYear()
     property int viewMonth: today.getMonth()          // 0..11
 
-    readonly property bool isEn: view?.sys?.isEn ?? false
+    readonly property string language: String(view.sys.cfg.lang || "en").split(/[_-]/)[0].toLowerCase()
+    readonly property var calendarLocale: Qt.locale(language === "ru" ? "ru_RU" : language === "tr" ? "tr_TR" : "en_US")
 
     function shift(delta) {
         var m = viewMonth + delta;
@@ -35,12 +36,12 @@ Item {
         viewMonth = today.getMonth();
     }
 
-    readonly property var monthsRu: ["Январь","Февраль","Март","Апрель","Май","Июнь",
-                                     "Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"]
-    readonly property var monthsEn: ["January","February","March","April","May","June",
-                                     "July","August","September","October","November","December"]
-    readonly property var dowRu: ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
-    readonly property var dowEn: ["Mo","Tu","We","Th","Fr","Sa","Su"]
+    readonly property string monthTitle: calendarLocale.standaloneMonthName(viewMonth, Locale.LongFormat)
+    readonly property var dayNames: {
+        var days = [];
+        for (var i = 1; i <= 7; i++) days.push(calendarLocale.standaloneDayName(i, Locale.ShortFormat));
+        return days;
+    }
 
     // 42 ячейки: шесть недель, чтобы сетка не прыгала между месяцами
     readonly property var cells: {
@@ -93,30 +94,32 @@ Item {
         width: parent.width
         spacing: 12
 
-        RowLayout {
+        Item {
             Layout.fillWidth: true
-            spacing: 10
-
-            NavBtn { sym: "‹"; onPressedAction: view.shift(-1) }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: -2
+            Layout.preferredHeight: 54
+            NavBtn { width: 32; height: 32; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; sym: "‹"; onPressedAction: view.shift(-1) }
+            Column {
+                anchors.centerIn: parent
+                width: Math.max(0, parent.width - 96)
+                spacing: 4
                 Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: (view.isEn ? view.monthsEn : view.monthsRu)[view.viewMonth]
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    text: view.monthTitle
                     color: view.sys.colFg
                     font { family: view.sys.fontFam; pixelSize: view.sys.fontSize + 2; bold: true }
+                    fontSizeMode: Text.HorizontalFit
+                    minimumPixelSize: 12
                 }
                 Text {
-                    Layout.alignment: Qt.AlignHCenter
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
                     text: view.viewYear
                     color: view.sys.colMuted
                     font { family: view.sys.fontFam; pixelSize: view.sys.fontSize - 3 }
                 }
             }
-
-            NavBtn { sym: "›"; onPressedAction: view.shift(1) }
+            NavBtn { width: 32; height: 32; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; sym: "›"; onPressedAction: view.shift(1) }
         }
 
         // дни недели
@@ -124,7 +127,7 @@ Item {
             Layout.fillWidth: true
             spacing: 4
             Repeater {
-                model: view.isEn ? view.dowEn : view.dowRu
+                model: view.dayNames
                 Text {
                     required property int index
                     required property string modelData
