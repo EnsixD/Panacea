@@ -1,17 +1,17 @@
 <div align="center">
 
-<img src="assets/panacea-orbit-logo.png" width="132" alt="Panacea Shell logo: a black capsule and its orbit">
+<img src="assets/panacea-readme-banner.png" width="860" alt="Panacea Shell: a monochrome banner with a liquid capsule mascot">
 
 # Panacea Shell
 
-**Рабочий стол вокруг одного острова · A desktop around one island**
+**A desktop around one island**
 
 ![Linux](https://img.shields.io/badge/Linux-Wayland-18181b)
 ![Hyprland](https://img.shields.io/badge/Hyprland-primary-ffffff)
 ![Niri](https://img.shields.io/badge/Niri-experimental-888888)
 ![License](https://img.shields.io/badge/license-MIT-d71920)
 
-[Русский](#русский) · [English](#english) · [Demo](#demo)
+[Demo](#demo) · [Features](#pages) · [Install](#install-these-dotfiles)
 
 </div>
 
@@ -19,68 +19,9 @@
 
 <img src="docs/img/island-demo.jpg" width="860" alt="Panacea island opened over the desktop">
 
-<sub>Кадр из демо / Frame from the demo. Внешний вид зависит от версии и настроек.</sub>
+<sub>Frame from the demo. Appearance may vary with version and settings.</sub>
 
 </div>
-
-## Русский
-
-Panacea — оболочка и набор конфигураций для Linux с Wayland. В центре интерфейса — остров у края экрана: он показывает время и состояние системы, а при открытии превращается в панель управления, плеер, буфер обмена или нужную страницу.
-
-Остров можно разместить у любого края, настроить его размеры, анимации, палитру и поведение. Основной композитор — Hyprland; поддержка Niri находится в разработке.
-
-### Демо
-
-[Смотреть видео на GitHub](https://github.com/user-attachments/assets/854260b8-e96e-4773-8267-2decab779d6e) · [Файл demo.mp4](demo.mp4)
-
-### Что внутри
-
-| | |
-|---|---|
-| **Быстрые настройки** | Wi-Fi, Bluetooth, звук, батарея, запись экрана, уведомления и системный трей. |
-| **Музыка** | Управление MPRIS-плеером, обложка и перемотка; при наличии Cava — визуализация звука. |
-| **Лаунчер и приложения** | Поиск приложений и калькулятор; отдельная сетка приложений с папками. |
-| **Буфер и файлы** | История и закрепление записей, распознавание цветов и ссылок, файловый менеджер и просмотр медиа. |
-| **Рабочий стол** | Настраиваемые карточки часов, погоды, системы, музыки, прогресса и заметок. |
-| **Настройки** | Геометрия острова, внешний вид, анимации, мониторы, ввод и горячие клавиши. |
-| **Система** | Экран блокировки, меню питания, темы входа и загрузки, поддержка нескольких ОС. |
-
-<div align="center">
-<img src="docs/img/settings-demo.jpg" width="860" alt="Экран настроек Panacea в демонстрационной записи">
-<br><sub>Настройки в демонстрационной записи; интерфейс мог измениться в новых версиях.</sub>
-</div>
-
-### Горячие клавиши
-
-| Клавиши | Действие |
-|---|---|
-| `Super + Z` | Быстрые настройки |
-| `Super + I` | Настройки Panacea |
-| `Super + A` / `Super + G` | Лаунчер / сетка приложений |
-| `Super + V` / `Super + E` | Буфер обмена / файлы |
-| `Super + P` | Запись экрана |
-| `Super + Shift + N` | Уведомления |
-| `Super + Shift + T` | Выбор обоев |
-| `Super + /` | Просмотр и изменение сочетаний |
-
-Сочетания можно изменить в редакторе клавиш. На Niri часть настроек может требовать ручной правки конфигурации.
-
-### Установка
-
-Установщик поддерживает Arch, Ubuntu, Debian, Linux Mint, Fedora и openSUSE. Перед запуском сохраните резервную копию своих конфигураций и ознакомьтесь с параметрами установщика. Для Niri поддержка экспериментальная.
-
-```bash
-git clone https://github.com/EnsixD/Panacea.git
-cd Panacea
-./install.sh
-```
-
-Для других дистрибутивов см. [инструкцию по установке](docs/other-distros.md). Существующие конфигурации, настройки обновлений, голосовой ввод, состав проекта и лицензии подробно описаны ниже в английском разделе.
-
-<a id="english"></a>
-<details>
-<summary><b>English</b> · Full documentation</summary>
-<br>
 
 No bar, no tray, no scattered popups. Wi‑Fi, Bluetooth, power profiles, the
 launcher, notifications, the media player, a file manager, a password manager,
@@ -148,6 +89,11 @@ language), *Motion*, *Launcher*, *Notifications*, *Control Center* (the quick
 settings tiles, rearranged by dragging), *Lock Screen*, *Display* (resolution,
 refresh rate, scale, orientation, VRR, multi‑monitor arrangement, brightness and
 digital vibrance), *Mouse* and *System*.
+
+<div align="center">
+<img src="docs/img/settings-demo.jpg" width="860" alt="Panacea settings in the demo recording">
+<br><sub>Settings in the demo recording; the interface may have changed in newer versions.</sub>
+</div>
 
 ## Dual boot
 
@@ -409,5 +355,3 @@ Built on [Hyprland](https://hyprland.org) · [Quickshell](https://quickshell.org
 MIT — see [LICENSE](LICENSE). It covers the configs, the QML and the scripts.
 Wallpapers, fonts and anything else bundled from elsewhere keep the terms of
 their own authors.
-
-</details>
