@@ -19,7 +19,7 @@ ColumnLayout {
         SetToggle {
             sys: page.sys
             label: page.sys.tr("Персонаж Panacea")
-            sub: page.sys.tr("Время от времени появляется на 2,5 минуты и следит за курсором.")
+            sub: page.sys.tr("Всегда виден в острове и иногда просыпается на 2,5 минуты.")
             on: page.sys.cfg.mascotEnabled
             onToggled: value => { page.sys.cfg.mascotEnabled = value; page.sys.saveCfg(); }
         }

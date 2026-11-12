@@ -37,7 +37,7 @@ QtObject {
         "Сообщение…": "Message…",
 
         "Персонаж Panacea": "Panacea character",
-        "Время от времени появляется на 2,5 минуты и следит за курсором.": "Appears from time to time for 2.5 minutes and follows the cursor.",
+        "Всегда виден в острове и иногда просыпается на 2,5 минуты.": "Always visible in the island, and wakes up for 2.5 minutes from time to time.",
         "Разработка": "Development",
         "Графика": "Graphics",
         "Офис": "Office",
@@ -1012,7 +1012,7 @@ QtObject {
         "Сообщение…": "Mesaj…",
 
         "Персонаж Panacea": "Panacea karakteri",
-        "Время от времени появляется на 2,5 минуты и следит за курсором.": "Zaman zaman 2,5 dakikalığına görünür ve imleci takip eder.",
+        "Всегда виден в острове и иногда просыпается на 2,5 минуты.": "Adada her zaman görünür ve ara sıra 2,5 dakikalığına uyanır.",
         "Разработка": "Geliştirme",
         "Графика": "Grafik",
         "Офис": "Ofis",
