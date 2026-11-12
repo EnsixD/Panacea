@@ -15,7 +15,7 @@ Item {
     property real monitorY: 0
     property bool blinking: false
 
-    property bool active: showing && sys.cfg.mascotEnabled && !sys.expanded
+    property bool active: sys.cfg.mascotEnabled && !sys.expanded
                           && !sys.toastActive && !sys.osdActive && !sys.btToastActive
                           && !sys.wifiToastActive && !sys.acToastActive
                           && !sys.recPickActive && !sys.voxActive && !sys.fileOverIsland
@@ -90,13 +90,13 @@ Item {
     }
     Timer {
         interval: 60; repeat: true
-        running: mascot.active && !sys.noMotion && !Compositor.isNiri
+        running: mascot.active && mascot.showing && !sys.noMotion && !Compositor.isNiri
         triggeredOnStart: true
         onTriggered: if (!cursorQuery.running) cursorQuery.running = true
     }
     Timer {
         interval: 2400; repeat: true
-        running: mascot.active && !sys.noMotion
+        running: mascot.active && mascot.showing && !sys.noMotion
         onTriggered: {
             if (Date.now() - mascot.lastMovement > 4500) {
                 mascot.gazeX = Math.random() * 2 - 1;
@@ -107,7 +107,7 @@ Item {
 
     Timer {
         interval: 3700; repeat: true
-        running: mascot.active && !sys.noMotion
+        running: mascot.active && mascot.showing && !sys.noMotion
         onTriggered: { mascot.blinking = true; blinkEnd.restart(); }
     }
     Timer { id: blinkEnd; interval: 150; onTriggered: mascot.blinking = false }
