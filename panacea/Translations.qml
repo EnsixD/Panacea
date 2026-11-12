@@ -10,6 +10,11 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        "Спросите что угодно": "Ask anything",
+        "Добавьте адрес API, модель и ключ в настройках лаунчера.": "Add the API address, model and key in launcher settings.",
+        "Выберите файл": "Choose a file",
+        "Прикрепить": "Attach",
+
         "События агента в чате": "Agent events in chat",
         "Регион недоступен": "Region unavailable",
         "VPN и регион": "VPN and region",
@@ -980,6 +985,11 @@ QtObject {
         "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Your edits were kept (new versions next to them — *.panacea-new)",
     })
     readonly property var tr: ({
+        "Спросите что угодно": "İstediğinizi sorun",
+        "Добавьте адрес API, модель и ключ в настройках лаунчера.": "Başlatıcı ayarlarına API adresini, modeli ve anahtarı ekleyin.",
+        "Выберите файл": "Dosya seçin",
+        "Прикрепить": "Ekle",
+
         "События агента в чате": "Sohbetteki ajan olayları",
         "Регион недоступен": "Bölge kullanılamıyor",
         "VPN и регион": "VPN ve bölge",

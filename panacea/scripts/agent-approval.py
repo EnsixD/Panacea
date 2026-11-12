@@ -7,13 +7,23 @@ from pathlib import Path
 import subprocess
 import sys
 
-def agent_is_in_focused_window():
+def agent_is_in_focused_window(agent):
     # Only suppress when the focused window's process is an ancestor of this
     # exact hook. Another terminal with the same class must still get alerts.
     try:
         result = subprocess.run(['hyprctl', '-j', 'activewindow'], capture_output=True,
                                 text=True, timeout=1, check=True)
-        focused = int(json.loads(result.stdout).get('pid', 0))
+        window = json.loads(result.stdout)
+        focused = int(window.get('pid', 0))
+        window_class = str(window.get('class', '')).lower()
+        title = str(window.get('title', '')).lower()
+        name = agent.lower()
+        if name in ('codex', 'claude'):
+            if name in window_class:
+                return True
+            terminals = ('foot', 'kitty', 'alacritty', 'wezterm', 'ghostty', 'konsole', 'terminal')
+            if any(t in window_class for t in terminals) and name in title:
+                return True
         pid = os.getppid()
         while focused > 1 and pid > 1:
             if pid == focused:
@@ -27,9 +37,9 @@ def agent_is_in_focused_window():
 
 try:
     data = json.load(sys.stdin)
-    if agent_is_in_focused_window():
-        sys.exit(0)
     agent = sys.argv[1]
+    if agent_is_in_focused_window(agent):
+        sys.exit(0)
     tool = str(data.get('tool_name') or 'tool')
     details = data.get('tool_input') or {}
     if not isinstance(details, dict):

@@ -5431,7 +5431,7 @@ PanelWindow {
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 6
                 Repeater {
-                    model: [{action:"panacea-allow", label:"✓"}, {action:"panacea-deny", label:"×"}]
+                    model: [{action:"panacea-deny", label:"×"}, {action:"panacea-allow", label:"✓"}]
                     delegate: Rectangle {
                         required property var modelData
                         width: 30; height: 30; radius: 15
@@ -6698,10 +6698,10 @@ PanelWindow {
             parent: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
             anchors.top: parent.top; anchors.topMargin: 12
             anchors.right: parent.right; anchors.rightMargin: 18
-            z: 65; width: 52; height: 34; radius: 17
+            z: 65; width: 34; height: 34; radius: 17
             visible: root.expanded && !root.settingsMode && (root.page === "main" || root.page === "chat" || root.page === "vpn")
-            color: root.page === "vpn" ? Qt.rgba(1,1,1,0.12) : "transparent"
-            Text { anchors.centerIn: parent; text: root.vpnCountry; color: root.vpnConnected ? "#90d9a6" : root.colFg; font { family: root.fontBody; pixelSize: 12; bold: true } }
+            color: root.vpnConnected ? root.colFg : (root.page === "vpn" ? Qt.rgba(1,1,1,0.12) : "transparent")
+            Text { anchors.centerIn: parent; text: root.vpnCountry; color: root.vpnConnected ? root.colBg : root.colFg; font { family: root.fontBody; pixelSize: 12; bold: true } }
             MouseArea {
                 anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
                 onClicked: mouse => {

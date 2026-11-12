@@ -114,6 +114,7 @@ Item {
 
     Row {
         anchors.centerIn: parent
+        anchors.verticalCenterOffset: -2
         spacing: 7
         Repeater {
             model: 2
