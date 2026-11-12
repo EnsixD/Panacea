@@ -213,7 +213,7 @@ FocusScope {
     // ------------------------------------------------------ веб и ИИ
     // ИИ работает, только если человек сам подключил провайдера
     readonly property bool aiOn: String(view.sys.cfg.aiUrl || "").length > 0
-    readonly property bool isAsk: aiOn && query.trim().indexOf("?") === 0 && query.trim().length > 1
+    readonly property bool isAsk: false
     readonly property string askText: query.trim().substring(1).trim()
     property string aiAnswer: ""
     property bool   aiBusy: false

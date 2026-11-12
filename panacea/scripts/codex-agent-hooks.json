@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 ${XDG_CONFIG_HOME:-$HOME/.config}/panacea/scripts/agent-approval.py Codex",
+            "timeout": 40
+          }
+        ]
+      }
+    ]
+  }
+}

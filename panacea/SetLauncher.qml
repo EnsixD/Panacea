@@ -131,7 +131,7 @@ ColumnLayout {
         }
         Text {
             Layout.fillWidth: true
-            text: page.sys.tr("ИИ подключается по желанию: подойдёт любой OpenAI-совместимый сервис — OpenAI, OpenRouter, Groq или локальная Ollama (http://localhost:11434/v1). Пока адрес пуст, «?» в лаунчере ищет как обычно.")
+            text: page.sys.tr("Настройки API для вкладки «Чат» в острове: OpenAI-совместимый сервис, модель и ключ.")
             color: page.sys.colMuted
             wrapMode: Text.WordWrap
             font { family: page.sys.fontBody; pixelSize: page.sys.fontSize - 4 }

@@ -41,7 +41,7 @@ Item {
                 + "погода температура город ключ цельсий фаренгейт градусы" },
         { id: "motion",  title: view.sys.tr("Анимация"),         g: 0xF15B6, page: "SetMotion.qml",
           sub: view.sys.tr("Насколько быстро оболочка движется — и движется ли вообще."),
-          keys: "animation speed bounce анимация скорость движение" },
+          keys: "animation speed bounce mascot character eyes cursor анимация скорость движение персонаж глазки курсор" },
         { id: "launch",  title: view.sys.tr("Лаунчер"),       g: 0xF0349, page: "SetLauncher.qml",
           sub: view.sys.tr("Поиск приложений и то, что он ищет кроме них."),
           keys: "launcher launchpad grid folders apps search запуск приложения поиск сетка папки" },

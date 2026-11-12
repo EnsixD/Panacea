@@ -103,6 +103,7 @@ PanelWindow {
 
             // ---------------------------------------------- Motion
             // Полный отказ от анимаций: все длительности считаются нулевыми.
+            property bool   mascotEnabled: true
             property bool   reduceMotion: false
             property int    animMove: 230      // размер и положение, мс
             property int    animFade: 200      // прозрачность и цвет, мс
@@ -1576,6 +1577,8 @@ PanelWindow {
     // battery — режимы питания и состояние заряда
     // Отдельной страницы плеера нет: играющий трек с кнопками и полосами
     // живёт карточкой на главной, там же, где всё остальное.
+    property var islandChatMessages: []
+    property var islandAgentEvents: []
     property string page: "main"
     // что показывает медиаплеер (страница "media")
     property string quickFilePath: ""
@@ -2941,6 +2944,11 @@ PanelWindow {
 
             var app = String(n.appName || "");
             var sum = String(n.summary || "");
+            if (/claude|codex|antigravity/i.test(app + " " + sum)) {
+                var events = root.islandAgentEvents.slice();
+                events.unshift({title: sum, body: String(n.body || ""), app: app});
+                root.islandAgentEvents = events.slice(0, 20);
+            }
             var isTransient = (app === "Panacea"
                                || sum === root.tr("Скриншот")
                                || sum === "Скриншот"
@@ -2992,6 +3000,25 @@ PanelWindow {
     // или пока показывается предыдущая карточка, просто уходило в историю —
     // и человек о нём не узнавал. Теперь оно дожидается своей очереди.
     property var toastQueue: []
+    property double approvalToastEnd: 0
+    property real approvalToastRemaining: 0
+    readonly property bool approvalToast: notifCurrent !== null
+        && String(notifCurrent.appName || "").indexOf("Panacea ") === 0
+        && (notifCurrent.actions || []).some(a => String(a.identifier) === "panacea-allow")
+    Timer {
+        interval: 80; repeat: true; running: root.approvalToast
+        onTriggered: root.approvalToastRemaining = Math.max(0, root.approvalToastEnd - Date.now())
+    }
+    function replyAgentApproval(actionId) {
+        var n = root.notifCurrent;
+        if (!root.approvalToast || !n || Date.now() >= root.approvalToastEnd) return;
+        var actions = n.actions || [];
+        for (var i = 0; i < actions.length; i++) {
+            if (String(actions[i].identifier) === actionId) {
+                actions[i].invoke(); n.dismiss(); root.dismissToast(); return;
+            }
+        }
+    }
 
     function enqueueToast(n) {
         var q = root.toastQueue.slice();
@@ -3013,7 +3040,11 @@ PanelWindow {
         if (Date.now() - item.at > 60000) { root.pumpToasts(); return; }
 
         var n = item.notif;
+        var isApproval = String(n.appName || "").indexOf("Panacea ") === 0
+            && (n.actions || []).some(a => String(a.identifier) === "panacea-allow");
+        if (isApproval && Date.now() - item.at >= 30000) { n.dismiss(); root.pumpToasts(); return; }
         root.notifCurrent = n;
+        if (isApproval) { root.approvalToastEnd = item.at + 30000; root.approvalToastRemaining = root.approvalToastEnd - Date.now(); }
         // Своё время приложения уважаем, но верхнюю и нижнюю границу задаёт
         // человек: важные с нулевым сроком висят до ответа.
         var crit = n.urgency === NotificationUrgency.Critical;
@@ -3021,7 +3052,7 @@ PanelWindow {
         var ms = n.expireTimeout > 0 ? (n.expireTimeout < 100 ? n.expireTimeout * 1000 : n.expireTimeout) : want;
         if (!crit && want > 0 && ms > want) ms = want;
         if (crit && want === 0) ms = 0;
-        toastTimer.interval = ms > 0 ? Math.max(1000, ms) : 24 * 60 * 60 * 1000;
+        toastTimer.interval = isApproval ? Math.max(1, root.approvalToastEnd - Date.now()) : (ms > 0 ? Math.max(1000, ms) : 24 * 60 * 60 * 1000);
         toastTimer.restart();
     }
 
@@ -3031,6 +3062,7 @@ PanelWindow {
         id: toastTimer
         // если курсор на карточке — не убираем, ждём решения пользователя
         onTriggered: {
+            if (root.approvalToast) { if (root.notifCurrent) root.notifCurrent.dismiss(); root.dismissToast(); return; }
             if (capsuleHover.hovered) { toastTimer.interval = 1200; restart(); return; }
             root.dismissToast();
         }
@@ -4474,6 +4506,7 @@ PanelWindow {
         function launchpad(): void { root.toggleLaunchpad(); }
         // Всегда плитки Wi-Fi/Bluetooth, даже когда играет музыка
         function controls(): void { root.togglePage("main"); }
+        function chat(): void { root.page = "chat"; root.expanded = true; root.holdOpen = true; }
         function wifi(): void {
             if (root.expanded && root.page === "wifi") { root.collapse(); return; }
             root.togglePage("wifi");
@@ -4941,6 +4974,7 @@ PanelWindow {
                     ? capsule.evenUp(Math.max(acCapsule.implicitWidth + 48, 240))
                 : root.toastActive ? 440
                 : root.osdActive ? capsule.evenUp(osdCapsule.implicitWidth + 32)
+                : mascot.active ? 300
                 : root.pillSide  ? capsule.evenUp(Math.max(vertCapsule.implicitHeight + 30,
                                                            capsule.collapsedMin))
                 : capsule.evenUp(Math.max(nothingCapsule.implicitWidth + 28,
@@ -4976,7 +5010,7 @@ PanelWindow {
         function applyContentH() {
             var it = contentLoader.item;
             if (!it || it.implicitHeight <= 40) return;
-            var target = it.implicitHeight + 30;
+            var target = it.implicitHeight + ((root.page === "main" || root.page === "chat") && !root.settingsMode ? 75 : 30);
             // Мелкие колебания раскладки цель не двигают. Высота идёт через
             // Behavior, а тот на каждое изменение цели начинает анимацию
             // заново — с текущей точки и на полную длительность. Пока страница
@@ -5220,6 +5254,42 @@ PanelWindow {
             onClicked: if (root.notifCurrent) root.activateNotification(root.notifCurrent)
         }
 
+        Item {
+            id: mascotRow
+            anchors.fill: parent
+            z: 10
+            visible: mascot.active
+            DotText {
+                anchors.left: parent.left
+                anchors.leftMargin: 22
+                anchors.verticalCenter: parent.verticalCenter
+                value: root.timeText
+                size: root.dotHClock
+                gapRatio: 0.1
+                color: root.colFg
+            }
+            Mascot { id: mascot; sys: root; anchors.centerIn: parent }
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: 22
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.batteryPresent
+                spacing: 6
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.batteryIcon
+                    color: root.batteryPct <= 15 && !root.acOnline ? root.colCrit : root.colFg
+                    font { family: root.fontFam; pixelSize: root.iconSize + 2 }
+                }
+                DotText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    value: String(root.batteryPct)
+                    size: root.dotHClock
+                    color: root.batteryPct <= 15 && !root.acOnline ? root.colCrit : root.colFg
+                }
+            }
+        }
+
         // ------------------------------------------ свёрнутое: уведомление
         RowLayout {
             id: toastCapsule
@@ -5232,7 +5302,7 @@ PanelWindow {
             anchors.top: parent.top
             anchors.leftMargin: 16
             anchors.rightMargin: 14
-            anchors.topMargin: 12
+            anchors.topMargin: root.approvalToast ? 16 : 12
             spacing: 12
             visible: root.toastActive && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
@@ -5269,7 +5339,7 @@ PanelWindow {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 2
+                spacing: root.approvalToast ? 7 : 2
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -5306,11 +5376,27 @@ PanelWindow {
                     font { family: root.fontFam; pixelSize: root.fontSize - 3 }
                 }
 
+            }
 
+            Column {
+                visible: root.approvalToast
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 6
+                Repeater {
+                    model: [{action:"panacea-allow", label:"✓"}, {action:"panacea-deny", label:"×"}]
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: 30; height: 30; radius: 15
+                        color: modelData.action === "panacea-allow" ? "#305f46" : "#643f45"
+                        Text { anchors.centerIn: parent; text: modelData.label; color: modelData.action === "panacea-allow" ? "#9be0b1" : "#f0b3b6"; font { pixelSize: 17; bold: true } }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.replyAgentApproval(modelData.action) }
+                    }
+                }
             }
 
             // закрыть тост
             Text {
+                visible: !root.approvalToast
                 Layout.alignment: Qt.AlignTop
                 text: "×"
                 color: closeMa.containsMouse ? root.colFg : root.colMuted
@@ -5322,9 +5408,22 @@ PanelWindow {
                     anchors.margins: -6
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.dismissToast()
+                    onClicked: { if (root.approvalToast && root.notifCurrent) root.notifCurrent.dismiss(); root.dismissToast(); }
                 }
             }
+        }
+
+        Rectangle {
+            anchors.top: parent.top
+            anchors.topMargin: 6
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 18
+            anchors.rightMargin: 18
+            height: 3; radius: 2; z: 120
+            visible: root.toastActive && root.approvalToast
+            color: Qt.rgba(1,1,1,0.12)
+            Rectangle { width: parent.width * Math.max(0, Math.min(1, root.approvalToastRemaining / 30000)); height: parent.height; radius: 2; color: root.colFg }
         }
 
         // ---------------------------------- свёрнутое: Bluetooth устройство
@@ -5959,7 +6058,7 @@ PanelWindow {
             anchors.rightMargin: 18
             height: root.pillH
             visible: (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
-                     && !root.osdActive && !root.toastActive
+                     && !root.osdActive && !root.toastActive && !mascot.active
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -6281,7 +6380,7 @@ PanelWindow {
                 width: root.pillH
                 spacing: 7
                 visible: (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
-                opacity: root.pillSide ? 1 : 0
+                opacity: root.pillSide && !mascot.active ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
                 // Играет музыка: обложка и эквалайзер. Названию в толщину
@@ -6519,13 +6618,40 @@ PanelWindow {
             }
         }
 
+        Row {
+            id: islandTabs
+            parent: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
+            anchors.top: parent.top
+            anchors.topMargin: 12
+            anchors.left: parent.left
+            anchors.leftMargin: 16
+            z: 65
+            spacing: 6
+            visible: root.expanded && !root.settingsMode && (root.page === "main" || root.page === "chat")
+            Repeater {
+                model: [{page:"main", title:root.tr("Главная"), icon:0xF02DC}, {page:"chat", title:root.tr("Чат"), icon:0xF0181}]
+                delegate: Rectangle {
+                    required property var modelData
+                    width: root.page === modelData.page ? tabText.implicitWidth + 48 : 40
+                    height: 34; radius: 17
+                    color: root.page === modelData.page ? Qt.rgba(1,1,1,0.12) : "transparent"
+                    Row {
+                        anchors.centerIn: parent; spacing: 8
+                        IslandTabIcon { anchors.verticalCenter: parent.verticalCenter; width: 19; height: 19; kind: modelData.page === "main" ? "home" : "chat"; tint: root.page === modelData.page ? root.colFg : root.colMuted }
+                        Text { id: tabText; anchors.verticalCenter: parent.verticalCenter; visible: root.page === modelData.page; text: modelData.title; color: root.colFg; font { family: root.fontBody; pixelSize: 12; bold: true } }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.page = modelData.page; root.holdOpen = modelData.page === "chat"; } }
+                }
+            }
+        }
+
         // --------------------------------------------------- раскрытая панель
         Loader {
             id: contentLoader
             z: 10
             parent: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
             anchors.top: parent ? parent.top : undefined
-            anchors.topMargin: 15
+            anchors.topMargin: (root.page === "main" || root.page === "chat") && !root.settingsMode ? 55 : 15
             anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
             // Ширина берётся у ЦЕЛЕВОЙ панели, а не у анимируемой капсулы:
             // иначе содержимое переливалось по ширине на каждом кадре
@@ -6559,7 +6685,8 @@ PanelWindow {
                 NumberAnimation { duration: root.expanded ? root.animFast : 90; easing.type: Easing.OutCubic }
             }
 
-            sourceComponent: root.page === "launcher" ? launcherComp
+            sourceComponent: root.page === "chat" ? chatComp
+                           : root.page === "launcher" ? launcherComp
                            : root.page === "settings" ? settingsComp
                            : root.page === "clip"     ? clipComp
                            : root.page === "power"    ? powerComp
@@ -6577,6 +6704,7 @@ PanelWindow {
                                                       : controlsComp
         }
 
+        Component { id: chatComp; ChatView { sys: root } }
         Component { id: controlsComp; ControlsView { sys: root } }
         Component { id: launcherComp; LauncherView { sys: root } }
         Component { id: settingsComp; SettingsView { sys: root; tab: root.settingsTab } }
@@ -7280,8 +7408,6 @@ PanelWindow {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Bottom
-    // OnDemand должен быть объявлен до нажатия: компоновщик решает,
-    // передавать ли клавиатуру слою, непосредственно при клике.
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     mask: Region { item: widgets }
 

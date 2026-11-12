@@ -10,6 +10,16 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        "Главная": "Home",
+        "Чат": "Chat",
+        "Встроенный браузер недоступен. Откройте сервис в обычном браузере.": "The embedded browser is unavailable. Open the service in your browser.",
+        "Открыть": "Open",
+        "Напишите сообщение. Адрес API и модель задаются в настройках лаунчера.": "Write a message. Set the API address and model in launcher settings.",
+        "Прикреплено файлов:": "Files attached:",
+        "Сообщение…": "Message…",
+
+        "Персонаж Panacea": "Panacea character",
+        "Время от времени появляется на 2,5 минуты и следит за курсором.": "Appears from time to time for 2.5 minutes and follows the cursor.",
         "Разработка": "Development",
         "Графика": "Graphics",
         "Офис": "Office",
@@ -957,6 +967,16 @@ QtObject {
         "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Your edits were kept (new versions next to them — *.panacea-new)",
     })
     readonly property var tr: ({
+        "Главная": "Ana sayfa",
+        "Чат": "Sohbet",
+        "Встроенный браузер недоступен. Откройте сервис в обычном браузере.": "Yerleşik tarayıcı kullanılamıyor. Servisi tarayıcıda açın.",
+        "Открыть": "Aç",
+        "Напишите сообщение. Адрес API и модель задаются в настройках лаунчера.": "Mesaj yazın. API adresini ve modeli başlatıcı ayarlarında belirtin.",
+        "Прикреплено файлов:": "Eklenen dosya:",
+        "Сообщение…": "Mesaj…",
+
+        "Персонаж Panacea": "Panacea karakteri",
+        "Время от времени появляется на 2,5 минуты и следит за курсором.": "Zaman zaman 2,5 dakikalığına görünür ve imleci takip eder.",
         "Разработка": "Geliştirme",
         "Графика": "Grafik",
         "Офис": "Ofis",

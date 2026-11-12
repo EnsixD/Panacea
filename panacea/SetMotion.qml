@@ -18,6 +18,18 @@ ColumnLayout {
 
         SetToggle {
             sys: page.sys
+            label: page.sys.tr("Персонаж Panacea")
+            sub: page.sys.tr("Время от времени появляется на 2,5 минуты и следит за курсором.")
+            on: page.sys.cfg.mascotEnabled
+            onToggled: value => { page.sys.cfg.mascotEnabled = value; page.sys.saveCfg(); }
+        }
+    }
+
+    SetCard {
+        sys: page.sys
+
+        SetToggle {
+            sys: page.sys
             label: page.sys.tr("Уменьшить анимацию")
             sub: page.sys.tr("Оболочка перестаёт двигаться совсем: длительности считаются нулевыми.")
             on: page.sys.cfg.reduceMotion
