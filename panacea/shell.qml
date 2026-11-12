@@ -5409,7 +5409,7 @@ PanelWindow {
                     Layout.fillWidth: true
                     // «Показывать текст в карточке» из настроек: выключено —
                     // видно только приложение и заголовок
-                    visible: root.notifBody.length > 0 && root.cfg.notifPreview
+                    visible: root.notifBody.length > 0 && (root.cfg.notifPreview || root.approvalToast)
                     text: root.notifBody
                     color: root.colMuted
                     wrapMode: Text.WordWrap
