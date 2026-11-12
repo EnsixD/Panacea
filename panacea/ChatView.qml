@@ -98,7 +98,7 @@ Item {
                 width: scroll.availableWidth; spacing: 10
                 Text { visible: view.sys.islandChatMessages.length === 0; width: parent.width; wrapMode: Text.WordWrap; color: view.sys.colMuted; text: view.sys.tr("Напишите сообщение. Адрес API и модель задаются в настройках лаунчера.") }
                 Repeater {
-                    model: view.sys.islandAgentEvents
+                    model: view.sys.islandAgentEvents.filter(e => view.sys.cfg.agentEventFilter === "all" || (e.app + " " + e.title).toLowerCase().indexOf(view.sys.cfg.agentEventFilter) >= 0)
                     delegate: Rectangle {
                         required property var modelData
                         width: parent.width; height: eventText.implicitHeight + 20; radius: 12

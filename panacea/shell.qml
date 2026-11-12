@@ -177,6 +177,7 @@ PanelWindow {
             property bool   featLauncher: true
             // лаунчер: веб-поиск и короткие ответы ИИ (запрос с «?»)
             property string searchEngine: "duckduckgo"
+            property string agentEventFilter: "all"
             property string aiUrl: ""
             // о какой версии уже сообщали — переживает перезапуск оболочки
             property string updNotifiedVer: ""

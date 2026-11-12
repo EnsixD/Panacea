@@ -153,4 +153,15 @@ ColumnLayout {
             onEditingFinished: { page.sys.cfg.aiKey = text.trim(); page.sys.saveCfg(); }
         }
     }
+    SetCard {
+        sys: page.sys
+        SetSelect {
+            sys: page.sys
+            label: page.sys.tr("События агента в чате")
+            value: page.sys.cfg.agentEventFilter
+            options: [{id:"all", text:page.sys.tr("Все")}, {id:"claude", text:"Claude"}, {id:"codex", text:"Codex"}, {id:"antigravity", text:"Antigravity"}]
+            onPicked: id => { page.sys.cfg.agentEventFilter = id; page.sys.saveCfg(); }
+        }
+    }
+
 }

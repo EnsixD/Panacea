@@ -10,6 +10,7 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        "События агента в чате": "Agent events in chat",
         "Регион недоступен": "Region unavailable",
         "VPN и регион": "VPN and region",
         "Выберите профиль: он запомнится для быстрого подключения.": "Choose a profile to save it for quick connection.",
@@ -979,6 +980,7 @@ QtObject {
         "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Your edits were kept (new versions next to them — *.panacea-new)",
     })
     readonly property var tr: ({
+        "События агента в чате": "Sohbetteki ajan olayları",
         "Регион недоступен": "Bölge kullanılamıyor",
         "VPN и регион": "VPN ve bölge",
         "Выберите профиль: он запомнится для быстрого подключения.": "Hızlı bağlantı için bir profil seçin.",
