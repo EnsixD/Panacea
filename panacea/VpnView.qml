@@ -71,7 +71,7 @@ Item {
                 required property var modelData
                 Layout.fillWidth: true; Layout.preferredHeight: 35; radius: 10; color: Qt.rgba(1,1,1,0.05)
                 Text { anchors.centerIn: parent; text: modelData.name + " ↗"; color: view.sys.colFg }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { launch.command = [modelData.exe]; launch.running = true; } }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { launch.command = ["gio", "launch", modelData.desktop]; launch.running = true; } }
             }
         }
         Item { Layout.fillHeight: true }

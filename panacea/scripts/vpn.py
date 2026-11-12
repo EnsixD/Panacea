@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Discover NetworkManager VPN profiles and report their connection state."""
-import json, shutil, subprocess, sys, urllib.request
+import json, os, pathlib, shlex, shutil, subprocess, sys, urllib.request
 
 def nm(*args):
     return subprocess.run(['nmcli', *args], text=True, capture_output=True, timeout=15, check=True).stdout
@@ -31,8 +31,27 @@ def main():
         if not data.get('success'): raise ValueError('Location unavailable')
         return {'country':str(data.get('country_code','')).upper(),'name':str(data.get('country',''))}
     apps=[]
-    for name,exe in [('Mullvad VPN','mullvad-vpn'),('Proton VPN','protonvpn-app'),('NordVPN','nordvpn'),('WARP','warp-cli'),('OpenVPN','openvpn')]:
-        if shutil.which(exe): apps.append({'name':name,'exe':exe})
+    seen=set()
+    locations=[pathlib.Path.home()/'.local/share/applications', pathlib.Path('/usr/local/share/applications'), pathlib.Path('/usr/share/applications')]
+    for folder in locations:
+        if not folder.is_dir(): continue
+        for file in folder.glob('*.desktop'):
+            try:
+                data={}
+                for line in file.read_text(errors='replace').splitlines():
+                    if line.startswith('[') and line != '[Desktop Entry]': break
+                    if '=' in line:
+                        key,value=line.split('=',1)
+                        if key in ('Name','Exec','Hidden','NoDisplay','TryExec'): data[key]=value
+                name=data.get('Name','')
+                if 'vpn' not in name.lower() or data.get('Hidden')=='true' or data.get('NoDisplay')=='true': continue
+                argv=shlex.split(data.get('Exec',''))
+                executable=data.get('TryExec') or (argv[0] if argv else '')
+                if not executable or not shutil.which(executable): continue
+                key=name.casefold()
+                if key not in seen:
+                    seen.add(key); apps.append({'name':name,'desktop':str(file)})
+            except (OSError, ValueError): pass
     return {'profiles':profiles(),'apps':apps,'networkManager':bool(shutil.which('nmcli'))}
 try: print(json.dumps(main(),ensure_ascii=False))
 except Exception as e: print(json.dumps({'error':str(e)},ensure_ascii=False))
