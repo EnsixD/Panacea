@@ -86,14 +86,16 @@ Item {
             Loader {
                 id: webLoader
                 anchors.fill: parent
-                active: view.service !== "chat"
+                // Quickshell 0.3 starts Qt without argv; QtWebEngine aborts the
+                // entire shell when loaded. Keep the external-browser fallback.
+                active: false
                 source: "IslandWebView.qml"
                 onLoaded: { item.url = view.services[view.service]; }
             }
             Connections { target: view; function onServiceChanged() { if (webLoader.item && view.service !== "chat") webLoader.item.url = view.services[view.service]; } }
             Column {
                 anchors.centerIn: parent; width: parent.width - 30; spacing: 12
-                visible: webLoader.status === Loader.Error
+                visible: !webLoader.active || webLoader.status === Loader.Error
                 Text { width: parent.width; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: view.sys.colMuted; text: view.sys.tr("Встроенный браузер недоступен. Откройте сервис в обычном браузере.") }
                 Button { anchors.horizontalCenter: parent.horizontalCenter; text: view.sys.tr("Открыть") + " " + view.service; onClicked: Qt.openUrlExternally(view.services[view.service]) }
             }
