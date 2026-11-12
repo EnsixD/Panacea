@@ -8,8 +8,11 @@ def nm(*args):
 def profiles():
     result=[]
     if not shutil.which('nmcli'): return result
-    ids=nm('-g','UUID','connection','show').splitlines()
-    active=set(nm('-g','UUID','connection','show','--active').splitlines())
+    try:
+        ids=nm('-g','UUID','connection','show').splitlines()
+        active=set(nm('-g','UUID','connection','show','--active').splitlines())
+    except subprocess.SubprocessError:
+        return result
     for uid in ids:
         try:
             lines=nm('-g','connection.id,connection.type','connection','show','uuid',uid).splitlines()
@@ -21,10 +24,11 @@ def profiles():
 def tunnel_active():
     if not shutil.which('ip'): return False
     try:
-        proc = subprocess.run(['ip', '-j', 'link', 'show', 'up'], text=True, capture_output=True, timeout=3, check=True)
+        proc = subprocess.run(['ip', '-j', '-d', 'link', 'show', 'up'], text=True, capture_output=True, timeout=3, check=True)
         for link in json.loads(proc.stdout):
             name = str(link.get('ifname','')).lower()
-            if name.startswith(('tun','tap','wg','proton','mullvad','tailscale','warp','nordlynx')):
+            kind = str(link.get('linkinfo', {}).get('info_kind', '')).lower()
+            if kind in ('tun', 'wireguard', 'ppp') or name.startswith(('tun','tap','utun','ppp','wg','proton','mullvad','tailscale','warp','nordlynx','amnezia','awgtun')):
                 return True
     except (OSError, ValueError, subprocess.SubprocessError): pass
     return False
