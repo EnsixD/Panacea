@@ -1617,7 +1617,7 @@ PanelWindow {
         id: vpnQuick
         stdout: StdioCollector { onStreamFinished: { try {
             var d = JSON.parse(text);
-            if (d.ok) { root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0; root.announceVpnChange(root.vpnQuickAction); }
+            if (d.ok) { root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0 || !!d.tunnelActive; root.announceVpnChange(root.vpnQuickAction); }
             else { vpnNotify.command = ["notify-send", "--app-name", "Panacea VPN", root.tr("Ошибка VPN"), String(d.error || "")]; vpnNotify.running = true; }
         } catch(e) {} } }
     }

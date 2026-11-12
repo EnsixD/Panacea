@@ -31,7 +31,7 @@ Item {
                 view.error = d.error || "";
                 if (d.ok) {
                     view.profiles = d.profiles || [];
-                    view.sys.vpnActiveIds = view.profiles.filter(p => p.active).map(p => p.id); view.sys.vpnConnected = view.sys.vpnActiveIds.length > 0;
+                    view.sys.vpnActiveIds = view.profiles.filter(p => p.active).map(p => p.id); view.sys.vpnConnected = view.sys.vpnActiveIds.length > 0 || !!d.tunnelActive;
                     view.sys.announceVpnChange(view.pending);
                 } else { notify.command = ["notify-send", "--app-name", "Panacea VPN", view.sys.tr("Ошибка VPN"), view.error]; notify.running = true; }
             } catch(e) { view.error = String(e); }

@@ -39,7 +39,7 @@ def main():
         uid=sys.argv[2]
         if not any(p['id']==uid for p in profiles()): raise ValueError('VPN profile not found')
         nm('connection',op,'uuid',uid)
-        return {'ok':True,'profiles':profiles()}
+        return {'ok':True,'profiles':profiles(),'tunnelActive':tunnel_active()}
     if op=='geo':
         req=urllib.request.Request('https://ipwho.is/',headers={'User-Agent':'Panacea VPN indicator'})
         with urllib.request.urlopen(req,timeout=6) as response: data=json.load(response)
