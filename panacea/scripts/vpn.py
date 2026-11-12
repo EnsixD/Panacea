@@ -35,6 +35,12 @@ def tunnel_active():
 
 def main():
     op=sys.argv[1] if len(sys.argv)>1 else 'list'
+    if op in ('client-status', 'client-toggle'):
+        client = pathlib.Path(sys.argv[2])
+        if client.stem.casefold() != 'happ':
+            raise ValueError('This VPN client has no direct-control adapter yet. Open its controls from VPN settings.')
+        import happ_control
+        return happ_control.public(happ_control.status()) if op == 'client-status' else happ_control.toggle()
     if op in ('up','down'):
         uid=sys.argv[2]
         if not any(p['id']==uid for p in profiles()): raise ValueError('VPN profile not found')

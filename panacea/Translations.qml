@@ -10,6 +10,15 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        "Ожидание ответа клиента…": "Waiting for the client…",
+        "VPN-клиент": "VPN client",
+        "Управление подключением через Happ": "Connection controlled through Happ",
+        "Управление в приложении клиента": "Manage in the client application",
+        "VPN-приложения не найдены": "No VPN applications found",
+        "VPN-профиль": "VPN profile",
+        "Выбор сохраняется. Нажмите на страну в острове, чтобы управлять подключением.": "Your choice is saved. Click the country in the island to control the connection.",
+        "Happ и профили NetworkManager переключаются прямо в острове. Для остальных клиентов открывается их приложение.": "Happ and NetworkManager profiles can be toggled in the island. Other clients open their own application.",
+
         "Клиент и профиль для быстрого подключения.": "Client and profile for quick connection.",
         "Выберите клиент или профиль. Выбор сохраняется без подключения.": "Choose a client or profile. Your selection is saved without connecting.",
         "Сторонний клиент открывается для управления VPN. Профили NetworkManager переключаются прямо в острове.": "External clients open their own VPN controls. NetworkManager profiles can be toggled directly in the island.",
@@ -989,6 +998,15 @@ QtObject {
         "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Your edits were kept (new versions next to them — *.panacea-new)",
     })
     readonly property var tr: ({
+        "Ожидание ответа клиента…": "İstemci bekleniyor…",
+        "VPN-клиент": "VPN istemcisi",
+        "Управление подключением через Happ": "Happ üzerinden bağlantı kontrolü",
+        "Управление в приложении клиента": "İstemci uygulamasında yönet",
+        "VPN-приложения не найдены": "VPN uygulaması bulunamadı",
+        "VPN-профиль": "VPN profili",
+        "Выбор сохраняется. Нажмите на страну в острове, чтобы управлять подключением.": "Seçiminiz kaydedilir. Bağlantıyı yönetmek için adadaki ülkeye tıklayın.",
+        "Happ и профили NetworkManager переключаются прямо в острове. Для остальных клиентов открывается их приложение.": "Happ ve NetworkManager profilleri adadan açılıp kapatılır. Diğer istemciler kendi uygulamalarını açar.",
+
         "Клиент и профиль для быстрого подключения.": "Hızlı bağlantı için istemci ve profil.",
         "Выберите клиент или профиль. Выбор сохраняется без подключения.": "Bir istemci veya profil seçin. Bağlanmadan kaydedilir.",
         "Сторонний клиент открывается для управления VPN. Профили NetworkManager переключаются прямо в острове.": "Harici istemciler kendi VPN kontrollerini açar. NetworkManager profilleri adadan değiştirilebilir.",

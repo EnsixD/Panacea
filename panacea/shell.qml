@@ -1586,24 +1586,32 @@ PanelWindow {
     property string vpnCountryName: ""
     property bool vpnConnected: false
     property var vpnActiveIds: []
+    readonly property bool vpnBusy: vpnQuick.running || vpnClientState === "busy"
+    property string vpnClientState: "unknown"
     property string vpnQuickAction: ""
     property string vpnAnnouncement: ""
-    function announceVpnChange(action) { vpnAnnouncement = action; vpnGeoDelay.restart(); }
+    function announceVpnChange(action) { vpnAnnouncement = action; refreshVpnGeo(); }
     function refreshVpnGeo() { if (!vpnGeo.running) vpnGeo.running = true; }
     function refreshVpnStatus() { if (!vpnStatus.running) vpnStatus.running = true; }
     function togglePreferredVpn() {
+        if (vpnBusy) return;
         if (cfg.vpnPreferredClient) {
-            vpnClient.command = ["gio", "launch", cfg.vpnPreferredClient]; vpnClient.running = true; return;
-        }
-        if (!cfg.vpnPreferred || vpnQuick.running) { page = "vpn"; expanded = true; holdOpen = true; return; }
-        vpnQuickAction = vpnActiveIds.indexOf(cfg.vpnPreferred) >= 0 ? "down" : "up";
-        vpnQuick.command = ["python3", root.scriptDir + "/vpn.py", vpnQuickAction, cfg.vpnPreferred];
+            vpnQuick.command = ["python3", root.scriptDir + "/vpn.py", "client-toggle", cfg.vpnPreferredClient];
+        } else if (cfg.vpnPreferred) {
+            vpnQuickAction = vpnActiveIds.indexOf(cfg.vpnPreferred) >= 0 ? "down" : "up";
+            vpnQuick.command = ["python3", root.scriptDir + "/vpn.py", vpnQuickAction, cfg.vpnPreferred];
+        } else { page = "vpn"; expanded = true; holdOpen = true; return; }
         vpnQuick.running = true;
     }
     Process {
         id: vpnStatus
-        command: ["python3", root.scriptDir + "/vpn.py", "list"]
-        stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(text); root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0 || !!d.tunnelActive; } catch(e) {} } }
+        command: root.cfg.vpnPreferredClient ? ["python3", root.scriptDir + "/vpn.py", "client-status", root.cfg.vpnPreferredClient] : ["python3", root.scriptDir + "/vpn.py", "list"]
+        stdout: StdioCollector { onStreamFinished: { try {
+            var d = JSON.parse(text);
+            if (vpnQuick.running) return;
+            if (d.clientState) { root.vpnClientState = d.clientState; root.vpnConnected = d.clientState === "connected"; }
+            else if (!root.cfg.vpnPreferredClient) { root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0 || !!d.tunnelActive; }
+        } catch(e) {} } }
     }
     Process {
         id: vpnGeo
@@ -1623,14 +1631,18 @@ PanelWindow {
         id: vpnQuick
         stdout: StdioCollector { onStreamFinished: { try {
             var d = JSON.parse(text);
-            if (d.ok) { root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0 || !!d.tunnelActive; root.announceVpnChange(root.vpnQuickAction); }
+            if (d.ok) {
+                if (d.clientState) { root.vpnClientState = d.clientState; root.vpnConnected = d.clientState === "connected"; }
+                else { root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0 || !!d.tunnelActive; }
+                root.announceVpnChange(d.action || root.vpnQuickAction);
+            }
             else { vpnNotify.command = ["notify-send", "--app-name", "Panacea VPN", root.tr("Ошибка VPN"), String(d.error || "")]; vpnNotify.running = true; }
         } catch(e) {} } }
     }
     Process { id: vpnNotify }
     Process { id: vpnClient }
     Timer { id: vpnGeoDelay; interval: 3000; onTriggered: root.refreshVpnGeo() }
-    Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnStatus() }
+    Timer { interval: root.cfg.vpnPreferredClient ? 4000 : 15000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnStatus() }
     Timer { interval: 180000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnGeo() }
     property bool chatFilePickerOpen: false
     signal chatFilesPicked(var paths)
@@ -6676,7 +6688,13 @@ PanelWindow {
             z: 65; width: 34; height: 34; radius: 17
             visible: root.expanded && !root.settingsMode && (root.page === "main" || root.page === "chat" || root.page === "vpn")
             color: root.vpnConnected ? root.colFg : (root.page === "vpn" ? Qt.rgba(1,1,1,0.12) : "transparent")
-            Text { anchors.centerIn: parent; text: root.vpnCountry; color: root.vpnConnected ? root.colBg : root.colFg; font { family: root.fontBody; pixelSize: 12; bold: true } }
+            Behavior on color { ColorAnimation { duration: root.animFast } }
+            Text { anchors.centerIn: parent; text: root.vpnBusy ? "···" : root.vpnCountry; color: root.vpnConnected ? root.colBg : root.colFg; font { family: root.fontBody; pixelSize: 12; bold: true } }
+            Canvas {
+                anchors.fill: parent; anchors.margins: -3; visible: root.vpnBusy
+                onPaint: { var c = getContext("2d"); c.reset(); c.strokeStyle = root.colFg; c.lineWidth = 2; c.lineCap = "round"; c.beginPath(); c.arc(width / 2, height / 2, width / 2 - 2, 0, Math.PI * 1.4); c.stroke(); }
+                NumberAnimation on rotation { from: 0; to: 360; duration: 700; loops: Animation.Infinite; running: root.vpnBusy && !root.noMotion }
+            }
             MouseArea {
                 anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
                 onClicked: mouse => {
