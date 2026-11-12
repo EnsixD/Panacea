@@ -694,34 +694,17 @@ EOF
     echo "status=done"
     echo "version=$sha"
 
-    # Перезапуск отдельным сеансом: он переживёт смерть и оболочки, и нас
-    # самих. Пауза даёт оболочке дочитать вывод и закрыться по-человечески.
-    if have hyprctl && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-        setsid sh -c '
-            sleep 1
-            hyprctl reload >/dev/null 2>&1
-            [ -x "'"$CONF"'/hypr/scripts/switch_theme.sh" ] \
-                && "'"$CONF"'/hypr/scripts/switch_theme.sh" --restore >/dev/null 2>&1
-            pkill -x qs >/dev/null 2>&1
-            sleep 1
-            exec "'"$CONF"'/panacea/scripts/start.sh"
-        ' >/dev/null 2>&1 &
-    elif [ -n "${NIRI_SOCKET:-}" ] || [ "${XDG_CURRENT_DESKTOP,,}" = "niri" ]; then
-        setsid sh -c '
-            sleep 1
-            command -v niri >/dev/null 2>&1 && niri msg action load-config >/dev/null 2>&1
-            pkill -x qs >/dev/null 2>&1
-            sleep 1
-            exec "'"$CONF"'/panacea/scripts/start.sh"
-        ' >/dev/null 2>&1 &
-    else
-        setsid sh -c '
-            sleep 1
-            pkill -x qs >/dev/null 2>&1
-            sleep 1
-            exec "'"$CONF"'/panacea/scripts/start.sh"
-        ' >/dev/null 2>&1 &
+    # A detached process still belongs to the service cgroup. Schedule the
+    # restart in a separate systemd unit so stopping Panacea cannot kill it.
+    local restart_helper="$CONF/panacea/scripts/restart.sh"
+    if have systemd-run && systemd-run --user --quiet --collect \
+        --unit="panacea-update-restart-$$" --on-active=2s \
+        /bin/bash "$restart_helper"; then
+        return 0
     fi
+    # Non-systemd sessions do not have the cgroup lifecycle constraint.
+    setsid sh -c 'sleep 2; exec /bin/bash "$1"' _ "$restart_helper" >/dev/null 2>&1 &
+
 }
 
 case "${1:-check}" in

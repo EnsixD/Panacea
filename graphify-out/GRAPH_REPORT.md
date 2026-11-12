@@ -1,17 +1,17 @@
 # Graph Report - Panacea  (2026-11-12)
 
 ## Corpus Check
-- 87 files · ~56,653 words
+- 88 files · ~56,675 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 128 file(s) not represented in the graph (top: .qml 71, .fish 16, .conf 16)
 
 ## Summary
-- 396 nodes · 684 edges · 62 communities (23 shown, 39 thin omitted)
+- 398 nodes · 685 edges · 63 communities (23 shown, 40 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d7b261b0`
+- Built from commit: `d17748cd`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -67,6 +67,7 @@
 - make_assets.py
 - webengine-argv.cpp
 - panacea/scripts/start.sh
+- restart.sh
 
 ## God Nodes (most connected - your core abstractions)
 1. `ok()` - 31 edges
@@ -95,7 +96,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (62 total, 39 thin omitted)
+## Communities (63 total, 40 thin omitted)
 
 ### Community 0 - "install.sh"
 Cohesion: 0.13
@@ -191,8 +192,8 @@ Nodes (5): build_background(), build_boxes(), cover(), rounded(), slice9()
 
 ## Knowledge Gaps
 - **9 isolated node(s):** `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE`, `QT_QPA_PLATFORM`, `GDK_BACKEND` (+4 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 117 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **39 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges. (Counts symbols only; 119 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **40 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
