@@ -3,6 +3,17 @@
 set -u
 conf="${XDG_CONFIG_HOME:-$HOME/.config}/panacea"
 cache="${XDG_CACHE_HOME:-$HOME/.cache}/panacea"
+# Keep the shell independent of the terminal or updater that launched it.
+if [ "${PANACEA_SERVICE_PROCESS:-0}" != "1" ] && command -v systemctl >/dev/null 2>&1 && [ -f "$conf/panacea-shell.service" ]; then
+    units="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+    mkdir -p "$units"
+    if ! cmp -s "$conf/panacea-shell.service" "$units/panacea-shell.service"; then
+        cp "$conf/panacea-shell.service" "$units/panacea-shell.service"
+        systemctl --user daemon-reload
+    fi
+    systemctl --user import-environment WAYLAND_DISPLAY DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP >/dev/null 2>&1 || true
+    if systemctl --user start panacea-shell.service; then exit 0; fi
+fi
 plugin=/usr/lib/qt6/qml/QtWebEngine/qmldir
 source_file="$conf/scripts/webengine-argv.cpp"
 lib="$cache/webengine-argv.so"

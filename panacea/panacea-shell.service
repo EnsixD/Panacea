@@ -1,0 +1,14 @@
+[Unit]
+Description=Panacea desktop shell
+After=graphical-session.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+Environment=PANACEA_SERVICE_PROCESS=1
+ExecStart=%h/.config/panacea/scripts/start.sh
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10

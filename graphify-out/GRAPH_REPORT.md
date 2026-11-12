@@ -1,9 +1,9 @@
 # Graph Report - Panacea  (2026-11-12)
 
 ## Corpus Check
-- 87 files · ~56,638 words
+- 87 files · ~56,653 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 127 file(s) not represented in the graph (top: .qml 71, .fish 16, .conf 16)
+- Unclassified: 128 file(s) not represented in the graph (top: .qml 71, .fish 16, .conf 16)
 
 ## Summary
 - 396 nodes · 684 edges · 62 communities (23 shown, 39 thin omitted)
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9a0c3f97`
+- Built from commit: `d7b261b0`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
