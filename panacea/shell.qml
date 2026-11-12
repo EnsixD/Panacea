@@ -6231,7 +6231,7 @@ PanelWindow {
                 id: nClock
                 anchors.centerIn: parent
                 anchors.horizontalCenterOffset: mascot.active ? -80 : 0
-                Behavior on anchors.horizontalCenterOffset { NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic } }
+                Behavior on anchors.horizontalCenterOffset { enabled: !root.expanded && capsule.height <= root.pillH + 2; NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic } }
                 value: root.timeText
                 size: root.dotHClock
                 // Жирность у точечной цифры — это плотность точек, а не
