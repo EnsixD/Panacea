@@ -1,25 +1,26 @@
 <div align="center">
 
-<img src="assets/logo-256.png" alt="Panacea Shell" width="160">
+<img src="assets/panacea-readme-banner.png" width="860" alt="Panacea Shell: a monochrome banner with a liquid capsule mascot">
 
 # Panacea Shell
 
-**One pill for everything.** A Hyprland desktop where the whole shell is a single
-capsule at the edge of the screen.
+**A desktop around one island**
 
-<a href="https://archlinux.org"><img alt="Arch Linux" src="https://img.shields.io/badge/Arch%20Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white"></a>
-<a href="https://ubuntu.com"><img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
-<a href="https://debian.org"><img alt="Debian" src="https://img.shields.io/badge/Debian-A81D33?style=for-the-badge&logo=debian&logoColor=white"></a>
-<a href="https://fedoraproject.org"><img alt="Fedora" src="https://img.shields.io/badge/Fedora-51A2DA?style=for-the-badge&logo=fedora&logoColor=white"></a>
-<a href="https://hyprland.org"><img alt="Hyprland" src="https://img.shields.io/badge/Hyprland-00AAAE?style=for-the-badge&logo=hyprland&logoColor=white"></a>
-<a href="https://github.com/YaLTeR/niri"><img alt="Niri" src="https://img.shields.io/badge/Niri-Beta-8B5CF6?style=for-the-badge"></a>
-<a href="https://quickshell.org"><img alt="Quickshell" src="https://img.shields.io/badge/Quickshell-7F7F7F?style=for-the-badge&logo=qt&logoColor=white"></a>
-<a href="https://fishshell.com"><img alt="Fish" src="https://img.shields.io/badge/Fish-111111?style=for-the-badge&logo=gnubash&logoColor=white"></a>
-<a href="#licence"><img alt="MIT" src="https://img.shields.io/badge/MIT-3b82f6?style=for-the-badge"></a>
+![Linux](https://img.shields.io/badge/Linux-Wayland-18181b)
+![Hyprland](https://img.shields.io/badge/Hyprland-primary-ffffff)
+![Niri](https://img.shields.io/badge/Niri-experimental-888888)
+![License](https://img.shields.io/badge/license-MIT-d71920)
+
+[Screenshots](#screenshots) · [Features](#pages) · [Install](#install-these-dotfiles)
 
 </div>
 
----
+<div align="center">
+
+<img src="docs/img/desktop.png" width="860" alt="Panacea island opened over the desktop">
+
+
+</div>
 
 No bar, no tray, no scattered popups. Wi‑Fi, Bluetooth, power profiles, the
 launcher, notifications, the media player, a file manager, a password manager,
@@ -32,17 +33,15 @@ The island can sit at any edge — top, bottom, left or right — and always ope
 towards the centre of the screen. At the side edges it turns vertical and stacks
 its text letter under letter, so nothing has to be read with a tilted head.
 
-## Demo
+## Screenshots
 
+### Calendar
 
+<img src="docs/img/calendar.png" width="540" alt="Panacea calendar panel">
 
-https://github.com/user-attachments/assets/854260b8-e96e-4773-8267-2decab779d6e
+### Power menu
 
-
-<sub>A short tour recorded with the pill's own screen recorder. The same clip is
-committed as <code>demo.mp4</code>; the link above is GitHub's own upload, since
-it only plays videos inline when they come from its editor rather than from a
-file in the repository.</sub>
+<img src="docs/img/power.png" width="540" alt="Panacea power menu">
 
 ## Pages
 
@@ -87,6 +86,10 @@ language), *Motion*, *Launcher*, *Notifications*, *Control Center* (the quick
 settings tiles, rearranged by dragging), *Lock Screen*, *Display* (resolution,
 refresh rate, scale, orientation, VRR, multi‑monitor arrangement, brightness and
 digital vibrance), *Mouse* and *System*.
+
+<div align="center">
+<img src="docs/img/settings.png" width="860" alt="Panacea settings window">
+</div>
 
 ## Dual boot
 
