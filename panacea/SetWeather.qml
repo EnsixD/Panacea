@@ -46,6 +46,7 @@ ColumnLayout {
         // проверить, а «ключ не подошёл» одинаково выглядит и при опечатке,
         // и при неактивированном ключе.
         Rectangle {
+            id: rectangl
             Layout.fillWidth: true
             Layout.preferredHeight: 32
             radius: 10
@@ -106,7 +107,7 @@ ColumnLayout {
                     anchors.margins: -6
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: eye.parent.shown = !eye.parent.shown
+                    onClicked: rectangl.shown = !rectangl.shown
                 }
             }
         }

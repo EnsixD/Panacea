@@ -1,6 +1,6 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls
 import Quickshell
 
 // Экран «что нового». Показывается один раз — сразу после того, как оболочка
@@ -560,6 +560,7 @@ Item {
                         model: view.shown
 
                         RowLayout {
+                            id: rowlayo
                             required property string modelData
                             Layout.fillWidth: true
                             spacing: 10
@@ -567,12 +568,12 @@ Item {
                             Rectangle {
                                 Layout.alignment: Qt.AlignTop
                                 Layout.topMargin: 6
-                                width: 5; height: 5; radius: 3
+                                Layout.preferredWidth: 5; Layout.preferredHeight: 5; radius: 3
                                 color: view.sys.colOn
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: view.changeText(modelData)
+                                text: view.changeText(rowlayo.modelData)
                                 color: view.sys.colFg
                                 wrapMode: Text.WordWrap
                                 font { family: view.sys.fontBody; pixelSize: view.fontPx }

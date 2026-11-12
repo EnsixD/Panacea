@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
 import Quickshell.Io
 
 // Clock & Date. Часовой пояс по умолчанию берётся у системы — регион нужен

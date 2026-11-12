@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -676,6 +677,7 @@ PanelWindow {
 
     readonly property string localeId: String(cfg.lang || "en")
     readonly property string languageCode: localeId.split(/[_-]/)[0].toLowerCase()
+    readonly property bool isEn: languageCode !== "ru"
     function tr(k) {
         if (root.languageCode === "ru") return k;
         if (root.languageCode === "tr" && i18n.tr[k] !== undefined) return i18n.tr[k];
@@ -999,7 +1001,7 @@ PanelWindow {
 
     // Номер версии оболочки: его правит автор при выпуске, а хеш коммита
     // рядом говорит, из какого состояния репозитория собрана сборка.
-    readonly property string version: "1.0.19"
+    readonly property string version: "1.0.20"
 
     // ------------------------------------------------------------ обновление
     // Установленную версию помечает установщик (~/.config/panacea/.version),
@@ -4732,23 +4734,6 @@ PanelWindow {
         pCloseWin.running = true;
     }
 
-    // Закрытие раскрытой панели по Escape или Super+Q / Meta+W
-    Keys.onPressed: event => {
-        if (event.key === Qt.Key_Escape) {
-            root.collapse();
-            event.accepted = true;
-            return;
-        }
-        if ((event.key === Qt.Key_Q || event.key === Qt.Key_W) && (event.modifiers & Qt.MetaModifier)) {
-            if (root.cfg.closePanaceaFirst) {
-                root.collapse();
-            } else {
-                root.closeActiveWindow();
-            }
-            event.accepted = true;
-            return;
-        }
-    }
     // клики ловим только там, где нарисована пилюля
     // Пока открыта закреплённая страница, ввод принимает всё окно:
     // иначе клики по панели (особенно по центрированным настройкам)
@@ -6197,31 +6182,44 @@ PanelWindow {
                 // Погода сразу за точками. Значок и градусы, без города и
                 // слов: город человек и так знает, а описание словами на
                 // острове не помещается — оно есть в карточке на обоях.
-                RowLayout {
-                    Layout.leftMargin: 6
-                    spacing: 5
-                    visible: root.weatherReady && root.cfg.weatherOnIsland
 
-                    DotIcon {
-                        Layout.alignment: Qt.AlignVCenter
-                        code: root.weatherIcon
-                        size: root.dotHClock
-                        color: islWthMa2.containsMouse ? root.colOn : root.colFg
-                    }
-                    // Градусы обычным шрифтом. Точки оставлены часам и
-                    // столам — тому, что на этой теме и должно быть набрано
-                    // ими. Знак градуса в точечной сетке выходит квадратным
-                    // кружком из четырёх точек, а он должен быть гладким.
-                    Text {
-                        Layout.alignment: Qt.AlignVCenter
-                        text: root.weatherTemp + "°"
-                        color: islWthMa2.containsMouse ? root.colOn : root.colFg
-                        font { family: root.fontFam; pixelSize: root.fontSize }
-                    }
+                Item  {
+                    id: weatheritem
 
+                    implicitHeight: weatherrow.implicitHeight
+                    implicitWidth: weatherrow.implicitWidth
+
+                    RowLayout {
+                       id: weatherrow
+
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 6
+
+                        spacing: 5
+                        visible: root.weatherReady && root.cfg.weatherOnIsland
+
+                        DotIcon {
+                            Layout.alignment: Qt.AlignVCenter
+                            code: root.weatherIcon
+                            size: root.dotHClock
+                            color: islWthMa2.containsMouse ? root.colOn : root.colFg
+                        }
+                        // Градусы обычным шрифтом. Точки оставлены часам и
+                        // столам — тому, что на этой теме и должно быть набрано
+                        // ими. Знак градуса в точечной сетке выходит квадратным
+                        // кружком из четырёх точек, а он должен быть гладким.
+                        Text {
+                            Layout.alignment: Qt.AlignVCenter
+                            text: root.weatherTemp + "°"
+                            color: islWthMa2.containsMouse ? root.colOn : root.colFg
+                            font { family: root.fontFam; pixelSize: root.fontSize }
+                        }
+                    }
+                    
                     MouseArea {
                         id: islWthMa2
-                        anchors.fill: parent
+                        anchors.fill: weatheritem
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.openWeatherDetails()
@@ -6687,7 +6685,7 @@ PanelWindow {
         Loader {
             id: contentLoader
             z: 10
-            parent: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
+            parent: (root.cfg.pillKeepVisible && !root.settingsMode && (root.expanded || detachedPanel.opacity > 0.005)) ? detachedPanel : capsule
             anchors.top: parent ? parent.top : undefined
             anchors.topMargin: (root.page === "main" || root.page === "chat" || root.page === "vpn") && !root.settingsMode ? 55 : 15
             anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
@@ -6717,6 +6715,16 @@ PanelWindow {
                 var it = contentLoader.item;
                 if (it && typeof it.goBack === "function" && it.goBack()) return;
                 root.collapse();
+            }
+            Keys.onPressed: event => {
+                if ((event.key === Qt.Key_Q || event.key === Qt.Key_W) &&
+                    (event.modifiers & Qt.MetaModifier)) {
+                    if (root.cfg.closePanaceaFirst)
+                        root.collapse();
+                    else
+                        root.closeActiveWindow();
+                    event.accepted = true;
+                }
             }
             opacity: root.expanded ? 1 : 0
             Behavior on opacity {
@@ -7354,6 +7362,7 @@ Instantiator {
     model: filesWindows
 
     FloatingWindow {
+        id: floatingwin
         required property var model
         title: "Panacea · " + root.tr("Проводник")
         color: root.colBg
@@ -7361,17 +7370,17 @@ Instantiator {
         minimumSize.height: 460
         visible: true
         // крестик в заголовке — окно должно уйти и из списка
-        onVisibleChanged: if (!visible) root.closeFilesWindow(model.wid)
+        onVisibleChanged: if (!visible) root.closeFilesWindow(floatingwin.model.wid)
 
         FilesView {
             anchors.fill: parent
             anchors.margins: 15
             sys: root
             // папка, с которой окно открылось (пусто — домашняя)
-            dir: model.startDir
+            dir: floatingwin.model.startDir
             // в оконном режиме закрывать надо своё окно, а не пилюлю
             windowMode: true
-            windowId: model.wid
+            windowId: floatingwin.model.wid
         }
     }
 }

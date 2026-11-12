@@ -1,8 +1,9 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtMultimedia
-import Quickshell
 import Quickshell.Io
 
 // Медиаплеер пилюли: видео, гифки и картинки в одном окне.

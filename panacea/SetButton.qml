@@ -16,8 +16,6 @@ Rectangle {
     property var sys
     property string text: ""
     property bool primary: false
-    // false — кнопка видна, но не нажимается: применять нечего
-    property bool enabled: true
 
     signal clicked()
 
