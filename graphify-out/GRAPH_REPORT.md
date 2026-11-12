@@ -1,17 +1,17 @@
 # Graph Report - Panacea  (2026-11-12)
 
 ## Corpus Check
-- 85 files · ~56,284 words
+- 87 files · ~56,524 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 127 file(s) not represented in the graph (top: .qml 71, .fish 16, .conf 16)
 
 ## Summary
-- 386 nodes · 675 edges · 59 communities (22 shown, 37 thin omitted)
+- 396 nodes · 684 edges · 62 communities (23 shown, 39 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `35651803`
+- Built from commit: `da8b949f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -22,6 +22,7 @@
 - amd_s2idle.py
 - update.sh
 - wifi.sh
+- browser_pw.py
 - record.sh
 - start.sh
 - files.sh
@@ -63,7 +64,9 @@
 - power.sh
 - smart_close.sh
 - sysload.sh
-- shotcrop.py
+- make_assets.py
+- webengine-argv.cpp
+- panacea/scripts/start.sh
 
 ## God Nodes (most connected - your core abstractions)
 1. `ok()` - 31 edges
@@ -92,15 +95,15 @@
 ## Import Cycles
 - None detected.
 
-## Communities (59 total, 37 thin omitted)
+## Communities (62 total, 39 thin omitted)
 
 ### Community 0 - "install.sh"
 Cohesion: 0.13
 Nodes (47): ask(), aur_helper(), backup(), check_aur_helper(), check_deps(), check_grub_prefix(), copy_into_config(), detect_distro() (+39 more)
 
 ### Community 1 - "os"
-Cohesion: 0.09
-Nodes (14): agent_is_in_focused_window(), chromium_decrypt(), chromium_key(), collect_chromium(), collect_firefox(), firefox_profiles(), log(), main() (+6 more)
+Cohesion: 0.08
+Nodes (12): agent_is_in_focused_window(), update(), die(), encode_png(), layout_frame(), main(), parse_geom(), read_ppm() (+4 more)
 
 ### Community 2 - "brightness.sh"
 Cohesion: 0.22
@@ -117,6 +120,10 @@ Nodes (16): changelog_filter(), cmd_apply(), cmd_check(), current(), current_ver
 ### Community 6 - "wifi.sh"
 Cohesion: 0.37
 Nodes (13): active_iface(), autoconnect(), current_quality(), current_ssid(), find_available_known(), iface_list(), known_iwd(), known_networks() (+5 more)
+
+### Community 7 - "browser_pw.py"
+Cohesion: 0.26
+Nodes (8): chromium_decrypt(), chromium_key(), collect_chromium(), collect_firefox(), firefox_profiles(), log(), main(), NSS
 
 ### Community 8 - "record.sh"
 Cohesion: 0.35
@@ -178,14 +185,14 @@ Nodes (3): make_lockbg(), make_thumb(), thumbs.sh script
 Cohesion: 0.83
 Nodes (3): find_vox(), ipc(), voxtype.sh script
 
-### Community 59 - "shotcrop.py"
-Cohesion: 0.10
-Nodes (11): build_background(), build_boxes(), cover(), rounded(), slice9(), die(), encode_png(), layout_frame() (+3 more)
+### Community 59 - "make_assets.py"
+Cohesion: 0.25
+Nodes (5): build_background(), build_boxes(), cover(), rounded(), slice9()
 
 ## Knowledge Gaps
-- **8 isolated node(s):** `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE`, `QT_QPA_PLATFORM`, `GDK_BACKEND` (+3 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 111 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **37 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **9 isolated node(s):** `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE`, `QT_QPA_PLATFORM`, `GDK_BACKEND` (+4 more)
+  These have ≤1 connection - possible missing edges. (Counts symbols only; 117 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **39 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -193,14 +200,14 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `install.sh script` connect `install.sh` to `palette.sh script`, `switch_theme.sh script`?**
   _High betweenness centrality (0.007) - this node is a cross-community bridge._
 - **What connects `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE` to the rest of the system?**
-  _8 weakly-connected nodes found - possible missing edges._
+  _9 weakly-connected nodes found - possible missing edges._
 - **Should `install.sh` be split into smaller, more focused modules?**
   _Cohesion score 0.13046757164404224 - nodes in this community are weakly interconnected._
 - **Why does `install_configs()` connect `install.sh` to `manifest.sh script`?**
   _High betweenness centrality (0.007) - this node is a cross-community bridge._
 - **Should `os` be split into smaller, more focused modules?**
-  _Cohesion score 0.09219858156028368 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07993966817496229 - nodes in this community are weakly interconnected._
+- **Why does `collect_firefox()` connect `browser_pw.py` to `os`?**
+  _High betweenness centrality (0.003) - this node is a cross-community bridge._
 - **Should `amd_s2idle.py` be split into smaller, more focused modules?**
   _Cohesion score 0.14035087719298245 - nodes in this community are weakly interconnected._
-- **Should `hyprland.lua` be split into smaller, more focused modules?**
-  _Cohesion score 0.14285714285714285 - nodes in this community are weakly interconnected._
