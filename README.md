@@ -1,25 +1,86 @@
 <div align="center">
 
-<img src="assets/logo-256.png" alt="Panacea Shell" width="160">
+<img src="assets/panacea-orbit-logo.png" width="132" alt="Panacea Shell logo: a black capsule and its orbit">
 
 # Panacea Shell
 
-**One pill for everything.** A Hyprland desktop where the whole shell is a single
-capsule at the edge of the screen.
+**Рабочий стол вокруг одного острова · A desktop around one island**
 
-<a href="https://archlinux.org"><img alt="Arch Linux" src="https://img.shields.io/badge/Arch%20Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white"></a>
-<a href="https://ubuntu.com"><img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
-<a href="https://debian.org"><img alt="Debian" src="https://img.shields.io/badge/Debian-A81D33?style=for-the-badge&logo=debian&logoColor=white"></a>
-<a href="https://fedoraproject.org"><img alt="Fedora" src="https://img.shields.io/badge/Fedora-51A2DA?style=for-the-badge&logo=fedora&logoColor=white"></a>
-<a href="https://hyprland.org"><img alt="Hyprland" src="https://img.shields.io/badge/Hyprland-00AAAE?style=for-the-badge&logo=hyprland&logoColor=white"></a>
-<a href="https://github.com/YaLTeR/niri"><img alt="Niri" src="https://img.shields.io/badge/Niri-Beta-8B5CF6?style=for-the-badge"></a>
-<a href="https://quickshell.org"><img alt="Quickshell" src="https://img.shields.io/badge/Quickshell-7F7F7F?style=for-the-badge&logo=qt&logoColor=white"></a>
-<a href="https://fishshell.com"><img alt="Fish" src="https://img.shields.io/badge/Fish-111111?style=for-the-badge&logo=gnubash&logoColor=white"></a>
-<a href="#licence"><img alt="MIT" src="https://img.shields.io/badge/MIT-3b82f6?style=for-the-badge"></a>
+![Linux](https://img.shields.io/badge/Linux-Wayland-18181b)
+![Hyprland](https://img.shields.io/badge/Hyprland-primary-ffffff)
+![Niri](https://img.shields.io/badge/Niri-experimental-888888)
+![License](https://img.shields.io/badge/license-MIT-d71920)
+
+[Русский](#русский) · [English](#english) · [Demo](#demo)
 
 </div>
 
----
+<div align="center">
+
+<img src="docs/img/island-demo.jpg" width="860" alt="Panacea island opened over the desktop">
+
+<sub>Кадр из демо / Frame from the demo. Внешний вид зависит от версии и настроек.</sub>
+
+</div>
+
+## Русский
+
+Panacea — оболочка и набор конфигураций для Linux с Wayland. В центре интерфейса — остров у края экрана: он показывает время и состояние системы, а при открытии превращается в панель управления, плеер, буфер обмена или нужную страницу.
+
+Остров можно разместить у любого края, настроить его размеры, анимации, палитру и поведение. Основной композитор — Hyprland; поддержка Niri находится в разработке.
+
+### Демо
+
+[Смотреть видео на GitHub](https://github.com/user-attachments/assets/854260b8-e96e-4773-8267-2decab779d6e) · [Файл demo.mp4](demo.mp4)
+
+### Что внутри
+
+| | |
+|---|---|
+| **Быстрые настройки** | Wi-Fi, Bluetooth, звук, батарея, запись экрана, уведомления и системный трей. |
+| **Музыка** | Управление MPRIS-плеером, обложка и перемотка; при наличии Cava — визуализация звука. |
+| **Лаунчер и приложения** | Поиск приложений и калькулятор; отдельная сетка приложений с папками. |
+| **Буфер и файлы** | История и закрепление записей, распознавание цветов и ссылок, файловый менеджер и просмотр медиа. |
+| **Рабочий стол** | Настраиваемые карточки часов, погоды, системы, музыки, прогресса и заметок. |
+| **Настройки** | Геометрия острова, внешний вид, анимации, мониторы, ввод и горячие клавиши. |
+| **Система** | Экран блокировки, меню питания, темы входа и загрузки, поддержка нескольких ОС. |
+
+<div align="center">
+<img src="docs/img/settings-demo.jpg" width="860" alt="Экран настроек Panacea в демонстрационной записи">
+<br><sub>Настройки в демонстрационной записи; интерфейс мог измениться в новых версиях.</sub>
+</div>
+
+### Горячие клавиши
+
+| Клавиши | Действие |
+|---|---|
+| `Super + Z` | Быстрые настройки |
+| `Super + I` | Настройки Panacea |
+| `Super + A` / `Super + G` | Лаунчер / сетка приложений |
+| `Super + V` / `Super + E` | Буфер обмена / файлы |
+| `Super + P` | Запись экрана |
+| `Super + Shift + N` | Уведомления |
+| `Super + Shift + T` | Выбор обоев |
+| `Super + /` | Просмотр и изменение сочетаний |
+
+Сочетания можно изменить в редакторе клавиш. На Niri часть настроек может требовать ручной правки конфигурации.
+
+### Установка
+
+Установщик поддерживает Arch, Ubuntu, Debian, Linux Mint, Fedora и openSUSE. Перед запуском сохраните резервную копию своих конфигураций и ознакомьтесь с параметрами установщика. Для Niri поддержка экспериментальная.
+
+```bash
+git clone https://github.com/EnsixD/Panacea.git
+cd Panacea
+./install.sh
+```
+
+Для других дистрибутивов см. [инструкцию по установке](docs/other-distros.md). Существующие конфигурации, настройки обновлений, голосовой ввод, состав проекта и лицензии подробно описаны ниже в английском разделе.
+
+<a id="english"></a>
+<details>
+<summary><b>English</b> · Full documentation</summary>
+<br>
 
 No bar, no tray, no scattered popups. Wi‑Fi, Bluetooth, power profiles, the
 launcher, notifications, the media player, a file manager, a password manager,
@@ -348,3 +409,5 @@ Built on [Hyprland](https://hyprland.org) · [Quickshell](https://quickshell.org
 MIT — see [LICENSE](LICENSE). It covers the configs, the QML and the scripts.
 Wallpapers, fonts and anything else bundled from elsewhere keep the terms of
 their own authors.
+
+</details>
