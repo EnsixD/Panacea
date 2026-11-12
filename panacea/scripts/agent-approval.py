@@ -21,8 +21,11 @@ def agent_is_in_focused_window(agent):
         if name in ('codex', 'claude'):
             if name in window_class:
                 return True
-            terminals = ('foot', 'kitty', 'alacritty', 'wezterm', 'ghostty', 'konsole', 'terminal')
-            if any(t in window_class for t in terminals) and name in title:
+            # Terminal servers can own multiple windows and agents may run
+            # in a detached daemon, so ancestry/title cannot reliably identify
+            # the active pane. Prefer the original prompt in a focused terminal.
+            terminals = ('foot', 'kitty', 'alacritty', 'wezterm', 'ghostty', 'konsole', 'terminal', 'xterm')
+            if any(t in window_class for t in terminals):
                 return True
         pid = os.getppid()
         while focused > 1 and pid > 1:
@@ -32,7 +35,8 @@ def agent_is_in_focused_window(agent):
             ppid = next(line for line in status.read_text().splitlines() if line.startswith('PPid:'))
             pid = int(ppid.split()[1])
     except (OSError, ValueError, StopIteration, subprocess.SubprocessError):
-        pass
+        # If the active window cannot be identified, do not delay its prompt.
+        return True
     return False
 
 try:

@@ -10,6 +10,13 @@ compat="${XDG_DATA_HOME:-$HOME/.local/share}/panacea/compat-lib"
 # Existing local installations may keep their compatibility libraries here.
 [ -d "$compat" ] || compat="$HOME/.local/lib/panacea-compat"
 export QSG_RENDER_LOOP="${QSG_RENDER_LOOP:-threaded}"
+# Dunst can be D-Bus activated while Panacea is restarting and then owns the
+# notification name. Stop only this competing service when Panacea's own
+# notification server is enabled; Dunst remains available when Panacea exits.
+settings="$conf/settings.json"
+if ! command -v jq >/dev/null 2>&1 || [ ! -f "$settings" ] || ! jq -e '.featNotifications == false' "$settings" >/dev/null 2>&1; then
+    systemctl --user stop dunst.service >/dev/null 2>&1 || true
+fi
 unset PANACEA_WEBENGINE_READY
 if [ -f "$plugin" ] && [ -f "$source_file" ] && command -v g++ >/dev/null 2>&1 && command -v pkg-config >/dev/null 2>&1 && pkg-config --exists Qt6Core; then
     mkdir -p "$cache"
