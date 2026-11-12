@@ -69,8 +69,10 @@ save)
                 [ "$(sha256sum < "$CONF/$rel" | cut -d' ' -f1)" = "${known[$rel]}" ] && continue
                 kind=edited; old="${known[$rel]}"
             elif [ -e "$src/$rel" ]; then
-                # сумм ещё нет (первое обновление) — судить не по чему
-                continue
+                # Без старой суммы нельзя доказать, что локальный файл не
+                # менялся. Сохраняем несовпадающий и кладём новую версию рядом.
+                cmp -s "$CONF/$rel" "$src/$rel" && continue
+                kind=edited; old=-
             else
                 kind=added; old=-
             fi

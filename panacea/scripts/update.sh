@@ -322,8 +322,12 @@ restore_user_state() {
         for item in "$STASH/${f#$HOME/}"/* "$STASH/${f#$HOME/}"/.[!.]*; do
             [ -e "$item" ] || [ -L "$item" ] || continue
             base="$(basename "$item")"
-            rm -rf "$f/$base"
-            mv "$item" "$f/$base" 2>/dev/null || cp -a "$item" "$f/$base"
+            if [ -d "$item" ] && [ -d "$f/$base" ]; then
+                cp -a "$item/." "$f/$base/"
+            else
+                rm -rf "$f/$base"
+                mv "$item" "$f/$base" 2>/dev/null || cp -a "$item" "$f/$base"
+            fi
         done
     done
     rm -rf "$STASH"

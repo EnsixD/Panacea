@@ -153,6 +153,7 @@ DEPS=(
     "timedatectl|systemd|time zone and clock on the Clock & Date page"
 )
 FILE_DEPS=(
+    "/usr/lib/qt6/qml/QtWebEngine/qmldir|qt6-webengine|embedded AI websites"
     "/usr/lib/qt6/qml/QtMultimedia/qmldir|qt6-multimedia|video playback"
     "/usr/lib/qt6/qml/QtQuick/Controls/qmldir|qt6-declarative|UI controls"
     # MultiEffect — скруглённые маски превью обоев и макетов настроек,
@@ -818,8 +819,12 @@ keep_restore() {
         for item in "$KEEP_STASH/$f"/* "$KEEP_STASH/$f"/.[!.]*; do
             [ -e "$item" ] || [ -L "$item" ] || continue
             base="$(basename "$item")"
-            rm -rf "$CONF/$f/$base"
-            mv "$item" "$CONF/$f/$base" 2>/dev/null || moved_all=0
+            if [ -d "$item" ] && [ -d "$CONF/$f/$base" ]; then
+                cp -a "$item/." "$CONF/$f/$base/" || moved_all=0
+            else
+                rm -rf "$CONF/$f/$base"
+                mv "$item" "$CONF/$f/$base" 2>/dev/null || moved_all=0
+            fi
         done
         if [ "$moved_all" = "0" ]; then
             printf '  copying %s back (%s) — this can take a while\n' \
@@ -949,6 +954,11 @@ install_configs() {
         mkdir -p "$CONF/voxtype"
         cp "$CONF/panacea/scripts/voxtype.config.toml" "$CONF/voxtype/config.toml" \
             && ok "voxtype config written (voice-to-text on Right Alt, Russian, VAD, GPU)"
+    fi
+
+    # Install optional agent hooks without replacing existing agent settings.
+    if command -v python3 >/dev/null 2>&1 && [ -f "$CONF/panacea/scripts/setup-agent-hooks.py" ]; then
+        python3 "$CONF/panacea/scripts/setup-agent-hooks.py" || warn "agent hooks need manual setup"
     fi
 
     stamp_version
