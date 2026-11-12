@@ -8,7 +8,9 @@ Item {
     id: view
     required property var sys
     implicitHeight: 520
-    property string service: "chat"
+    property string service: sys.islandChatService
+    onServiceChanged: sys.islandChatService = service
+    Connections { target: view.sys; function onIslandChatServiceChanged() { if (view.service !== view.sys.islandChatService) view.service = view.sys.islandChatService; } }
     property var attachments: []
     property bool busy: false
     property string payload: ""

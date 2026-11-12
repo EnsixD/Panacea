@@ -1627,6 +1627,7 @@ PanelWindow {
     Timer { interval: 180000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnGeo() }
     property bool chatFilePickerOpen: false
     signal chatFilesPicked(var paths)
+    property string islandChatService: "chat"
     property var islandChatMessages: []
     property var islandAgentEvents: []
     property string page: "main"
@@ -4557,6 +4558,7 @@ PanelWindow {
         // Всегда плитки Wi-Fi/Bluetooth, даже когда играет музыка
         function controls(): void { root.togglePage("main"); }
         function chat(): void { root.page = "chat"; root.expanded = true; root.holdOpen = true; }
+        function chatService(name: string): void { if (["chat", "gemini", "chatgpt", "deepseek"].indexOf(name) < 0) return; root.islandChatService = name; root.page = "chat"; root.expanded = true; root.holdOpen = true; }
         function wifi(): void {
             if (root.expanded && root.page === "wifi") { root.collapse(); return; }
             root.togglePage("wifi");
