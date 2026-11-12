@@ -18,6 +18,17 @@ def profiles():
         except subprocess.SubprocessError: pass
     return result
 
+def tunnel_active():
+    if not shutil.which('ip'): return False
+    try:
+        proc = subprocess.run(['ip', '-j', 'link', 'show', 'up'], text=True, capture_output=True, timeout=3, check=True)
+        for link in json.loads(proc.stdout):
+            name = str(link.get('ifname','')).lower()
+            if name.startswith(('tun','tap','wg','proton','mullvad','tailscale','warp','nordlynx')):
+                return True
+    except (OSError, ValueError, subprocess.SubprocessError): pass
+    return False
+
 def main():
     op=sys.argv[1] if len(sys.argv)>1 else 'list'
     if op in ('up','down'):
@@ -52,6 +63,6 @@ def main():
                 if key not in seen:
                     seen.add(key); apps.append({'name':name,'desktop':str(file)})
             except (OSError, ValueError): pass
-    return {'profiles':profiles(),'apps':apps,'networkManager':bool(shutil.which('nmcli'))}
+    return {'profiles':profiles(),'apps':apps,'networkManager':bool(shutil.which('nmcli')),'tunnelActive':tunnel_active()}
 try: print(json.dumps(main(),ensure_ascii=False))
 except Exception as e: print(json.dumps({'error':str(e)},ensure_ascii=False))

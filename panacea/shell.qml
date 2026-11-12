@@ -1597,7 +1597,7 @@ PanelWindow {
     Process {
         id: vpnStatus
         command: ["python3", root.scriptDir + "/vpn.py", "list"]
-        stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(text); root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0; } catch(e) {} } }
+        stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(text); root.vpnActiveIds = (d.profiles || []).filter(p => p.active).map(p => p.id); root.vpnConnected = root.vpnActiveIds.length > 0 || !!d.tunnelActive; } catch(e) {} } }
     }
     Process {
         id: vpnGeo
@@ -1625,6 +1625,8 @@ PanelWindow {
     Timer { id: vpnGeoDelay; interval: 3000; onTriggered: root.refreshVpnGeo() }
     Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnStatus() }
     Timer { interval: 180000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnGeo() }
+    property bool chatFilePickerOpen: false
+    signal chatFilesPicked(var paths)
     property var islandChatMessages: []
     property var islandAgentEvents: []
     property string page: "main"
@@ -4792,10 +4794,10 @@ PanelWindow {
             intersection: Intersection.Combine
         }
     }
-    mask: root.holdOpen ? null : capsuleRegion
+    mask: root.holdOpen && !root.chatFilePickerOpen ? null : capsuleRegion
     // Лаунчер забирает клавиатуру сразу (Exclusive), чтобы можно было
     // печатать без клика. OnDemand отдаёт фокус только после клика мышью.
-    WlrLayershell.keyboardFocus: root.holdOpen ? WlrKeyboardFocus.Exclusive
+    WlrLayershell.keyboardFocus: root.holdOpen && !root.chatFilePickerOpen ? WlrKeyboardFocus.Exclusive
                                               : WlrKeyboardFocus.None
 
     readonly property var activePanel: (root.cfg.pillKeepVisible && root.expanded && !root.settingsMode) ? detachedPanel : capsule
@@ -5022,10 +5024,9 @@ PanelWindow {
                     ? capsule.evenUp(Math.max(acCapsule.implicitWidth + 48, 240))
                 : root.toastActive ? 440
                 : root.osdActive ? capsule.evenUp(osdCapsule.implicitWidth + 32)
-                : mascot.active ? 300
                 : root.pillSide  ? capsule.evenUp(Math.max(vertCapsule.implicitHeight + 30,
                                                            capsule.collapsedMin))
-                : capsule.evenUp(Math.max(nothingCapsule.implicitWidth + 28,
+                : capsule.evenUp(Math.max(nothingCapsule.implicitWidth + (mascot.active ? 140 : 28),
                                           capsule.collapsedMin))
         readonly property real idleThick: (root.fileOverIsland || fileAbsorbAnimation.running) ? 58
                 : (root.btToastActive || root.wifiToastActive || root.acToastActive
@@ -5302,41 +5303,7 @@ PanelWindow {
             onClicked: if (root.notifCurrent) root.activateNotification(root.notifCurrent)
         }
 
-        Item {
-            id: mascotRow
-            anchors.fill: parent
-            z: 10
-            visible: mascot.active
-            DotText {
-                anchors.left: parent.left
-                anchors.leftMargin: 22
-                anchors.verticalCenter: parent.verticalCenter
-                value: root.timeText
-                size: root.dotHClock
-                gapRatio: 0.1
-                color: root.colFg
-            }
-            Mascot { id: mascot; sys: root; anchors.centerIn: parent }
-            Row {
-                anchors.right: parent.right
-                anchors.rightMargin: 22
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.batteryPresent
-                spacing: 6
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.batteryIcon
-                    color: root.batteryPct <= 15 && !root.acOnline ? root.colCrit : root.colFg
-                    font { family: root.fontFam; pixelSize: root.iconSize + 2 }
-                }
-                DotText {
-                    anchors.verticalCenter: parent.verticalCenter
-                    value: String(root.batteryPct)
-                    size: root.dotHClock
-                    color: root.batteryPct <= 15 && !root.acOnline ? root.colCrit : root.colFg
-                }
-            }
-        }
+        Mascot { id: mascot; sys: root; anchors.centerIn: parent; z: 10; visible: active && !root.pillSide }
 
         // ------------------------------------------ свёрнутое: уведомление
         RowLayout {
@@ -6106,7 +6073,7 @@ PanelWindow {
             anchors.rightMargin: 18
             height: root.pillH
             visible: (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
-                     && !root.osdActive && !root.toastActive && !mascot.active
+                     && !root.osdActive && !root.toastActive
             opacity: root.pillSide ? 0 : (visible ? 1 : 0)
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -6263,6 +6230,8 @@ PanelWindow {
             DotText {
                 id: nClock
                 anchors.centerIn: parent
+                anchors.horizontalCenterOffset: mascot.active ? -80 : 0
+                Behavior on anchors.horizontalCenterOffset { NumberAnimation { duration: root.animMs; easing.type: Easing.InOutCubic } }
                 value: root.timeText
                 size: root.dotHClock
                 // Жирность у точечной цифры — это плотность точек, а не
@@ -6428,7 +6397,7 @@ PanelWindow {
                 width: root.pillH
                 spacing: 7
                 visible: (!root.expanded || (root.cfg.pillKeepVisible && !root.settingsMode)) && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
-                opacity: root.pillSide && !mascot.active ? 1 : 0
+                opacity: root.pillSide ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
                 // Играет музыка: обложка и эквалайзер. Названию в толщину
@@ -7401,6 +7370,43 @@ Instantiator {
             windowMode: true
             windowId: model.wid
         }
+    }
+}
+
+// File selection uses the same floating file manager as the rest of Panacea.
+LazyLoader {
+    active: root.chatFilePickerOpen
+    FloatingWindow {
+    id: chatPickerWindow
+    title: "Panacea · " + root.tr("Выберите файл")
+    color: root.colBg
+    minimumSize.width: 720; minimumSize.height: 500
+    visible: true
+    onVisibleChanged: if (!visible) root.chatFilePickerOpen = false
+    FilesView {
+        id: chatPickerFiles
+        anchors { left: parent.left; right: parent.right; top: parent.top; bottom: pickerFooter.top; margins: 15 }
+        sys: root
+        windowMode: true
+        pickerMode: true
+        onFilePicked: path => { root.chatFilesPicked([path]); root.chatFilePickerOpen = false; }
+    }
+    Row {
+        id: pickerFooter
+        anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 15
+        spacing: 10; height: 34
+        Repeater {
+            model: [{text:root.tr("Отмена"), accept:false},{text:root.tr("Прикрепить"), accept:true}]
+            delegate: Rectangle {
+                required property var modelData
+                width: 112; height: 34; radius: 17
+                color: modelData.accept ? root.colFg : Qt.rgba(1,1,1,0.09)
+                opacity: modelData.accept && chatPickerFiles.selectedCount === 0 ? 0.4 : 1
+                Text { anchors.centerIn: parent; text: modelData.text; color: modelData.accept ? root.colBg : root.colFg }
+                MouseArea { anchors.fill: parent; enabled: !modelData.accept || chatPickerFiles.selectedCount > 0; cursorShape: Qt.PointingHandCursor; onClicked: { if (modelData.accept) root.chatFilesPicked(chatPickerFiles.selectedPaths); root.chatFilePickerOpen = false; } }
+            }
+        }
+    }
     }
 }
 

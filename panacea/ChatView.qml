@@ -11,8 +11,12 @@ Item {
     property var attachments: []
     property bool busy: false
     property string payload: ""
-    property bool pickerOpen: false
-    function goBack() { if (pickerOpen) { pickerOpen = false; return true; } return false; }
+    property bool pickerOpen: sys.chatFilePickerOpen
+    readonly property var visibleEvents: sys.islandAgentEvents.filter(e =>
+        !/требуется подтверждение|permission|approval|подтверждение/i.test(e.title)
+        && (sys.cfg.agentEventFilter === "all" || (e.app + " " + e.title).toLowerCase().indexOf(sys.cfg.agentEventFilter) >= 0))
+    function goBack() { if (sys.chatFilePickerOpen) { sys.chatFilePickerOpen = false; return true; } return false; }
+    Connections { target: view.sys; function onChatFilesPicked(paths) { view.attachments = view.attachments.concat(paths); } }
     Process {
         id: pasteImage
         command: ["python3", view.sys.scriptDir + "/chat-paste-image.py"]
@@ -63,13 +67,14 @@ Item {
                 model: [{id:"chat", name:view.sys.tr("Остров"), glyph:0xF0642},{id:"gemini", name:"Gemini", glyph:0xF059F},{id:"chatgpt", name:"ChatGPT", glyph:0xF059F},{id:"deepseek", name:"DeepSeek", glyph:0xF059F}]
                 delegate: Rectangle {
                     required property var modelData
-                    width: view.service === modelData.id ? serviceName.implicitWidth + 42 : 34
+                    width: serviceName.implicitWidth + 35
                     height: 32; radius: 16
                     color: view.service === modelData.id ? Qt.rgba(1,1,1,0.12) : "transparent"
                     Row {
                         anchors.centerIn: parent; spacing: 6
-                        Glyph { anchors.verticalCenter: parent.verticalCenter; glyph: String.fromCodePoint(modelData.glyph); fontFam: view.sys.fontFam; size: 16; color: view.service === modelData.id ? view.sys.colFg : view.sys.colMuted }
-                        Text { id: serviceName; visible: view.service === modelData.id; anchors.verticalCenter: parent.verticalCenter; text: modelData.name; color: view.sys.colFg; font { family: view.sys.fontBody; pixelSize: 11; bold: true } }
+                        Text { anchors.verticalCenter: parent.verticalCenter; visible: modelData.id === "chat"; text: "✦"; color: view.service === modelData.id ? view.sys.colFg : view.sys.colMuted; font.pixelSize: 16 }
+                        Glyph { anchors.verticalCenter: parent.verticalCenter; visible: modelData.id !== "chat"; glyph: String.fromCodePoint(modelData.glyph); fontFam: view.sys.fontFam; size: 16; color: view.service === modelData.id ? view.sys.colFg : view.sys.colMuted }
+                        Text { id: serviceName; anchors.verticalCenter: parent.verticalCenter; text: modelData.name; color: view.sys.colFg; font { family: view.sys.fontBody; pixelSize: 11; bold: true } }
                     }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: view.service = modelData.id }
                 }
@@ -102,7 +107,7 @@ Item {
                 width: scroll.availableWidth; spacing: 10
 
                 Repeater {
-                    model: view.sys.islandAgentEvents.filter(e => view.sys.cfg.agentEventFilter === "all" || (e.app + " " + e.title).toLowerCase().indexOf(view.sys.cfg.agentEventFilter) >= 0)
+                    model: view.visibleEvents
                     delegate: Rectangle {
                         required property var modelData
                         width: parent.width; height: eventText.implicitHeight + 20; radius: 12
@@ -144,7 +149,7 @@ Item {
                     Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: 18
                     color: attachMouse.containsMouse ? Qt.rgba(1,1,1,0.16) : Qt.rgba(1,1,1,0.07)
                     Glyph { anchors.centerIn: parent; glyph: String.fromCodePoint(0xF03E2); fontFam: view.sys.fontFam; size: 19; color: view.sys.colFg }
-                    MouseArea { id: attachMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: view.pickerOpen = true }
+                    MouseArea { id: attachMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: view.sys.chatFilePickerOpen = true }
                 }
                 Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -152,7 +157,7 @@ Item {
                         id: inputScroll; anchors.fill: parent; clip: true
                         contentWidth: width; contentHeight: Math.max(height, input.contentHeight)
                         TextEdit {
-                            id: input; width: inputScroll.width; height: Math.max(inputScroll.height, contentHeight)
+                            id: input; width: inputScroll.width; y: Math.max(0, (inputScroll.height - contentHeight) / 2); height: contentHeight
                             color: view.sys.colFg; font { family: view.sys.fontBody; pixelSize: 13 }
                             wrapMode: TextEdit.Wrap; selectByMouse: true
                             onCursorRectangleChanged: {
@@ -180,14 +185,9 @@ Item {
         anchors.centerIn: parent
         width: parent.width - 60
         spacing: 8
-        visible: view.service === "chat" && view.sys.islandChatMessages.length === 0 && view.sys.islandAgentEvents.length === 0 && !view.busy && !view.pickerOpen
-        Glyph { anchors.horizontalCenter: parent.horizontalCenter; glyph: String.fromCodePoint(0xF0642); fontFam: view.sys.fontFam; size: 28; color: view.sys.colFg }
+        visible: view.service === "chat" && view.sys.islandChatMessages.length === 0 && view.visibleEvents.length === 0 && !view.busy && !view.pickerOpen
+        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "✦"; color: view.sys.colFg; font.pixelSize: 28 }
         Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: view.sys.tr("Спросите что угодно"); color: view.sys.colFg; font { family: view.sys.fontDisplay; pixelSize: 19; bold: true } }
         Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; text: view.sys.tr("Добавьте адрес API, модель и ключ в настройках лаунчера."); color: view.sys.colMuted; font.pixelSize: 12 }
-    }
-    Loader {
-        anchors.fill: parent; anchors.margins: 8; z: 100
-        active: view.pickerOpen
-        sourceComponent: Component { ChatFilePicker { sys: view.sys; onCanceled: view.pickerOpen = false; onSelected: path => { view.attachments = view.attachments.concat([path]); view.pickerOpen = false; } } }
     }
 }

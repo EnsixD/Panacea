@@ -21,7 +21,7 @@ Item {
     Process {
         id: listProc
         command: ["python3", view.sys.scriptDir + "/vpn.py", "list"]
-        stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(text); view.profiles = d.profiles || []; view.apps = d.apps || []; view.error = d.error || ""; view.sys.vpnActiveIds = view.profiles.filter(p => p.active).map(p => p.id); view.sys.vpnConnected = view.sys.vpnActiveIds.length > 0; } catch(e) { view.error = String(e); } } }
+        stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(text); view.profiles = d.profiles || []; view.apps = d.apps || []; view.error = d.error || ""; view.sys.vpnActiveIds = view.profiles.filter(p => p.active).map(p => p.id); view.sys.vpnConnected = view.sys.vpnActiveIds.length > 0 || !!d.tunnelActive; } catch(e) { view.error = String(e); } } }
     }
     Process {
         id: action

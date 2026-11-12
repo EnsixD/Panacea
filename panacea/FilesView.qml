@@ -12,11 +12,14 @@ Item {
     property var sys
     // true — проводник открыт отдельным окном Hyprland: закрывать надо окно,
     // а пилюля живёт своей жизнью и трогать её нельзя
+    property bool pickerMode: false
+    signal filePicked(string path)
     property bool windowMode: false
     property int  windowId: 0
 
     function leave() {
-        if (view.windowMode) view.sys.closeFilesWindow(view.windowId);
+        if (view.pickerMode) view.sys.chatFilePickerOpen = false;
+        else if (view.windowMode) view.sys.closeFilesWindow(view.windowId);
         else                 view.sys.collapse();
     }
 
@@ -507,6 +510,7 @@ Item {
         var e = entries.get(i);
         var full = (view.dir === "/" ? "" : view.dir) + "/" + e.eName;
         if (e.eType === "d") { go(full); return; }
+        if (view.pickerMode) { view.filePicked(full); return; }
         // режим выбора обоев: картинку не открываем в плеере, а отдаём
         // странице обоев для сохранения
         if (view.sys.wallpaperPickMode) {
