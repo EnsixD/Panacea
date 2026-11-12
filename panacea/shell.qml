@@ -104,6 +104,7 @@ PanelWindow {
 
             // ---------------------------------------------- Motion
             // Полный отказ от анимаций: все длительности считаются нулевыми.
+            property string vpnPreferredClient: ""
             property string vpnPreferred: ""
             property bool   mascotEnabled: true
             property bool   reduceMotion: false
@@ -1001,7 +1002,7 @@ PanelWindow {
 
     // Номер версии оболочки: его правит автор при выпуске, а хеш коммита
     // рядом говорит, из какого состояния репозитория собрана сборка.
-    readonly property string version: "1.0.22"
+    readonly property string version: "1.0.23"
 
     // ------------------------------------------------------------ обновление
     // Установленную версию помечает установщик (~/.config/panacea/.version),
@@ -1591,6 +1592,9 @@ PanelWindow {
     function refreshVpnGeo() { if (!vpnGeo.running) vpnGeo.running = true; }
     function refreshVpnStatus() { if (!vpnStatus.running) vpnStatus.running = true; }
     function togglePreferredVpn() {
+        if (cfg.vpnPreferredClient) {
+            vpnClient.command = ["gio", "launch", cfg.vpnPreferredClient]; vpnClient.running = true; return;
+        }
         if (!cfg.vpnPreferred || vpnQuick.running) { page = "vpn"; expanded = true; holdOpen = true; return; }
         vpnQuickAction = vpnActiveIds.indexOf(cfg.vpnPreferred) >= 0 ? "down" : "up";
         vpnQuick.command = ["python3", root.scriptDir + "/vpn.py", vpnQuickAction, cfg.vpnPreferred];
@@ -1624,6 +1628,7 @@ PanelWindow {
         } catch(e) {} } }
     }
     Process { id: vpnNotify }
+    Process { id: vpnClient }
     Timer { id: vpnGeoDelay; interval: 3000; onTriggered: root.refreshVpnGeo() }
     Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnStatus() }
     Timer { interval: 180000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshVpnGeo() }
@@ -6675,7 +6680,7 @@ PanelWindow {
             MouseArea {
                 anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
                 onClicked: mouse => {
-                    if (mouse.button === Qt.RightButton || !root.cfg.vpnPreferred) { root.page = "vpn"; root.holdOpen = true; }
+                    if (mouse.button === Qt.RightButton || (!root.cfg.vpnPreferred && !root.cfg.vpnPreferredClient)) { root.page = "vpn"; root.holdOpen = true; }
                     else root.togglePreferredVpn();
                 }
             }

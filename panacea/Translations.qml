@@ -10,6 +10,10 @@ import QtQuick
 // же причине — каждый отвечает за свои строки.
 QtObject {
     readonly property var en: ({
+        "Клиент и профиль для быстрого подключения.": "Client and profile for quick connection.",
+        "Выберите клиент или профиль. Выбор сохраняется без подключения.": "Choose a client or profile. Your selection is saved without connecting.",
+        "Сторонний клиент открывается для управления VPN. Профили NetworkManager переключаются прямо в острове.": "External clients open their own VPN controls. NetworkManager profiles can be toggled directly in the island.",
+
         "Спросите что угодно": "Ask anything",
         "Добавьте адрес API, модель и ключ в настройках лаунчера.": "Add the API address, model and key in launcher settings.",
         "Выберите файл": "Choose a file",
@@ -985,6 +989,10 @@ QtObject {
         "Ваши правки сохранены (новые версии рядом — *.panacea-new)": "Your edits were kept (new versions next to them — *.panacea-new)",
     })
     readonly property var tr: ({
+        "Клиент и профиль для быстрого подключения.": "Hızlı bağlantı için istemci ve profil.",
+        "Выберите клиент или профиль. Выбор сохраняется без подключения.": "Bir istemci veya profil seçin. Bağlanmadan kaydedilir.",
+        "Сторонний клиент открывается для управления VPN. Профили NetworkManager переключаются прямо в острове.": "Harici istemciler kendi VPN kontrollerini açar. NetworkManager profilleri adadan değiştirilebilir.",
+
         "Спросите что угодно": "İstediğinizi sorun",
         "Добавьте адрес API, модель и ключ в настройках лаунчера.": "Başlatıcı ayarlarına API adresini, modeli ve anahtarı ekleyin.",
         "Выберите файл": "Dosya seçin",

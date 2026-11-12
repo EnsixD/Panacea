@@ -57,9 +57,11 @@ def main():
                     if line.startswith('[') and line != '[Desktop Entry]': break
                     if '=' in line:
                         key,value=line.split('=',1)
-                        if key in ('Name','Exec','Hidden','NoDisplay','TryExec'): data[key]=value
+                        if key in ('Name','Exec','Hidden','NoDisplay','TryExec','GenericName','Comment','Keywords','Categories'): data[key]=value
                 name=data.get('Name','')
-                if 'vpn' not in name.lower() or data.get('Hidden')=='true' or data.get('NoDisplay')=='true': continue
+                searchable = ' '.join([file.stem, name, data.get('Exec',''), data.get('GenericName',''), data.get('Comment',''), data.get('Keywords','')]).casefold()
+                names = ('vpn', 'happ', 'hiddify', 'nekoray', 'nekobox', 'v2ray', 'v2raya', 'qv2ray', 'clash', 'mihomo', 'sing-box', 'singbox', 'amnezia', 'wireguard', 'openconnect', 'openvpn', 'tailscale', 'zerotier', 'windscribe', 'mullvad', 'proton', 'nordvpn', 'outline', 'shadowsocks', 'surfshark', 'expressvpn', 'tunnelbear', 'ivpn', 'psiphon', 'browsec', 'forticlient', 'cisco anyconnect', 'pritunl', 'softether')
+                if not any(token in searchable for token in names) or data.get('Hidden')=='true' or data.get('NoDisplay')=='true': continue
                 argv=shlex.split(data.get('Exec',''))
                 executable=data.get('TryExec') or (argv[0] if argv else '')
                 if not executable or not shutil.which(executable): continue

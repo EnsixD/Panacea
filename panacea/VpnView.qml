@@ -5,7 +5,8 @@ import Quickshell.Io
 Item {
     id: view
     required property var sys
-    implicitHeight: 430
+    property bool settingsMode: false
+    implicitHeight: settingsMode ? Math.max(300, vpnContent.implicitHeight) : 430
     property var profiles: []
     property var apps: []
     property string error: ""
@@ -41,6 +42,7 @@ Item {
     Process { id: launch }
     Component.onCompleted: refresh()
     ColumnLayout {
+        id: vpnContent
         anchors.fill: parent; spacing: 10
         Text { Layout.fillWidth: true; text: view.sys.tr("VPN и регион"); color: view.sys.colFg; font { family: view.sys.fontDisplay; pixelSize: 19; bold: true } }
         Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: view.sys.colMuted; text: view.sys.tr("Выберите профиль: он запомнится для быстрого подключения.") }
@@ -61,7 +63,7 @@ Item {
                     }
                     Text { text: modelData.active ? "●" : "○"; color: modelData.active ? "#8fd5a6" : view.sys.colMuted; font.pixelSize: 18 }
                 }
-                MouseArea { anchors.fill: parent; enabled: !action.running; cursorShape: Qt.PointingHandCursor; onClicked: view.toggle(modelData) }
+                MouseArea { anchors.fill: parent; enabled: !action.running; cursorShape: Qt.PointingHandCursor; onClicked: { if (view.settingsMode) { view.sys.cfg.vpnPreferredClient = ""; view.sys.cfg.vpnPreferred = modelData.id; view.sys.saveCfg(); } else view.toggle(modelData); } }
             }
         }
         Text { visible: view.apps.length > 0; text: view.sys.tr("Другие VPN-приложения"); color: view.sys.colMuted; font.pixelSize: 11 }
@@ -70,8 +72,8 @@ Item {
             delegate: Rectangle {
                 required property var modelData
                 Layout.fillWidth: true; Layout.preferredHeight: 35; radius: 10; color: Qt.rgba(1,1,1,0.05)
-                Text { anchors.centerIn: parent; text: modelData.name + " ↗"; color: view.sys.colFg }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { launch.command = ["gio", "launch", modelData.desktop]; launch.running = true; } }
+                Text { anchors.centerIn: parent; text: modelData.name + (view.sys.cfg.vpnPreferredClient === modelData.desktop ? " ✓" : ""); color: view.sys.colFg }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { view.sys.cfg.vpnPreferredClient = modelData.desktop; view.sys.cfg.vpnPreferred = ""; view.sys.saveCfg(); if (!view.settingsMode) { launch.command = ["gio", "launch", modelData.desktop]; launch.running = true; } } }
             }
         }
         Item { Layout.fillHeight: true }

@@ -63,6 +63,8 @@ Item {
           sub: view.sys.tr("Скорость указателя и разгон."),
           keys: "mouse keyboard layouts xkb pointer cursor sensitivity speed accel acceleration raw input flat "
                 + "мышь клавиатура раскладки указатель курсор скорость сенса чувствительность разгон ввод vpn впн" },
+        { id: "vpn", title: "VPN", g: 0xF0582, page: "SetVpn.qml",
+          sub: view.sys.tr("Клиент и профиль для быстрого подключения."), keys: "vpn впн happ hiddify clash proxy прокси сеть клиент" },
         { id: "system",  title: view.sys.tr("Система"),         g: 0xF0493, page: "SetSystem.qml",
           sub: view.sys.tr("Из чего собрана машина и чем она сейчас занята."),
           keys: "about system cpu ram temperature система озу температура процессы" }
@@ -75,6 +77,7 @@ Item {
         { id: "appearance", title: view.sys.tr("Оформление"), g: 0xF03D8, pages: ["look", "weather", "motion"] },
         { id: "controls", title: view.sys.tr("Управление"), g: 0xF062E, pages: ["cc", "launch", "notif"] },
         { id: "devices", title: view.sys.tr("Устройства"), g: 0xF0379, pages: ["display", "input"] },
+        { id: "vpn", title: "VPN", g: 0xF0582, pages: ["vpn"] },
         { id: "security", title: view.sys.tr("Безопасность"), g: 0xF033E, pages: ["lock"] },
         { id: "system", title: view.sys.tr("Система"), g: 0xF0493, pages: ["system"] }
     ]
