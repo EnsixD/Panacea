@@ -3063,7 +3063,7 @@ PanelWindow {
         var actions = n.actions || [];
         for (var i = 0; i < actions.length; i++) {
             if (String(actions[i].identifier) === actionId) {
-                actions[i].invoke(); n.dismiss(); root.dismissToast(); return;
+                actions[i].invoke(); root.dismissToast(); return;
             }
         }
     }
