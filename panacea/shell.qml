@@ -6097,14 +6097,14 @@ PanelWindow {
             // считались бы центром пустого места, а не острова.
             readonly property real arm:
                 Math.max(nLeft.implicitWidth, nRight.implicitWidth)
-            implicitWidth: nClock.implicitWidth + 2 * (nothingCapsule.arm + nothingCapsule.armGap)
+            implicitWidth: (weatherrow.visible ? weatherrow.implicitWidth : 0) + nClock.implicitWidth + 2 * (nothingCapsule.arm + nothingCapsule.armGap)
 
             // ------------------------------------------- слева: столы
             RowLayout {
                 id: nLeft
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
+                spacing: weatherrow.visible ? 2 : 8
 
                 // Запись важнее столов и потому стоит первой: пока идёт
                 // съёмка, об этом надо знать раньше всего остального.
@@ -6136,8 +6136,7 @@ PanelWindow {
                 // открытии четвёртого стола весь остров переставлялся. Пока
                 // столов не больше пяти, теперь не меняется ничего.
                 Item {
-                    Layout.preferredWidth: Math.max(wsRow.implicitWidth,
-                                                    nothingCapsule.wsReserve)
+                    Layout.preferredWidth: Math.max(wsRow.implicitWidth, nothingCapsule.wsReserve)
                     Layout.preferredHeight: 6
                     Layout.alignment: Qt.AlignVCenter
 
@@ -6206,11 +6205,15 @@ PanelWindow {
                     implicitHeight: weatherrow.implicitHeight
                     implicitWidth: weatherrow.implicitWidth
 
+
                     RowLayout {
                        id: weatherrow
 
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
+
+                        
+
                         anchors.leftMargin: 6
 
                         spacing: 5
