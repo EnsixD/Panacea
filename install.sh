@@ -100,7 +100,8 @@ DEPS=(
     "fish|fish|the shell"
     "foot|foot|terminal"
     "hyprpaper|hyprpaper|wallpaper"
-    "hyprsunset|hyprsunset|night colour temperature"
+    "hyprsunset|hyprsunset|night colour temperature on Hyprland"
+    "wlsunset|wlsunset|night colour temperature on niri"
     # Не ради самой программы — она даже не запускается, и её конфига здесь
     # нет. Пакет кладёт /etc/pam.d/swaylock, а это профиль, которым проверяют
     # пароль экран блокировки и хранилище паролей: без него ни то, ни другое
@@ -534,7 +535,7 @@ install_deps_debian() {
 
     local deb_pkgs=(
         hyprland fish foot swaylock jq wl-clipboard cliphist grim slurp ffmpeg wf-recorder
-        wtype brightnessctl ddcutil playerctl wireplumber eza zoxide bat fastfetch python3
+        wtype brightnessctl wlsunset ddcutil playerctl wireplumber eza zoxide bat fastfetch python3
         openssl xdg-utils libglib2.0-bin upower util-linux cava curl file git pciutils unzip
         qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-shapes
         qml6-module-qtquick-effects qml6-module-qtmultimedia power-profiles-daemon bluez
@@ -568,7 +569,7 @@ install_deps_fedora() {
     $SUDO dnf copr enable -y solopasha/hyprland 2>/dev/null || true
 
     local fedora_pkgs=(
-        hyprland quickshell fish foot hyprpaper hyprsunset swaylock jq wl-clipboard cliphist
+        hyprland quickshell fish foot hyprpaper hyprsunset wlsunset swaylock jq wl-clipboard cliphist
         grim slurp ffmpeg wf-recorder wtype brightnessctl ddcutil playerctl wireplumber
         eza zoxide bat fastfetch yazi python3 openssl xdg-utils glib2 upower util-linux
         cava curl file git pciutils unzip qt6-qtmultimedia qt6-qtdeclarative power-profiles-daemon
@@ -594,7 +595,7 @@ install_deps_fedora() {
 install_deps_opensuse() {
     local suse_pkgs=(
         hyprland fish foot swaylock jq wl-clipboard cliphist grim slurp ffmpeg wf-recorder
-        wtype brightnessctl ddcutil playerctl wireplumber eza zoxide bat fastfetch python3
+        wtype brightnessctl wlsunset ddcutil playerctl wireplumber eza zoxide bat fastfetch python3
         openssl xdg-utils glib2-tools upower util-linux cava curl file git pciutils unzip
         libqt6-multimedia libqt6-declarative power-profiles-daemon bluez iwd papirus-icon-theme
         noto-sans-fonts noto-coloremoji-fonts udisks2 udiskie gvfs gvfs-backend-mtp

@@ -26,11 +26,6 @@ Item {
     onTargetChanged: view.pos = view.target
 
     property string applying: ""
-    // обои, которые сейчас разлетаются во весь экран после выбора
-    property string flying: ""
-    // Миниатюра выбранных обоев: она уже декодирована, поэтому разворот
-    // начинается с картинки, а не с чёрного прямоугольника.
-    property string flyingThumb: ""
     // Листал ли человек сам. Пока нет — держим фокус на текущих обоях, даже
     // если список успел обновиться: открывая меню, ищут именно то, что стоит.
     property bool userScrolled: false
@@ -84,7 +79,6 @@ Item {
         if (view.target < 0 || view.target >= walls.count) return;
         var w = walls.get(view.target);
         if (w.wActive) { view.sys.closeWalls(); return; }
-        view.flyingThumb = w.wThumb;
         view.apply(w.wPath);
     }
 
@@ -178,30 +172,31 @@ Item {
 
     Process {
         id: pSet
-        // Обои уже на месте: гасим кроссфейд и закрываем окно. Само
-        // «applying» держим до конца — иначе меню на кадр показывалось
-        // обратно перед закрытием.
+        // Обои уже на месте: гасим кроссфейд. «applying» держим до конца —
+        // пока скрипт работает, карусель заново не открыть.
         onRunningChanged: {
             if (running) return;
             view.sys.endThemeFade();
-            closeAfter.restart();
+            view.sys.wallsApplying = false;
+            view.applying = "";
         }
     }
     Timer {
-        id: closeAfter
-        // ждём, пока карточка докатится до кромок: закрыть раньше — и виден
-        // скачок, окно исчезает посреди движения
-        interval: 560
-        onTriggered: view.sys.closeWalls()
+        id: applyDelay
+        // Старый снимок должен успеть показаться до подмены обоев: если
+        // скрипт перепишет фон в том же кадре, новый мелькнёт раньше него.
+        interval: 40
+        onTriggered: pSet.running = true
     }
+    // Анимация закрытия и затемнение убраны: на смене обоев они выглядели
+    // рвано, лучше закрывать карусель сразу. Старый closeAfter/resetAfterClose
+    // только держал тёмную накладку поверх смены.
     // На каждое открытие встаём на текущие обои: возвращаться к тому месту,
     // где листали в прошлый раз, незачем — глазами ищут «а что стоит сейчас».
-    // Состояние применения сбрасываем только когда окна уже не видно.
     Connections {
         target: view.sys
         function onWallsOpenChanged() {
             if (view.sys.wallsOpen) { view.userScrolled = false; view.target = 0; }
-            else                    resetAfterClose.restart();
         }
     }
     function jumpToActive() {
@@ -209,24 +204,21 @@ Item {
             if (walls.get(i).wActive) { view.target = i; view.pos = i; return; }
         }
     }
-    Timer {
-        id: resetAfterClose
-        interval: 400
-        onTriggered: { view.applying = ""; view.flying = ""; view.flyingThumb = ""; }
-    }
 
     // Применяем по полному пути, а не по имени: в подкаталогах обоев имена
     // повторяются, и по имени можно было поставить не ту картинку.
     function apply(path) {
         view.applying = path;
-        view.flying = path;
+        view.sys.wallsApplying = true;
         // снимок нынешних обоев ДО скрипта: после него на диске уже новый путь
         view.sys.startThemeFade();
+        // Карусель убираем сразу: затемнение не должно висеть поверх смены.
+        view.sys.closeWalls();
         pSet.command = view.live
             ? ["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/live_wallpaper.sh",
                "set", path]
             : ["sh", "-c", view.sys.scriptDir + "/themes.sh set \"$1\"", "_", path];
-        pSet.running = true;
+        applyDelay.restart();
     }
 
     // имя в читаемом виде: dark_mountains -> Dark mountains
@@ -608,49 +600,6 @@ Item {
         }
     }
 
-    // Выбранные обои разлетаются во весь экран: пока скрипт работает, карточка
-    // растёт до кромок и тает — под ней уже новый фон.
-    Rectangle {
-        id: burst
-        visible: view.flying.length > 0
-        anchors.centerIn: parent
-        width: view.flying.length ? view.width : view.cardW
-        height: view.flying.length ? view.height : view.cardH
-        radius: view.flying.length ? 0 : 22
-        clip: true
-        // не чёрный: пока крупная картинка декодируется, чёрная заливка
-        // мелькала на весь экран
-        color: "transparent"
-        opacity: view.applying.length ? 1 : 0
-        z: 200
-        Behavior on width   { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
-        Behavior on height  { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
-        Behavior on radius  { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
-        Behavior on opacity { NumberAnimation { duration: 420; easing.type: Easing.OutCubic } }
-
-        // снизу — готовая миниатюра, сверху та же картинка в полном размере;
-        // вторая проявляется, когда декодируется, и подмены не видно
-        Image {
-            id: burstThumb
-            anchors.fill: parent
-            source: view.flyingThumb.length ? "file://" + view.flyingThumb : ""
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: false
-            cache: true
-        }
-        Image {
-            anchors.fill: parent
-            source: view.flying.length ? "file://" + view.flying : ""
-            fillMode: Image.PreserveAspectCrop
-            // без ограничения Qt отказывается декодировать обои на десятки
-            // мегапикселей: у него лимит 256 МБ на картинку
-            sourceSize.width: view.width
-            asynchronous: true
-            opacity: status === Image.Ready ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 220 } }
-        }
-    }
-
     // --------------------------------------------------------------- подсказки
     RowLayout {
         anchors.horizontalCenter: parent.horizontalCenter
@@ -789,7 +738,13 @@ Item {
     // оно берётся из имени файла.
     Process {
         id: pAdd
-        onRunningChanged: if (!running) { view.sys.wallpaperPick = ""; view.sys.refreshWalls(); }
+        onRunningChanged: if (!running) {
+            view.sys.wallpaperPick = "";
+            view.sys.refreshWalls();
+            // themes.sh add тоже прогоняет adaptive-colors.py — обновляем
+            // цвета острова сразу, не перезапуская его.
+            view.sys.reloadAdaptivePal();
+        }
     }
     onVisibleChanged: if (visible) view.takePick()
     function takePick() {

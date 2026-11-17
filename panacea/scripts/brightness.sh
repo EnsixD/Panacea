@@ -19,6 +19,11 @@
 # всегда идут с явным --bus: без него ddcutil сам ищет монитор заново.
 set -u
 
+# PATH при запуске с клавиш Hyprland бывает урезан, а `qs` нужен для OSD:
+# добавляем обычные места, как в voxtype.sh.
+PATH="$PATH:/usr/bin:/usr/local/bin:$HOME/.local/bin:/bin:/opt/bin"
+export PATH
+
 RUN="${XDG_RUNTIME_DIR:-/tmp}"
 CACHE="$RUN/panacea-brightness.map"
 STATE="$RUN/panacea-bright.streak"
@@ -191,9 +196,7 @@ cmd_step() {
 
     # Уровень рисует пилюля: яркость идёт мимо Pipewire, и сама она об
     # изменении не узнает — поэтому говорим ей об этом.
-    if pgrep -x qs >/dev/null 2>&1; then
-        qs -c "$HOME/.config/panacea" ipc call pill brightness "$pct" 2>/dev/null &
-    fi
+    qs -c "$HOME/.config/panacea" ipc call pill brightness "$pct" >/dev/null 2>&1
 }
 
 case "${1:-}" in

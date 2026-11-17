@@ -26,7 +26,7 @@ hl.on("hyprland.start", function ()
   -- Агент polkit теперь встроен в пилюлю (PolkitAgent в shell.qml).
   -- Два агента одновременно зарегистрироваться не могут.
   -- hl.exec_cmd("systemctl --user start hyprpolkitagent")
-  hl.exec_cmd("hyprsunset -t 5000")
+  hl.exec_cmd("hyprsunset")
   -- автомонтирование флешек и карт: без него раздел «Съёмные»
   -- в проводнике не появится сам
   hl.exec_cmd("udiskie --no-notify --no-tray")

@@ -58,7 +58,8 @@ Item {
         { id: "display", title: view.sys.tr("Экран"),        g: 0xF0379, page: "SetDisplay.qml",
           sub: view.sys.tr("Разрешение, частота и масштаб подключённых экранов."),
           keys: "display monitor resolution refresh scale layout placement detect island "
-                + "экран монитор разрешение герцовка раскладка расположение остров" },
+                + "night light nightlight temperature schedule wlsunset hyprsunset ночник ночной свет "
+                + "экран монитор разрешение герцовка раскладка расположение остров температура расписание" },
         { id: "input",   title: view.sys.tr("Ввод"),           g: 0xF037D, page: "SetInput.qml",
           sub: view.sys.tr("Скорость указателя и разгон."),
           keys: "mouse keyboard layouts xkb pointer cursor sensitivity speed accel acceleration raw input flat "
