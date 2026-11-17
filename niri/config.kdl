@@ -122,7 +122,6 @@ spawn-sh-at-startup "wl-paste --type text --watch cliphist store"
 spawn-sh-at-startup "wl-paste --type image --watch cliphist store"
 spawn-at-startup "udiskie" "--no-notify"
 spawn-sh-at-startup "~/.config/niri/scripts/wallpaper.sh"
-spawn-sh-at-startup "command -v hyprsunset >/dev/null 2>&1 && hyprsunset"
 spawn-sh-at-startup "command -v voxtype >/dev/null 2>&1 && voxtype daemon"
 
 // -----------------------------------------------------------------------------
@@ -168,8 +167,10 @@ binds {
     XF86AudioPrev        allow-when-locked=true { spawn-sh "playerctl previous"; }
 
     // --- Яркость матрицы ---
-    XF86MonBrightnessUp   allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "+5%"; }
-    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "5%-"; }
+    // Через brightness.sh, а не brightnessctl напрямую: скрипт сам выбирает
+    // подсветку или DDC/CI, шагает с ускорением и просит пилюлю показать OSD.
+    XF86MonBrightnessUp   allow-when-locked=true { spawn-sh "~/.config/panacea/scripts/brightness.sh up"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn-sh "~/.config/panacea/scripts/brightness.sh down"; }
 
     // --- Скриншоты Panacea ---
     Print { spawn-sh "~/.config/panacea/scripts/capture.sh shot 2>/dev/null || grim - | wl-copy"; }

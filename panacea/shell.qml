@@ -123,6 +123,16 @@ PanelWindow {
             property int    lockBlur: 32
             property string lockHint: ""
 
+            // ---------------------------------------------- Night light
+            // Тёплый фильтр экрана. effective-состояние и настройки живут
+            // отдельно от бэкенда (wlsunset/hyprsunset): оболочка решает,
+            // когда включать, а скрипт — чем.
+            property bool   nightLight: false
+            property int    nightTemp: 4000
+            property bool   nightAuto: false
+            property string nightStart: "22:00"
+            property string nightEnd: "07:00"
+
             // ---------------------------------------------- Control Center
             // Порядок плиток быстрых настроек, заданный человеком.
             // Пустая строка — заводская раскладка из root.ccDefault.
@@ -431,6 +441,8 @@ PanelWindow {
         clockTz: "auto", clockDateFmt: "d MMMM",
         notifDnd: false, notifTimeout: 5000, notifCritTimeout: 0, notifPreview: true,
         lockBlur: 32, lockHint: "",
+        nightLight: false, nightTemp: 4000, nightAuto: false,
+        nightStart: "22:00", nightEnd: "07:00",
         ccLayout: "", filesWindow: false, filesHidden: true, filesMode: "list",
         vaultCapture: true,
         vibrance: 50, mouseSens: 0, mouseRaw: false,
@@ -1421,6 +1433,35 @@ PanelWindow {
     // Флаг на облик Nothing. Для обратной совместимости с дочерними элементами
     readonly property bool themeNothing: true
 
+    // Живая палитра от adaptive-colors.py: цвета текущих обоев лежат в кэше,
+    // и остров перекрашивается на месте. Раньше ради этого перезапускали всю
+    // оболочку — вместе с состоянием пилюли, что и выглядело как её
+    // «перезагрузка» при каждой смене обоев.
+    property var adaptivePal: ({})
+    FileView {
+        id: adaptivePalFile
+        path: Quickshell.env("HOME") + "/.cache/panacea/adaptive-colors.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: root.readAdaptivePal()
+        onLoadFailed: root.adaptivePal = ({})
+    }
+    function readAdaptivePal() {
+        var d = {};
+        try { d = JSON.parse(String(adaptivePalFile.text() || "{}")); } catch (e) { d = {}; }
+        root.adaptivePal = (d && typeof d === "object") ? d : ({});
+    }
+    function reloadAdaptivePal() { adaptivePalFile.reload(); }
+    // Только полноценные #rrggbb / #rrggbbaa: пустая строка или обрезанный
+    // файл не должны превращать палитру в прозрачный чёрный.
+    function palColor(key, fallback) {
+        var d = root.adaptivePal;
+        var v = (d && typeof d === "object") ? d[key] : "";
+        return (typeof v === "string" && /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(v))
+               ? v : fallback;
+    }
+
     // Размер точки в числах Nothing. Считается от размера шрифта, а не задан
     // числом: человек двигает ползунок кегля в настройках, и точечные часы
     // должны расти вместе с остальными подписями, иначе остров расползается.
@@ -1443,14 +1484,14 @@ PanelWindow {
                ? root.colBg : "#ffffff";
     }
 
-    readonly property color colBg:     theme.bg
-    readonly property color colFg:     theme.fg
+    readonly property color colBg:     root.palColor("background", theme.bg)
+    readonly property color colFg:     root.palColor("text", theme.fg)
     readonly property color colMuted:  Qt.rgba(colFg.r, colFg.g, colFg.b, cfg.mutedAlpha)
     readonly property color colLine:   Qt.rgba(colFg.r, colFg.g, colFg.b, 0.10)
     readonly property color colHover:  Qt.rgba(colFg.r, colFg.g, colFg.b, 0.10)
-    readonly property color colOn:     theme.on
-    readonly property color colOk:     theme.ok
-    readonly property color colCrit:   theme.crit
+    readonly property color colOn:     root.palColor("accent", theme.on)
+    readonly property color colOk:     root.palColor("secondary", theme.ok)
+    readonly property color colCrit:   root.palColor("error", theme.crit)
 
     // Цвета состояний, которых в палитре темы нет. На теме Nothing цветного
     // выделения не бывает вовсе: смысл там несёт яркость, а не оттенок, и
@@ -1886,8 +1927,11 @@ PanelWindow {
     // Карусель обоев — отдельный полноэкранный слой, как обзор столов:
     // картинку надо видеть большой, а в пилюле для этого нет места.
     property bool wallsOpen: false
+    // Пока применяются обои, карусель не открываем заново: она уже закрыта,
+    // а анимация/затемнение смены убраны намеренно.
+    property bool wallsApplying: false
     function openWalls() {
-        if (!cfg.featThemes) return;
+        if (!cfg.featThemes || root.wallsApplying) return;
         collapse();
         root.wallsOpen = true;
         // список обновится в фоне; на экране пока прежний, а не пустота
@@ -2055,6 +2099,18 @@ PanelWindow {
     readonly property bool launcherOpen: expanded && page === "launcher"
 
     function collapse() {
+        if (expanded) {
+            // Схлопывание меняет и ширину, и высоту разом: широкая пилюля
+            // возвращается к своей длине, пока панель ещё достаточно высокая,
+            // и её промежуточный прямоугольник может на миг накрыть
+            // неподвижный курсор, стоящий рядом с панелью. Без запрета это
+            // снова раскрывает панель — и она бесконечно
+            // «закрывается-открывается». Снимаем запрет только осмысленным
+            // движением курсора или его уходом, как уже делаем после клика
+            // по уведомлению.
+            hoverExpandArmed = false;
+            capsuleHover.markArmPoint();
+        }
         expanded = false;
         chatFilePickerOpen = false;
         holdOpen = false;
@@ -2247,8 +2303,8 @@ PanelWindow {
 
     // ------------------------------------------------------------ смена темы
     // hyprpaper меняет обои мгновенно и без перехода. Поэтому снимок старых
-    // обоев остаётся висеть поверх экрана и плавно тает — снизу к этому
-    // моменту уже новые, и получается честный кроссфейд без смены бэкенда.
+    // обоев плавно тает на отдельном слое под окнами — снизу к этому моменту
+    // уже новые, и получается честный кроссфейд без смены бэкенда.
     property string themeFadeWall: ""
     property bool   themeFading: false
 
@@ -2256,6 +2312,12 @@ PanelWindow {
         id: curWallFile
         path: Quickshell.env("HOME") + "/.config/hypr/wallpaper.conf"
         blockLoading: true
+        // Без слежения здесь оставался путь, прочитанный при старте: на
+        // второй смене подряд кроссфейд показывал не предыдущие обои, а те,
+        // что стояли при запуске оболочки.
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
     }
 
     function startThemeFade() {
@@ -2264,7 +2326,12 @@ PanelWindow {
         root.themeFadeWall = "file://" + String(m[1]).trim();
         root.themeFading = true;
     }
-    function endThemeFade() { root.themeFading = false; }
+    function endThemeFade() {
+        root.themeFading = false;
+        // Скрипт смены обоев успел переписать палитру до своего завершения:
+        // перечитываем её здесь, не дожидаясь файлового вотчера.
+        root.reloadAdaptivePal();
+    }
 
     // ------------------------------------------------------------------ медиа
     // «Липкий» текущий плеер: пока выбранный плеер ещё существует, держимся
@@ -2812,6 +2879,120 @@ PanelWindow {
         running: root.keepAwake
         command: ["systemd-inhibit", "--what=idle:sleep:handle-lid-switch",
                   "--who=Panacea", "--why=Keep awake", "sleep", "infinity"]
+    }
+
+    // ------------------------------------------------------------- ночной свет
+    // Состояние и расписание живут здесь, а сам тёплый фильтр включает
+    // scripts/nightlight.sh: на niri это wlsunset, на Hyprland — hyprsunset.
+    readonly property bool nightLight: root.cfg.nightLight
+    readonly property int  nightTemp:  root.cfg.nightTemp
+    // Какой бэкенд реально доступен. Пока не ответил — тумблер не показываем.
+    property string nightBackend: ""
+    readonly property bool nightAvailable: root.nightBackend.length > 0
+                                           && root.nightBackend !== "none"
+    // Последнее состояние окна расписания. Сравниваем с ним на каждом тике,
+    // чтобы автопереключение срабатывало только на границе, а ручной тумблер
+    // не отменялся через полминуты.
+    property bool nightAutoWindow: false
+
+    Process {
+        id: pNightDetect
+        running: true
+        command: ["sh", "-c", root.scriptDir + "/nightlight.sh detect"]
+        stdout: StdioCollector {
+            onStreamFinished: root.nightBackend = String(text).trim()
+        }
+    }
+    Process { id: pNight }
+    // Ползунок температуры шлёт значение на каждое движение, а wlsunset
+    // перезапускается с миганием. Применяем только когда рука остановилась.
+    Timer {
+        id: nightTempApply
+        interval: 180
+        onTriggered: if (root.cfg.nightLight) root.applyNightState(true, true)
+    }
+
+    function cleanClock(s) {
+        var m = /^(\d{1,2}):(\d{2})$/.exec(String(s || "").trim());
+        if (!m) return "";
+        var h = parseInt(m[1]), mi = parseInt(m[2]);
+        if (isNaN(h) || isNaN(mi) || h < 0 || h > 23 || mi < 0 || mi > 59) return "";
+        return (h < 10 ? "0" : "") + h + ":" + (mi < 10 ? "0" : "") + mi;
+    }
+    function inNightWindow(d) {
+        var s = root.cleanClock(root.cfg.nightStart);
+        var e = root.cleanClock(root.cfg.nightEnd);
+        if (s === "" || e === "") return false;
+        var now = d.getHours() * 60 + d.getMinutes();
+        var a = parseInt(s.slice(0, 2)) * 60 + parseInt(s.slice(3, 5));
+        var b = parseInt(e.slice(0, 2)) * 60 + parseInt(e.slice(3, 5));
+        return a <= b ? (now >= a && now < b) : (now >= a || now < b);
+    }
+    function applyNightState(on, silent) {
+        pNight.running = false;
+        pNight.command = ["sh", "-c", root.scriptDir + "/nightlight.sh "
+                          + (on ? "on " + String(root.cfg.nightTemp) : "off")];
+        pNight.running = true;
+        if (!silent) root.showOsd("night", on ? 1 : 0, false);
+    }
+    function setNightLight(on, silent) {
+        var changed = root.cfg.nightLight !== on;
+        root.cfg.nightLight = on;
+        if (changed) root.saveCfg();
+        root.applyNightState(on, silent === true);
+    }
+    function toggleNightLight() { root.setNightLight(!root.cfg.nightLight, false); }
+    function setNightTemp(v) {
+        v = Math.max(2500, Math.min(6500, Math.round(v)));
+        if (root.cfg.nightTemp === v) return;
+        root.cfg.nightTemp = v;
+        root.saveCfg();
+        // Температуру меняем на живой фильтр с задержкой, но без OSD: это
+        // делают из открытых настроек, где и так видно ползунок.
+        if (root.cfg.nightLight) nightTempApply.restart();
+    }
+    function setNightTimes(a, b) {
+        var s = root.cleanClock(a);
+        var e = root.cleanClock(b);
+        if (s === "" || e === "") return false;
+        root.cfg.nightStart = s;
+        root.cfg.nightEnd = e;
+        root.saveCfg();
+        root.evaluateNightSchedule(true, true);
+        return true;
+    }
+    function setNightAuto(on) {
+        root.cfg.nightAuto = on;
+        root.saveCfg();
+        if (on) root.evaluateNightSchedule(true, true);
+    }
+    function evaluateNightSchedule(force, silent) {
+        var desired = root.inNightWindow(new Date());
+        if (!root.cfg.nightAuto) {
+            root.nightAutoWindow = desired;
+            return;
+        }
+        if (!force && desired === root.nightAutoWindow) return;
+        root.nightAutoWindow = desired;
+        root.setNightLight(desired, silent === true);
+    }
+    // На старте не спорим с автозапуском в первый же кадр, но и не оставляем
+    // hyprsunset в его дефолтном тёплом состоянии: через мгновение приводим
+    // фильтр к сохранённому состоянию.
+    Timer {
+        interval: 1400
+        running: true
+        onTriggered: {
+            root.nightAutoWindow = root.inNightWindow(new Date());
+            if (root.cfg.nightAuto) root.setNightLight(root.nightAutoWindow, true);
+            else root.applyNightState(root.cfg.nightLight, true);
+        }
+    }
+    Timer {
+        interval: 30000
+        repeat: true
+        running: true
+        onTriggered: root.evaluateNightSchedule(false, false)
     }
 
     // ------------------------------------------------------- звук: устройства и приложения
@@ -3510,8 +3691,9 @@ PanelWindow {
 
     // ------------------------------------------------------------------ OSD
     // При изменении громкости или яркости пилюля на пару секунд превращается
-    // в полоску уровня и возвращается обратно.
-    property string osdKind: ""          // "vol" | "mic" | "bright"
+    // в полоску уровня и возвращается обратно. Ночной свет показывает только
+    // луну и сообщение: там нет «уровня», который стоило бы рисовать полосой.
+    property string osdKind: ""          // "vol" | "mic" | "bright" | "night"
     property real   osdValue: 0          // 0..1
     property bool   osdMuted: false
     readonly property bool osdActive: osdKind.length > 0 && !expanded
@@ -3530,6 +3712,7 @@ PanelWindow {
     }
 
     readonly property string osdIcon: {
+        if (osdKind === "night")  return String.fromCodePoint(0xF186);        // луна
         if (osdKind === "bright") return String.fromCodePoint(0xF00DE);       // солнце
         if (osdKind === "mic")
             return String.fromCodePoint(osdMuted ? 0xF036D : 0xF036C);        // микрофон
@@ -4637,6 +4820,12 @@ PanelWindow {
         function audio(): void { root.togglePage("audio"); }
         function calendar(): void { root.togglePage("cal"); }
         function theme(): void { root.toggleWalls(); }
+        // hotkey и старый custom-скрипт ходят сюда, чтобы состояние ночного
+        // света не расходилось с тем, что реально включено на экране.
+        function nightlight(): void { root.toggleNightLight(); }
+        // adaptive-colors.py зовёт это после смены обоев: палитра
+        // перечитывается на месте, без перезапуска оболочки.
+        function themeReload(): void { root.reloadAdaptivePal(); }
         function widgets(): void { root.cfg.featWidgets = !root.cfg.featWidgets; root.saveCfg(); }
         function record(): void { root.togglePage("record"); }
         function files(): void { root.togglePage("files"); }
@@ -4798,6 +4987,11 @@ PanelWindow {
             item: (root.cfg.pillKeepVisible && !root.settingsMode && (root.expanded || detachedPanel.opacity > 0.005)) ? detachedPanel : null
             intersection: Intersection.Combine
         }
+        // след свёрнутой пилюли: см. hoverPad ниже
+        Region {
+            item: hoverPad.active ? hoverPad : null
+            intersection: Intersection.Combine
+        }
     }
     mask: root.holdOpen && !root.chatFilePickerOpen ? null : capsuleRegion
     // Лаунчер забирает клавиатуру сразу (Exclusive), чтобы можно было
@@ -4831,28 +5025,6 @@ PanelWindow {
         }
     }
 
-    // Снимок прежних обоев: лежит ниже пилюли и выше рабочего стола,
-    // клики не ловит — маска окна всё равно пропускает их насквозь.
-    Image {
-        anchors.fill: parent
-        z: -5
-        // Пока кроссфейда нет, снимок не нужен и в памяти его быть не должно:
-        // распакованные обои во весь экран — это десяток мегабайт, которые
-        // висели круглые сутки ради семисот миллисекунд перехода.
-        source: (root.themeFading || opacity > 0.01) ? root.themeFadeWall : ""
-        fillMode: Image.PreserveAspectCrop
-        // у обоев бывает 75 мегапикселей: без ограничения Qt отказывается их
-        // декодировать (лимит 256 МБ на картинку) и кроссфейд не появлялся
-        sourceSize.width: root.screen ? root.screen.width : 1920
-        asynchronous: false
-        cache: false
-        visible: opacity > 0.01
-        opacity: root.themeFading ? 1 : 0
-        Behavior on opacity {
-            NumberAnimation { duration: 700; easing.type: Easing.InOutCubic }
-        }
-    }
-
     // Подсветка кромки, к которой прицепится остров. Пока тянут по пустоте,
     // ничего не горит — значит отпускать некуда, вернётся на место.
     Repeater {
@@ -4876,6 +5048,47 @@ PanelWindow {
     }
 
     // ------------------------------------------------------------- сама пилюля
+    // Невидимый след свёрнутой пилюли на время раскрытия. Широкая пилюля
+    // (тема Nothing с маскотом, погодой и нагрузкой) бывает шире панели:
+    // раскрываясь, она уходит из-под неподвижного курсора, HoverHandler
+    // теряет наведение, панель схлопывается — и пилюля снова оказывается
+    // под курсором. Получается бесконечное «бар ⇄ контрольный центр».
+    // Поэтому старый след остаётся в маске окна и тоже считается наведением:
+    // панель живёт, пока курсор в пределах бывшей пилюли.
+    Item {
+        id: hoverPad
+        readonly property bool active: root.expanded && !root.cfg.pillKeepVisible
+                                       && !root.settingsMode
+        visible: active
+        z: -1
+        width:  root.pillSide ? capsule.idleThick : capsule.idleLen
+        height: root.pillSide ? capsule.idleLen  : capsule.idleThick
+        anchors.horizontalCenter: root.pillSide ? undefined : parent.horizontalCenter
+        anchors.verticalCenter:   root.pillSide ? parent.verticalCenter : undefined
+        anchors.top:    root.pillAtTop    ? parent.top    : undefined
+        anchors.bottom: root.pillAtBottom ? parent.bottom : undefined
+        anchors.left:   root.pillAtLeft   ? parent.left   : undefined
+        anchors.right:  root.pillAtRight  ? parent.right  : undefined
+        anchors.topMargin:    root.pillAtTop    ? capsule.edgeMargin : 0
+        anchors.bottomMargin: root.pillAtBottom ? capsule.edgeMargin : 0
+        anchors.leftMargin:   root.pillAtLeft   ? capsule.sideMargin : 0
+        anchors.rightMargin:  root.pillAtRight  ? capsule.sideMargin : 0
+
+        HoverHandler {
+            id: hoverPadHover
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onHoveredChanged: {
+                if (hovered) {
+                    collapseTimer.stop();
+                } else if (!capsuleHover.hovered
+                           && !(detachedHover.hovered && root.cfg.pillKeepVisible)
+                           && !root.holdOpen) {
+                    collapseTimer.restart();
+                }
+            }
+        }
+    }
+
     Rectangle {
         id: capsule
         scale: 1 - root.fileAbsorb * 0.05
@@ -5028,10 +5241,15 @@ PanelWindow {
                 : root.acToastActive
                     ? capsule.evenUp(Math.max(acCapsule.implicitWidth + 48, 240))
                 : root.toastActive ? 440
-                : root.osdActive ? capsule.evenUp(osdCapsule.implicitWidth + 32)
+                : root.osdActive ? capsule.evenUp((root.osdKind === "night"
+                                                   ? nightCapsule.implicitWidth
+                                                   : osdCapsule.implicitWidth) + 32)
                 : root.pillSide  ? capsule.evenUp(Math.max(vertCapsule.implicitHeight + 30,
                                                            capsule.collapsedMin))
-                : capsule.evenUp(Math.max(nothingCapsule.implicitWidth + (mascot.active ? 140 : 28),
+                // Маскот считаем по настройке, а не по mascot.active: тот
+                // гаснет вместе с expanded, а idleLen нужен ещё и раскрытой
+                // панели — по нему hoverPad держит след свёрнутой пилюли.
+                : capsule.evenUp(Math.max(nothingCapsule.implicitWidth + (root.cfg.mascotEnabled ? 140 : 28),
                                           capsule.collapsedMin))
         readonly property real idleThick: (root.fileOverIsland || fileAbsorbAnimation.running) ? 58
                 : (root.btToastActive || root.wifiToastActive || root.acToastActive
@@ -5265,7 +5483,14 @@ PanelWindow {
         Timer {
             id: collapseTimer; interval: 180
             onTriggered: {
-                if (capsuleHover.hovered || (detachedHover.hovered && root.cfg.pillKeepVisible) || root.holdOpen) return;
+                // Пока идёт морф, окно меняет маску, и Wayland может на миг
+                // прислать leave даже под неподвижным курсором. Даём маске и
+                // наведению устояться: иначе панель схлопывалась бы прямо
+                // посреди собственного раскрытия.
+                if (root.morphing) { collapseTimer.restart(); return; }
+                if (capsuleHover.hovered || hoverPadHover.hovered
+                    || (detachedHover.hovered && root.cfg.pillKeepVisible)
+                    || root.holdOpen) return;
                 root.collapse();
             }
         }
@@ -5987,7 +6212,9 @@ PanelWindow {
             anchors.centerIn: parent
             height: root.pillH
             spacing: 12
-            visible: root.osdActive && !root.toastActive && !root.btToastActive && !root.wifiToastActive && !root.acToastActive && !root.recPickActive && !root.voxActive
+            visible: root.osdActive && root.osdKind !== "night"
+                     && !root.toastActive && !root.btToastActive && !root.wifiToastActive
+                     && !root.acToastActive && !root.recPickActive && !root.voxActive
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: root.animFast } }
 
@@ -6027,6 +6254,33 @@ PanelWindow {
                 text: root.osdMuted ? "—" : Math.round(root.osdValue * 100) + "%"
                 color: root.colMuted
                 font { family: root.fontFam; pixelSize: root.fontSize - 1; bold: true }
+            }
+        }
+
+        // ------------------------------------- свёрнутое: ночной свет (OSD)
+        RowLayout {
+            id: nightCapsule
+            anchors.centerIn: parent
+            height: root.pillH
+            spacing: 11
+            visible: root.osdActive && root.osdKind === "night"
+                     && !root.toastActive && !root.btToastActive && !root.wifiToastActive
+                     && !root.acToastActive && !root.recPickActive && !root.voxActive
+            opacity: visible ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+
+            Text {
+                text: String.fromCodePoint(0xF186)   // луна
+                color: root.colFg
+                Layout.preferredWidth: mOsdIcon.width + 4
+                horizontalAlignment: Text.AlignHCenter
+                font { family: root.fontFam; pixelSize: root.iconSize }
+            }
+            Text {
+                text: root.osdValue > 0.5 ? root.tr("Ночной свет включён")
+                                          : root.tr("Ночной свет выключен")
+                color: root.colFg
+                font { family: root.fontFam; pixelSize: root.fontSize; bold: true }
             }
         }
 
@@ -6997,6 +7251,69 @@ PanelWindow {
     }
 }
 
+// Снимок прежних обоев на время смены: отдельный слой Bottom, а не картинка
+// внутри острова. Кроссфейд должен таять под окнами, а не накрывать их собой
+// целиком — раньше на секунду поверх всего рабочего стола появлялся старый
+// снимок, и смена обоев читалась как рывок.
+PanelWindow {
+    id: wallFadeWin
+    screen: root.screen
+    anchors { top: true; bottom: true; left: true; right: true }
+    color: "transparent"
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.layer: WlrLayer.Bottom
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    // клики не ловит: кроссфейд — только картинка
+    mask: Region {}
+    visible: root.themeFading || wallFadeImg.fade > 0.01
+
+    Connections {
+        target: root
+        function onThemeFadingChanged() {
+            if (root.themeFading) {
+                // Старый снимок показываем сразу, без проявления: он должен
+                // лечь на экран ДО того, как бэкенд подменит обои. Иначе
+                // новый фон успевал мелькнуть, потом возвращались старые,
+                // и только затем — новые.
+                fadeOutAnim.stop();
+                wallFadeImg.fade = 1;
+            } else {
+                // Тает только возврат к новым обоям.
+                fadeOutAnim.restart();
+            }
+        }
+    }
+
+    Image {
+        id: wallFadeImg
+        // Отдельное свойство, а не opacity с Behavior: появление старого
+        // снимка должно быть мгновенным, а Behavior проявил бы и его.
+        property real fade: 0
+        anchors.fill: parent
+        // Пока кроссфейда нет, снимок не нужен и в памяти его быть не должно:
+        // распакованные обои во весь экран — это десяток мегабайт, которые
+        // висели круглые сутки ради семисот миллисекунд перехода.
+        source: (root.themeFading || fade > 0.01) ? root.themeFadeWall : ""
+        fillMode: Image.PreserveAspectCrop
+        // у обоев бывает 75 мегапикселей: без ограничения Qt отказывается их
+        // декодировать (лимит 256 МБ на картинку) и кроссфейд не появлялся
+        sourceSize.width: root.screen ? root.screen.width : 1920
+        asynchronous: false
+        cache: false
+        visible: fade > 0.01
+        opacity: fade
+
+        NumberAnimation {
+            id: fadeOutAnim
+            target: wallFadeImg
+            property: "fade"
+            to: 0
+            duration: 700
+            easing.type: Easing.InOutCubic
+        }
+    }
+}
+
 // Обзор рабочих столов — отдельный полноэкранный слой: пилюля тут ни при
 // чём, а клавиатура нужна целиком.
 LazyLoader {
@@ -7085,16 +7402,9 @@ LazyLoader {
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: root.wallsOpen ? WlrKeyboardFocus.Exclusive
                                                     : WlrKeyboardFocus.None
-        // окно живёт всё время, но показывается только на открытии
-        visible: root.wallsOpen || wallsFade.opacity > 0.01
-
-        Rectangle {
-            id: wallsFade
-            anchors.fill: parent
-            color: Qt.rgba(0, 0, 0, 0.62)
-            opacity: root.wallsOpen ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: root.animMs } }
-        }
+        // Затемнение при смене убрали: анимация выглядела рвано, лучше без
+        // неё. Окно живёт ровно столько, сколько открыта карусель.
+        visible: root.wallsOpen
 
         // Раскрывается из острова: точка роста — та кромка, где он висит,
         // поэтому карусель выглядит развернувшейся пилюлей, а не отдельным

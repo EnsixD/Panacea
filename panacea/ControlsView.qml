@@ -1507,7 +1507,9 @@ Item {
                 // везде: на настольной машине без DDC экранов в списке нет
                 // вовсе, и строка прячется целиком — пустая, она всё равно
                 // съедала бы промежуток сетки.
-                visible: (view.sys.brightList || []).length > 0
+                // Без яркости строка всё равно нужна ради луны: на машине без
+                // DDC быстрого доступа к ночному свету иначе не осталось бы.
+                visible: (view.sys.brightList || []).length > 0 || view.sys.nightAvailable
 
                 Repeater {
                     model: view.sys.brightList
@@ -1521,6 +1523,21 @@ Item {
                         bpct: modelData.pct
                         bname: (view.sys.brightList || []).length > 1 ? modelData.name : ""
                     }
+                }
+
+                // Ночной свет — только луна, без подписи: он стоит рядом с
+                // яркостью, и место здесь дороже слова «Night light».
+                IconBtn {
+                    visible: view.sys.nightAvailable
+                    Layout.preferredWidth: 56
+                    Layout.preferredHeight: 56
+                    Layout.alignment: Qt.AlignVCenter
+                    glyph: String.fromCodePoint(0xF186)   // луна
+                    tip: ""
+                    active: view.sys.nightLight
+                    glyphColor: view.sys.nightLight ? view.sys.colOn : view.sys.colMuted
+                    activeColor: view.sys.colOn
+                    onAct: view.sys.toggleNightLight()
                 }
             }
 
